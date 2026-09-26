@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "PALTI FX",
+    "slug": "palti-fx",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#08080A",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.paltifx.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.paltifx.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#08080A",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "PALTI FX",
+      "backgroundColor": "#08080A",
+      "themeColor": "#08080A"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#08080A"
+        }
+      ]
+    ]
+  }
+}
