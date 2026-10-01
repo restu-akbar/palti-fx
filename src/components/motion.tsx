@@ -71,6 +71,7 @@ export function PressScale({
   children,
   onPress,
   style,
+  containerStyle,
   scaleTo = 0.965,
   haptic = true,
   accessibilityLabel,
@@ -79,6 +80,8 @@ export function PressScale({
   children: React.ReactNode;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  /** Gaya untuk pembungkus luar (mis. flex di dalam baris) */
+  containerStyle?: StyleProp<ViewStyle>;
   scaleTo?: number;
   haptic?: boolean;
   accessibilityLabel?: string;
@@ -98,6 +101,7 @@ export function PressScale({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       hitSlop={hitSlop}
+      style={containerStyle}
     >
       <Animated.View style={[style, { transform: [{ scale: s }] }]}>{children}</Animated.View>
     </Pressable>

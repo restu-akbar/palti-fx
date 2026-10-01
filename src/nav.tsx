@@ -11,7 +11,8 @@ export type Route =
   | { name: 'tools' }
   | { name: 'tool'; params: { toolId: ToolId } }
   | { name: 'journal' }
-  | { name: 'tradeForm'; params: { tradeId?: string } };
+  | { name: 'tradeForm'; params: { tradeId?: string } }
+  | { name: 'achievements' };
 
 export type ToolId = 'lot' | 'pip' | 'rr' | 'margin' | 'pl' | 'compound';
 

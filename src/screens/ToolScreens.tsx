@@ -186,7 +186,7 @@ function Result({
       <SectionTitle>Hasil</SectionTitle>
       <Card gold padded={false}>
         <LinearGradient
-          colors={['rgba(227,182,79,0.16)', 'rgba(227,182,79,0)']}
+          colors={['rgba(237,193,58,0.16)', 'rgba(237,193,58,0)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           style={{ padding: 18, paddingBottom: ok ? 8 : 18 }}
@@ -223,6 +223,11 @@ type SlUnit = 'points' | 'pips' | 'price';
 
 function LotSizeTool() {
   const { settings, updateSettings } = useStore();
+  useEffect(() => {
+    updateSettings({ lotCalcCount: (settings.lotCalcCount ?? 0) + 1 });
+    // hanya sekali saat kalkulator dibuka
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [symbol, setSymbol, inst] = useSymbol();
   const [balance, setBalance] = useState(settings.balance ?? '');
   const [riskMode, setRiskMode] = useState<'pct' | 'usd'>('pct');
@@ -603,7 +608,7 @@ function CompoundTool() {
       </Result>
       {rows.length > 0 && (
         <Card style={{ marginTop: 12 }} padded={false}>
-          <View style={[st.tr, { backgroundColor: 'rgba(227,182,79,0.08)' }]}>
+          <View style={[st.tr, { backgroundColor: 'rgba(237,193,58,0.08)' }]}>
             <Text style={[st.th, { flex: 0.6, textAlign: 'left' }]}>{unit === 'bulan' ? 'Bln' : unit === 'minggu' ? 'Mgg' : 'Hari'}</Text>
             <Text style={st.th}>Awal</Text>
             <Text style={st.th}>Profit</Text>

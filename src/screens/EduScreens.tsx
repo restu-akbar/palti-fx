@@ -214,7 +214,7 @@ export function RichText({ content }: { content: string }) {
       blocks.push(
         <LinearGradient
           key={i}
-          colors={['rgba(227,182,79,0.16)', 'rgba(227,182,79,0.04)']}
+          colors={['rgba(237,193,58,0.16)', 'rgba(237,193,58,0.04)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={st.tip}
@@ -268,7 +268,7 @@ const st = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(227,182,79,0.25)',
+    borderColor: 'rgba(237,193,58,0.25)',
     padding: 16,
     marginVertical: 12,
   },

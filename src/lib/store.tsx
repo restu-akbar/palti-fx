@@ -24,6 +24,14 @@ export type Settings = {
   riskPercent?: string;
   leverage?: string;
   lastSymbol?: string;
+  /** Sudah melihat layar sambutan */
+  welcomed?: boolean;
+  /** Nama panggilan member (untuk sapaan) */
+  name?: string;
+  /** Pencapaian yang sudah terbuka: id → waktu terbuka (ms) */
+  unlocked?: Record<string, number>;
+  /** Berapa kali kalkulator Lot Size dibuka */
+  lotCalcCount?: number;
 };
 
 type StoreValue = {

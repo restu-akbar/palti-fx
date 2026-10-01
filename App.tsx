@@ -15,12 +15,15 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { LogoMark } from './src/components/Logo';
 import { tap } from './src/components/motion';
 import { IconName } from './src/components/ui';
-import { StoreProvider } from './src/lib/store';
+import { StoreProvider, useStore } from './src/lib/store';
 import { NavProvider, Route, TabKey, useNav } from './src/nav';
 import { EduScreen, LessonScreen, ModuleScreen } from './src/screens/EduScreens';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { JournalScreen, TradeFormScreen } from './src/screens/JournalScreens';
 import { ToolScreen, ToolsScreen } from './src/screens/ToolScreens';
+import { WelcomeScreen } from './src/screens/WelcomeScreen';
+import { AchievementsScreen } from './src/screens/AchievementsScreen';
+import { AchievementWatcher } from './src/components/AchievementWatcher';
 import { colors, fonts, goldGradient } from './src/theme';
 
 const native = Platform.OS !== 'web';
@@ -50,6 +53,8 @@ function renderRoute(route: Route) {
       return <JournalScreen />;
     case 'tradeForm':
       return <TradeFormScreen tradeId={route.params.tradeId} />;
+    case 'achievements':
+      return <AchievementsScreen />;
   }
 }
 
@@ -148,6 +153,13 @@ function TabBar() {
   );
 }
 
+/** Tampilkan layar sambutan eksklusif sekali, saat aplikasi pertama kali dibuka. */
+function WelcomeGate() {
+  const { ready, settings, updateSettings } = useStore();
+  if (!ready || settings.welcomed) return null;
+  return <WelcomeScreen onEnter={(name) => updateSettings({ welcomed: true, name: name || undefined })} />;
+}
+
 function Splash() {
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -161,7 +173,7 @@ function Splash() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
       <Animated.View style={{ opacity: v }}>
-        <LogoMark size={84} />
+        <LogoMark size={110} />
       </Animated.View>
     </View>
   );
@@ -188,6 +200,8 @@ export default function App() {
               <StatusBar style="light" />
               <CurrentScreen />
               <TabBar />
+              <AchievementWatcher />
+              <WelcomeGate />
             </View>
           </View>
         </NavProvider>

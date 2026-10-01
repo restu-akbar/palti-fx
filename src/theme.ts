@@ -7,10 +7,10 @@ export const colors = {
   cardHi: '#1B1B22',
   border: 'rgba(255,255,255,0.07)',
   borderStrong: 'rgba(255,255,255,0.12)',
-  borderGold: 'rgba(227,182,79,0.35)',
-  gold: '#E3B64F',
-  goldLight: '#F7DC8E',
-  goldDark: '#A67C1E',
+  borderGold: 'rgba(237,193,58,0.35)',
+  gold: '#EDC13A', // diselaraskan dengan kuning logo PALTI FX
+  goldLight: '#FCE39A',
+  goldDark: '#B3861A',
   ink: '#16110A', // teks di atas emas
   text: '#F5F2EA',
   textDim: '#B4AFA4',
@@ -21,8 +21,8 @@ export const colors = {
   overlay: 'rgba(0,0,0,0.72)',
 };
 
-export const goldGradient = ['#F7DC8E', '#E3B64F', '#B8892A'] as const;
-export const heroGradient = ['#F3D17C', '#D9A640', '#9E7118'] as const;
+export const goldGradient = ['#FCE39A', '#EDC13A', '#BD8F1E'] as const;
+export const heroGradient = ['#F8DB7A', '#E8BA30', '#A87D14'] as const;
 export const cardGradient = ['#17171D', '#111115'] as const;
 
 export const fonts = {

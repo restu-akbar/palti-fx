@@ -4,7 +4,7 @@ export type Session = { key: string; name: string; city: string; start: number; 
 export const SESSIONS: Session[] = [
   { key: 'syd', name: 'Sydney', city: 'SYD', start: 21, end: 6, color: '#6AA8FF' },
   { key: 'tyo', name: 'Tokyo', city: 'TYO', start: 0, end: 9, color: '#F0625C' },
-  { key: 'ldn', name: 'London', city: 'LDN', start: 7, end: 16, color: '#E3B64F' },
+  { key: 'ldn', name: 'London', city: 'LDN', start: 7, end: 16, color: '#EDC13A' },
   { key: 'nyc', name: 'New York', city: 'NYC', start: 12, end: 21, color: '#35C98A' },
 ];
 

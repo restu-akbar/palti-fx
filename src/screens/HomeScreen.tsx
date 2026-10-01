@@ -1,20 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Line, Rect } from 'react-native-svg';
 import { EquityChart } from '../components/EquityChart';
 import { LogoMark } from '../components/Logo';
 import { MarketSessions } from '../components/MarketSessions';
 import { AnimatedBar, CountUp, FadeIn, Float, PressScale, ProgressRing, Shimmer } from '../components/motion';
-import { Card, Chip, IconBadge, IconName, SectionTitle } from '../components/ui';
+import { Card, Chip, GoldButton, IconBadge, IconName, SectionTitle, Sheet } from '../components/ui';
+import { Medal, useAchievements } from '../components/Medal';
+import { StreakChip } from '../components/Streak';
 import { ALL_LESSONS, MODULES } from '../data/modules';
 import { pct, signedUsd } from '../lib/format';
 import { greeting } from '../lib/sessions';
 import { computeStats, useStore } from '../lib/store';
 import { ToolId, useNav } from '../nav';
-import { colors, fonts, heroGradient } from '../theme';
+import { colors, fonts, goldGradient, heroGradient } from '../theme';
 
 const TIPS = [
   'Lindungi modal dulu, profit akan mengikuti.',
@@ -41,7 +42,14 @@ const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 export function HomeScreen() {
   const nav = useNav();
   const insets = useSafeAreaInsets();
-  const { trades, completed } = useStore();
+  const { trades, completed, settings, updateSettings } = useStore();
+  const { list: achList, unlockedCount, streak } = useAchievements();
+  const [nameOpen, setNameOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const memberName = settings.name?.trim() || 'Member';
+  const medalsPreview = [...achList]
+    .sort((x, y) => (x.unlocked !== y.unlocked ? (x.unlocked ? -1 : 1) : (y.at ?? 0) - (x.at ?? 0)))
+    .slice(0, 5);
   const stats = useMemo(() => computeStats(trades), [trades]);
   const doneCount = ALL_LESSONS.filter((l) => completed[l.id]).length;
   const progress = ALL_LESSONS.length ? doneCount / ALL_LESSONS.length : 0;
@@ -59,11 +67,8 @@ export function HomeScreen() {
       {/* top bar */}
       <FadeIn from="none" duration={600}>
         <View style={st.top}>
-          <LogoMark size={40} />
-          <View style={{ marginLeft: 10, flex: 1 }}>
-            <Text style={st.brand}>PALTI FX</Text>
-            <Text style={st.brandSub}>Trading Academy</Text>
-          </View>
+          <LogoMark size={44} />
+          <View style={{ flex: 1 }} />
           <View style={st.datePill}>
             <Ionicons name="calendar-clear-outline" size={13} color={colors.gold} />
             <Text style={st.dateText}>
@@ -75,10 +80,29 @@ export function HomeScreen() {
 
       <FadeIn delay={80}>
         <Text style={st.hello}>{greeting(now)},</Text>
-        <Text style={st.helloBig}>Trader PALTI FX</Text>
-        <Text style={st.day}>
-          {HARI[now.getDay()]}, {now.getDate()} {BULAN[now.getMonth()]} {now.getFullYear()}
-        </Text>
+        <PressScale
+          scaleTo={0.98}
+          haptic={false}
+          onPress={() => {
+            setNameDraft(settings.name ?? '');
+            setNameOpen(true);
+          }}
+          style={st.nameRow}
+          accessibilityLabel="Ubah nama panggilan"
+        >
+          <Text style={st.helloBig} numberOfLines={1}>
+            {memberName}
+          </Text>
+          <VipBadge />
+        </PressScale>
+        <View style={st.dayRow}>
+          <Text style={st.day}>
+            {HARI[now.getDay()]}, {now.getDate()} {BULAN[now.getMonth()]} {now.getFullYear()}
+          </Text>
+          <PressScale onPress={() => nav.go('journal')} haptic={false}>
+            <StreakChip streak={streak} />
+          </PressScale>
+        </View>
       </FadeIn>
 
       {/* hero progres belajar */}
@@ -100,20 +124,7 @@ export function HomeScreen() {
           >
             <View style={st.heroDeco} pointerEvents="none">
               <Float amount={5}>
-                <Svg width={150} height={130} viewBox="0 0 150 130">
-                  {[
-                    [18, 70, 30, 95, 60],
-                    [48, 52, 22, 86, 44],
-                    [78, 60, 26, 100, 50],
-                    [108, 30, 30, 70, 20],
-                    [138, 12, 26, 50, 4],
-                  ].map(([cx, y, h, wick2, wick1], i) => (
-                    <React.Fragment key={i}>
-                      <Line x1={cx} x2={cx} y1={wick1} y2={wick2} stroke="rgba(22,17,10,0.12)" strokeWidth={2} />
-                      <Rect x={cx - 7} y={y} width={14} height={h} rx={3} fill="rgba(22,17,10,0.09)" />
-                    </React.Fragment>
-                  ))}
-                </Svg>
+                <LogoMark size={190} variant="ink" opacity={0.09} />
               </Float>
             </View>
             <Shimmer width={heroW} />
@@ -138,6 +149,27 @@ export function HomeScreen() {
             </View>
           </LinearGradient>
         </PressScale>
+      </FadeIn>
+
+      {/* pencapaian */}
+      <FadeIn delay={220}>
+        <SectionTitle action="Lihat" onAction={() => nav.push({ name: 'achievements' })}>
+          Pencapaian
+        </SectionTitle>
+        <Card onPress={() => nav.push({ name: 'achievements' })}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            {medalsPreview.map((x) => (
+              <Medal key={x.a.id} a={x.a} unlocked={x.unlocked} size={48} />
+            ))}
+          </View>
+          <View style={st.achRow}>
+            <Text style={st.achText}>
+              <Text style={{ color: colors.goldLight, fontFamily: fonts.display }}>{unlockedCount}</Text> dari{' '}
+              {achList.length} medali terbuka
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.gold} />
+          </View>
+        </Card>
       </FadeIn>
 
       {/* tools */}
@@ -258,7 +290,38 @@ export function HomeScreen() {
           Materi & alat di aplikasi ini untuk edukasi, bukan saran investasi. Trading forex berisiko tinggi.
         </Text>
       </FadeIn>
+      <Sheet visible={nameOpen} onClose={() => setNameOpen(false)} title="Nama panggilan">
+        <Text style={st.sheetHint}>Nama ini dipakai untuk menyapamu di Beranda.</Text>
+        <TextInput
+          value={nameDraft}
+          onChangeText={setNameDraft}
+          placeholder="mis. Budi"
+          placeholderTextColor={colors.muted}
+          maxLength={20}
+          autoCapitalize="words"
+          selectionColor={colors.gold}
+          style={st.nameInput}
+        />
+        <GoldButton
+          title="Simpan"
+          icon="checkmark"
+          onPress={() => {
+            updateSettings({ name: nameDraft.trim() || undefined });
+            setNameOpen(false);
+          }}
+          style={{ marginTop: 14 }}
+        />
+      </Sheet>
     </ScrollView>
+  );
+}
+
+function VipBadge() {
+  return (
+    <LinearGradient colors={goldGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.vip}>
+      <Ionicons name="diamond" size={11} color={colors.ink} />
+      <Text style={st.vipText}>VIP</Text>
+    </LinearGradient>
   );
 }
 
@@ -288,8 +351,42 @@ const st = StyleSheet.create({
   },
   dateText: { color: colors.text, fontFamily: fonts.semi, fontSize: 12 },
   hello: { color: colors.textDim, fontFamily: fonts.medium, fontSize: 16 },
-  helloBig: { color: colors.text, fontFamily: fonts.display, fontSize: 30, letterSpacing: -0.8, marginTop: 2 },
-  day: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, marginTop: 6, marginBottom: 18 },
+  helloBig: { color: colors.text, fontFamily: fonts.display, fontSize: 30, letterSpacing: -0.8, flexShrink: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
+  vip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  vipText: { color: colors.ink, fontFamily: fonts.display, fontSize: 11, letterSpacing: 1.5 },
+  dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 18 },
+  achRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  achText: { color: colors.textDim, fontFamily: fonts.semi, fontSize: 13 },
+  sheetHint: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, marginBottom: 12, marginTop: -6 },
+  nameInput: {
+    height: 54,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderGold,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    fontFamily: fonts.bold,
+    fontSize: 17,
+    paddingHorizontal: 16,
+    outlineWidth: 0,
+  },
+  day: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, flexShrink: 1, marginRight: 8 },
   hero: {
     borderRadius: 26,
     padding: 20,
@@ -300,7 +397,7 @@ const st = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
   },
-  heroDeco: { position: 'absolute', right: -14, top: -4 },
+  heroDeco: { position: 'absolute', right: -40, top: -30 },
   heroEyebrow: { color: 'rgba(22,17,10,0.6)', fontFamily: fonts.bold, fontSize: 11, letterSpacing: 2 },
   ringText: { color: colors.ink, fontFamily: fonts.display, fontSize: 18 },
   heroTitle: { color: colors.ink, fontFamily: fonts.display, fontSize: 20, letterSpacing: -0.4 },
@@ -350,9 +447,9 @@ const st = StyleSheet.create({
     marginTop: 26,
     padding: 18,
     borderRadius: 22,
-    backgroundColor: 'rgba(227,182,79,0.07)',
+    backgroundColor: 'rgba(237,193,58,0.07)',
     borderWidth: 1,
-    borderColor: 'rgba(227,182,79,0.18)',
+    borderColor: 'rgba(237,193,58,0.18)',
   },
   tipQuote: { color: colors.gold, fontFamily: fonts.display, fontSize: 48, lineHeight: 50, marginRight: 10, marginTop: -4 },
   tipLabel: { color: colors.gold, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.8 },

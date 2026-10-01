@@ -37,12 +37,17 @@ export function Screen({
   children,
   right,
   eyebrow,
+  floating,
+  bottomPad = 120,
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   right?: React.ReactNode;
   eyebrow?: string;
+  /** Elemen melayang di atas konten (mis. tombol aksi utama) */
+  floating?: React.ReactNode;
+  bottomPad?: number;
 }) {
   const nav = useNav();
   const insets = useSafeAreaInsets();
@@ -55,7 +60,7 @@ export function Screen({
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Animated.ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + BAR_H, paddingHorizontal: 18, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingTop: insets.top + BAR_H, paddingHorizontal: 18, paddingBottom: bottomPad }}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
@@ -86,6 +91,7 @@ export function Screen({
         </Animated.Text>
         <View style={{ minWidth: 40, alignItems: 'flex-end' }}>{right}</View>
       </View>
+      {floating}
     </View>
   );
 }
@@ -136,12 +142,12 @@ export function GoldButton({
     return (
       <PressScale
         onPress={onPress}
+        containerStyle={style}
         style={[
           s.btn,
           variant === 'dark'
             ? { backgroundColor: colors.ink }
             : { borderWidth: 1, borderColor: c + '66', backgroundColor: c + '10' },
-          style,
         ]}
       >
         {icon && <Ionicons name={icon} size={18} color={c} style={{ marginRight: 8 }} />}
@@ -150,7 +156,7 @@ export function GoldButton({
     );
   }
   return (
-    <PressScale onPress={onPress} style={style}>
+    <PressScale onPress={onPress} containerStyle={style}>
       <LinearGradient colors={goldGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.btn, s.btnGlow]}>
         {icon && <Ionicons name={icon} size={18} color={colors.ink} style={{ marginRight: 8 }} />}
         <Text style={[s.btnText, { color: colors.ink }]}>{title}</Text>
@@ -553,7 +559,7 @@ export const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
-    backgroundColor: 'rgba(227,182,79,0.12)',
+    backgroundColor: 'rgba(237,193,58,0.12)',
   },
   suffix: { color: colors.gold, fontFamily: fonts.bold, fontSize: 12 },
   hint: { color: colors.muted, fontFamily: fonts.body, fontSize: 12, marginTop: 7, lineHeight: 17 },
@@ -581,7 +587,7 @@ export const s = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: 'rgba(227,182,79,0.14)',
+    backgroundColor: 'rgba(237,193,58,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
@@ -643,7 +649,7 @@ export const s = StyleSheet.create({
   sectionAction: { color: colors.gold, fontFamily: fonts.semi, fontSize: 13 },
   note: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(227,182,79,0.07)',
+    backgroundColor: 'rgba(237,193,58,0.07)',
     borderRadius: radius.md,
     padding: 14,
     marginTop: 14,
@@ -651,9 +657,9 @@ export const s = StyleSheet.create({
   noteText: { flex: 1, color: colors.textDim, fontFamily: fonts.body, fontSize: 13, lineHeight: 19 },
   iconBadge: {
     borderRadius: 15,
-    backgroundColor: 'rgba(227,182,79,0.12)',
+    backgroundColor: 'rgba(237,193,58,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(227,182,79,0.22)',
+    borderColor: 'rgba(237,193,58,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
