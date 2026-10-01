@@ -36,27 +36,41 @@
 
 ```mermaid
 flowchart TD
-    A[App dibuka] --> B[Native launch screen]
-    B --> C[Bootstrap dan pemeriksaan sesi]
-    C --> D{Hasil pemeriksaan}
-    D -- Tidak ada sesi --> E[Login]
-    D -- Sesi valid --> F{Onboarding perlu ditampilkan?}
-    D -- Offline dan sesi belum dapat dipastikan --> G[Offline / Coba lagi]
-    D -- Sesi invalid atau dicabut --> E
-    F -- Ya --> H[Onboarding anggota]
-    F -- Tidak --> I[Home]
-    H --> I
-    E --> J{Pilihan pengguna}
-    J -- Login --> K[Validasi kredensial]
-    K -- Akun active --> F
-    K -- Perlu aktivasi --> L[Aktivasi akun]
-    K -- Gagal --> M[Pesan error yang sesuai]
-    J -- Aktivasi akun --> L
-    J -- Lupa password --> N[Reset password]
-    L --> O[Verifikasi undangan dan identitas]
-    O --> P[Buat password]
-    P --> Q[Akun active dan sesi dibuat]
-    Q --> F
+    A[App dibuka / Deep Link] --> B[Native launch screen]
+    B --> C[Bootstrap: Aset & Force Update Check]
+    C --> C1{Versi App Sesuai?}
+    C1 -- Tidak --> C2[Layar Update Required]
+    C1 -- Ya --> C3{Ada Deep Link?}
+    C3 -- Deep Link Aktivasi --> L[Aktivasi Akun]
+    C3 -- Deep Link Reset --> N[Reset Password]
+    C3 -- Tidak --> D[Pemeriksaan Sesi Lokal]
+    
+    D --> E{Hasil Sesi}
+    E -- Tidak ada / Invalid / Revoked --> F[Layar Login]
+    E -- Offline & Sesi Belum Pasti --> G[Layar Offline / Retry]
+    E -- Sesi Valid --> H{Auto-Lock Aktif?}
+    
+    H -- Ya & Exceeded Timeout --> I[Verifikasi Biometrik / PIN]
+    I -- Berhasil --> J{Onboarding Perlu?}
+    I -- Gagal 3x --> F
+    H -- Tidak --> J
+    
+    J -- Ya --> K[Onboarding Anggota]
+    J -- Tidak --> M[Home]
+    K --> M
+    
+    F --> L1{Pilihan Pengguna}
+    L1 -- Input Login --> O[Validasi Kredensial & Register Push Token]
+    O -- Akun Active --> J
+    O -- Perlu Aktivasi --> L
+    O -- Gagal / Suspended --> P[Pesan Error / Contact Support]
+    L1 -- Aktivasi Akun --> L
+    L1 -- Lupa Password --> N
+    
+    L --> Q[Verifikasi Undangan / OTP]
+    Q --> R[Buat Password & Submit]
+    R --> S[Akun Active & Sesi Dibuat]
+    S --> J
 ```
 
 ## Konsep Splash Screen dan Startup
@@ -79,13 +93,15 @@ Animasi cukup satu kali: logo muncul dengan fade-in dan sedikit scale ke ukuran 
 1. OS menampilkan native launch screen statis.
 2. Setelah runtime aplikasi siap, tampilkan bootstrap splash berlogo dan mulai animasi masuk satu kali.
 3. Siapkan dependensi visual yang wajib, seperti font dan aset utama. Konten yang tidak kritis tidak boleh menghalangi masuk ke aplikasi.
-4. Baca data lokal yang diperlukan dan ambil kredensial sesi dari penyimpanan aman.
-5. Tentukan status autentikasi:
-   - Tidak ada sesi: buka Login.
+4. Periksa kesesuaian versi aplikasi (*Force Update Check*): panggil endpoint konfig/versi jika backend memerlukan batas versi minimum tertentu untuk mencegah potensi kegagalan API. Jika app usang, alihkan ke layar *Update Required*.
+5. Tangani *Deep Link / Universal Link*: jika aplikasi dibuka via tautan undangan/reset (`paltifx://activate?code=...` atau `https://...`), simpan parameter kode secara aman untuk langsung mengarahkan ke alur Aktivasi/Reset.
+6. Baca data lokal yang diperlukan dan ambil kredensial sesi dari penyimpanan aman (`expo-secure-store`).
+7. Tentukan status autentikasi:
+   - Tidak ada sesi: buka Login (atau langsung Aktivasi/Reset jika ada Deep Link valid).
    - Sesi ada dan dapat dipulihkan: lanjutkan ke Home, atau ke onboarding jika memang belum selesai.
    - Sesi dicabut/invalid: hapus sesi lokal, lalu buka Login.
    - Jaringan tidak tersedia sehingga sesi tidak dapat dipastikan: tampilkan state offline/retry, jangan salah menyimpulkan pengguna telah logout.
-6. Selesaikan transisi ke layar tujuan tanpa memperlihatkan Home atau Login sekilas sebelum keputusan dibuat.
+8. Selesaikan transisi ke layar tujuan tanpa memperlihatkan Home atau Login sekilas sebelum keputusan dibuat.
 
 Pembacaan data non-auth seperti jurnal/setting lokal dapat berjalan terpisah bila aman, tetapi tidak boleh menentukan apakah pengguna berhak mengakses API.
 
@@ -233,14 +249,17 @@ Kode undangan tidak boleh menjadi kode umum yang dapat membuat akun baru. Backen
 
 ## 3. Aktivasi Akun Undangan
 
-1. Pengguna memilih **Aktivasi akun** dari halaman Login.
-2. Pengguna memasukkan kode undangan. Jika produk mengharuskan pencarian akun lewat email/username, backend tetap harus memeriksa bahwa kode dan identitas tersebut cocok.
+1. Pengguna memilih **Aktivasi akun** dari halaman Login, atau otomatis mendarat di layar Aktivasi melalui *Deep Link / Universal Link* undangan.
+2. Pengguna memasukkan (atau terisi otomatis dari link) kode undangan. Jika produk mengharuskan pencarian akun lewat email/username, backend tetap harus memeriksa bahwa kode dan identitas tersebut cocok.
 3. Aplikasi mengirim data aktivasi ke backend melalui koneksi HTTPS. Validitas kode dan status akun diputuskan oleh backend, bukan hanya oleh aplikasi.
-4. Jika undangan valid, backend membuktikan kepemilikan kontak yang terdaftar, misalnya melalui OTP email. Kebutuhan OTP dan kanalnya perlu diputuskan sebelum implementasi.
-5. Pengguna menetapkan password baru dan mengonfirmasikannya. Aplikasi mengirim password melalui HTTPS untuk diverifikasi/disimpan sebagai hash oleh backend; aplikasi tidak menyimpan password.
-6. Backend mengubah status akun menjadi `active`, menandai undangan sudah terpakai, dan mencatat penerimaan syarat/kebijakan yang diperlukan beserta versinya.
-7. Usulan pengalaman: setelah aktivasi berhasil, backend menerbitkan sesi dan aplikasi memeriksa versi onboarding. Jika belum selesai, tampilkan onboarding; setelah diselesaikan/dilewati, buka Home. Login terpisah tidak diperlukan kecuali ada kebijakan keamanan yang mengharuskannya.
-8. Kode tidak valid, kedaluwarsa, sudah dipakai, dibatalkan, atau terlalu banyak percobaan menghasilkan instruksi pemulihan yang aman. Jangan mengungkap detail akun yang tidak diperlukan.
+4. Jika undangan valid, backend membuktikan kepemilikan kontak yang terdaftar, misalnya melalui OTP email. Sediakan **Cooldown Timer (misal 60 detik)** pada tombol *Kirim Ulang OTP* untuk mencegah spamming API.
+5. Jika pengguna tidak pernah menerima kode setelah 3x percobaan, tampilkan jalur eskalasi bantuan: **"Tidak menerima kode? Hubungi Admin"**.
+6. Pengguna menetapkan password baru dan mengonfirmasikannya. Aplikasi mengirim password melalui HTTPS untuk diverifikasi/disimpan sebagai hash oleh backend; aplikasi tidak menyimpan password.
+7. Selama tombol submit ditekan, kunci antarmuka (*disable button & loading state*) untuk mencegah *double-submit* atau request ganda saat koneksi lambat.
+8. Jika koneksi terputus saat submit password baru, tampilkan notifikasi error jaringan transien tanpa mengosongkan form password yang sudah diisi pengguna.
+9. Backend mengubah status akun menjadi `active`, menandai undangan sudah terpakai, dan mencatat penerimaan syarat/kebijakan yang diperlukan beserta versinya.
+10. Usulan pengalaman: setelah aktivasi berhasil, backend menerbitkan sesi, mendaftarkan *Push Notification Token*, dan aplikasi memeriksa versi onboarding. Jika belum selesai, tampilkan onboarding; setelah diselesaikan/dilewati, buka Home. Login terpisah tidak diperlukan kecuali ada kebijakan keamanan yang mengharuskannya.
+11. Kode tidak valid, kedaluwarsa, sudah dipakai, dibatalkan, atau terlalu banyak percobaan menghasilkan instruksi pemulihan yang aman. Jangan mengungkap detail akun yang tidak diperlukan.
 
 ## 4. Login Sehari-hari
 
@@ -248,9 +267,55 @@ Kode undangan tidak boleh menjadi kode umum yang dapat membuat akun baru. Backen
 2. Aplikasi mengirim permintaan login ke backend melalui HTTPS.
 3. Backend memverifikasi password dan status akun.
 4. Jika akun `active`, backend menerbitkan access token dan refresh token sesuai kebijakan sesi.
-5. Aplikasi menyimpan token menggunakan penyimpanan kredensial aman yang sesuai platform. Jangan menyimpannya sebagai password, jangan menulis token ke log, dan jangan menganggap penyimpanan biasa setara dengan penyimpanan aman.
-6. Setelah login berhasil, periksa status onboarding untuk akun tersebut. Tampilkan onboarding yang belum selesai; jika sudah selesai, lanjutkan ke Home.
-7. Jika akun masih `pending_activation`, arahkan ke aktivasi. Jika akun `suspended/locked`, tampilkan jalur bantuan yang sesuai; jangan menawarkan pembuatan akun baru.
+5. Aplikasi menyimpan token menggunakan penyimpanan kredensial aman (`expo-secure-store`). Jangan menyimpannya sebagai password, jangan menulis token ke log, dan jangan menganggap penyimpanan biasa setara dengan penyimpanan aman.
+6. Aplikasi mendaftarkan *Push Notification Token* (Expo Push Token / FCM) ke backend dan mengikatnya ke identitas akun yang sedang aktif.
+7. Setelah login berhasil, periksa status onboarding untuk akun tersebut. Tampilkan onboarding yang belum selesai; jika sudah selesai, lanjutkan ke Home.
+8. Jika akun masih `pending_activation`, arahkan ke aktivasi. Jika akun `suspended/locked`, tampilkan jalur bantuan yang sesuai; jangan menawarkan pembuatan akun baru.
+
+### Rincian UI/UX Layar Login Berdasarkan Skenario
+
+Untuk memberikan pengalaman pengguna yang intuitif, aman, dan berstandar aplikasi finansial premium, interaksi antarmuka (*UI/UX*) pada layar Login diatur berdasarkan skenario berikut:
+
+#### 1. Anatomi Komponen Layar Login dan Estetika Visual
+
+Layar Login mengusung tema **Dark Luxury Glassmorphism** untuk mencerminkan aplikasi edukasi & finansial modern:
+
+- **Background Ambience**: Latar belakang dasar gelap (*Deep Obsidian/Slate*) yang diperkaya dengan aksen pencahayaan lembut (*ambient radial glow/light orb* warna emas pudar atau cyan gelap) di bagian belakang agar efek pembiasan kaca terlihat nyata dan berdimensi.
+- **Glassmorphic Form Card (`BlurCard`)**:
+  - Seluruh form login utama dibungkus di dalam kartu berefek *frosted glass* semi-transparan menggunakan `BlurView` dari `expo-blur` (`intensity={45-60}`, `tint="dark"`).
+  - Lapisan latar semi-transparan (misal `rgba(18, 24, 38, 0.70)`).
+  - Garis tepi tipis presisi (`borderWidth: 1`, `borderColor: 'rgba(255, 255, 255, 0.12)'`) dengan kilau aksen di sisi atas (`borderTopColor: 'rgba(255, 255, 255, 0.25)'`).
+  - Sudut melengkung halus (`borderRadius: 24`), elevasi lembut (*subtle backdrop shadow*).
+- **Header (di dalam atau di atas Card)**: Menampilkan `LogoFull` (atau `LogoMark` pada orientasi/layar sempit) PALTI FX, disertai judul *"Masuk ke Akun"* dan subteks singkat *"Gunakan akun yang telah disiapkan admin"*.
+- **Input Identifier**: Field teks untuk Email/Username dengan latar semi-transparan gelap (`rgba(255, 255, 255, 0.05)`), ikon envelope di sisi kiri, border halus berelevasi, dan tombol clear (*X*) ketika terisi.
+- **Input Password**: Field kata sandi dengan latar semi-transparan senada, ikon gembok di sisi kiri, sensor teks tersamarkan (*dots*), dan ikon toggle mata (*Show/Hide*) di sisi kanan.
+- **Tautan Lupa Password**: Diletakkan tepat di bawah field password di sebelah kanan dengan area sentuh (*hit slop*) minimal 44x44 pt.
+- **Tombol Utama (Masuk)**: Tombol full-width dengan warna aksen tegas khas PALTI FX (gradient emas atau warna aksen kontras) yang memberikan kontras kuat di atas kartu kaca transparan.
+- **Footer**: Tautan teks *"Belum mengaktifkan akun? Aktivasi akun di sini"* dan keterangan versi aplikasi kecil di bagian paling bawah.
+
+#### 2. Skenario Interaksi dan Kondisi Antarmuka
+
+| Skenario | Perilaku UI/UX | State Komponen & Visual (Glassmorphic) |
+| --- | --- | --- |
+| **A. Tampilan Awal (Idle)** | Pengguna baru membuka layar login. | Kartu blur tampak mengambang elegan di atas ambient glow latar belakang. Tombol *Masuk* dalam status **disabled** (opacity 50%) sampai kedua field terisi minimal 1 karakter. Keyboard belum muncul sampai salah satu input ditekan. |
+| **B. Fokus Input & Pengetikan** | Pengguna menyentuh field input untuk mengetik. | Field aktif mendapatkan highlight *border glow* warna primer PALTI FX di atas permukaan kartu kaca. Teks placeholder bergeser/menghilang dengan transisi halus. |
+| **C. Toggle Kata Sandi** | Pengguna menekan ikon mata pada input password. | Mengubah status `secureTextEntry` secara instan tanpa memindahkan posisi kursor atau menghilangkan teks yang sudah diketik. |
+| **D. Validasi Format (In-line)** | Email tidak memiliki format valid saat pengguna berpindah field (*onBlur*). | Border field berubah menjadi aksen peringatan halus dan muncul teks keterangan kecil di bawah field: *"Format email belum sesuai"*. Tombol Masuk tetap dapat ditekan jika pengguna yakin username mereka bukan email. |
+| **E. Pengiriman Data (Submitting)** | Pengguna menekan tombol *Masuk*. | 1. Keyboard otomatis ditutup (`Keyboard.dismiss()`).<br>2. Tombol *Masuk* bertransformasi: teks berganti menjadi spinner loading halus (`ActivityIndicator`) dengan label *"Memverifikasi..."*.<br>3. Seluruh input, tombol mata, dan link teks dikunci (*disabled*) untuk mencegah *double submit*. Kartu blur mempertahankan opasitas stabil tanpa flicker. |
+| **F. Kredensial Salah (401)** | Email/username atau password salah. | 1. Timbul getaran error ringan (*haptic error feedback*).<br>2. Banner alert merah gelap glassmorphic muncul di atas form dengan animasi fade-in: *"Email atau kata sandi tidak cocok. Silakan periksa kembali."*<br>3. Field password otomatis dikosongkan dan langsung menerima autofokus kembali. Field email tetap dipertahankan. |
+| **G. Akun Belum Aktif (`pending_activation`)** | Akun valid tetapi belum menyelesaikan aktivasi. | Muncul Bottom Sheet kaca (*Glassmorphic sheet*) informatif:<br>- Judul: *"Akun Anda Belum Diaktifkan"*<br>- Penjelasan: *"Akun Anda sudah disiapkan oleh admin, silakan lakukan aktivasi untuk membuat kata sandi."*<br>- Tombol Aksi: *"Aktivasi Sekarang"* (membuka layar Aktivasi dengan email/username sudah otomatis terisi). |
+| **H. Akun Terkunci Sementara (429 Rate Limit)** | Pengguna salah memasukkan kata sandi 5x berturut-turut. | 1. Banner peringatan oranye/amber muncul di atas form kartu.<br>2. Teks hitung mundur waktu dinamis muncul di bawah tombol Masuk: *"Percobaan melebihi batas. Coba lagi dalam 14:59"*.<br>3. Tombol *Masuk* dikunci (*disabled*) selama countdown.<br>4. Tautan *"Lupa Kata Sandi?"* disorot dengan warna aksen lebih kontras sebagai alternatif pemulihan. |
+| **I. Akun Dibekukan (403 Suspended)** | Akses akun dinonaktifkan oleh administrator. | Muncul Dialog Modal kaca transparan dengan ikon gembok terkunci:<br>- Judul: *"Akses Akun Dibatasi"*<br>- Deskripsi: *"Akun ini telah dinonaktifkan oleh admin. Silakan hubungi tim support untuk bantuan."*<br>- Tombol Aksi: *"Hubungi Admin / CS"* (membuka aplikasi WhatsApp/Email resmi dengan template subjek terisi otomatis) dan tombol *"Tutup"*. |
+| **J. Gangguan Jaringan / Offline** | Perangkat offline saat tombol Masuk ditekan. | Snackbar glassmorphic non-intrusif muncul di bagian bawah layar: *"Koneksi internet tidak stabil. Periksa koneksi Anda dan coba lagi."* Form input tidak di-reset dan tombol Masuk kembali aktif agar siap ditekan ulang. |
+| **K. Adaptasi Keyboard Mobile** | Keyboard virtual perangkat terbuka dan menutupi layar. | Menggunakan kombinasi `KeyboardAvoidingView` dan `ScrollView` dengan `keyboardShouldPersistTaps="handled"`. Kartu blur otomatis bergeser ke atas secara proporsional sehingga tombol *Masuk* tetap berada dalam jangkauan jempol (*thumb-friendly zone*). |
+| **L. Aksesibilitas & Ukuran Font** | Pengguna mengaktifkan Screen Reader atau memperbesar font sistem. | Seluruh kontrol interaktif di dalam kartu memiliki `accessibilityLabel` dan `accessibilityRole` yang bermakna. Kartu blur menyesuaikan padding dinamis (*auto-layout*) sehingga teks label tidak terpotong (*no clipping*) saat font dinaikkan hingga 150%. |
+
+### Aturan Input dan Normalisasi Data
+
+Untuk mencegah kegagalan login atau aktivasi akibat input keyboard mobile:
+- **Email & Username**: Selalu lakukan `.trim().toLowerCase()` sebelum dikirim ke backend. Matikan kapitalisasi dan koreksi otomatis pada komponen input React Native (`autoCapitalize="none"`, `autoCorrect={false}`).
+- **Kode Undangan & OTP**: Otomatis dikonversi ke huruf besar dan dihapus spasinya (`.trim().toUpperCase()`) serta menghapus tanda hubung/spasi yang tidak sengaja terbawa saat pengguna menyalin (*copy-paste*).
+- **Password**: Dikirim persis sesuai karakter yang diketik pengguna tanpa *trimming* (karena spasi di awal/akhir bisa menjadi bagian sah dari passphrase yang disengaja).
 
 ### Kebijakan "Remember Me"
 
@@ -263,38 +328,49 @@ Menutup aplikasi tidak sama dengan logout. Saat aplikasi dibuka kembali:
 1. Tampilkan splash/loading selama pemeriksaan sesi; hindari menampilkan halaman Login sebentar sebelum mengetahui hasilnya.
 2. Jika tidak ada refresh token, arahkan ke Login.
 3. Jika ada token, validasi/pulihkan sesi dengan backend. Pemeriksaan waktu kedaluwarsa lokal hanya optimasi, bukan sumber kebenaran.
-4. Jika sesi valid, masuk ke Home.
+4. Jika sesi valid, masuk ke Home (atau ke verifikasi Auto-Lock jika diaktifkan).
 5. Jika access token kedaluwarsa tetapi refresh token valid, minta access token baru lalu lanjutkan ke halaman yang diminta.
 6. Jika refresh token kedaluwarsa, dicabut, atau ditolak, hapus kredensial lokal dan arahkan ke Login dengan pesan sesi berakhir.
 7. Jika backend tidak dapat dijangkau karena perangkat offline, jangan otomatis menganggap token dicabut atau menghapus sesi. Tampilkan keadaan offline dan tombol Coba lagi. Kebijakan apakah konten tertentu boleh dibuka offline perlu diputuskan terpisah.
 
+### Proteksi Akses Kembali (Auto-Lock & Biometrik)
+
+Sebagai aplikasi finansial, akses aplikasi saat dibuka kembali dari *background* dapat ditingkatkan keamanannya dengan kebijakan *Auto-Lock*:
+
+- **Auto-Lock Timeout**: Jika aplikasi berada di background lebih lama dari durasi ambang batas (misal 5 menit), aplikasi mengunci antarmuka dan meminta verifikasi ulang sebelum pengguna dapat mengakses data Home.
+- **Biometrik (Face ID / Fingerprint / Passcode)**: Pengguna dapat mengaktifkan biometrik melalui pengaturan. Jika aktif, pembukaan dari *auto-lock* menggunakan biometrik perangkat.
+- **Fallback Verification**: Jika verifikasi biometrik gagal 3x atau sensor tidak tersedia, sediakan tombol fallback untuk memasukkan PIN aplikasi atau login ulang dengan password.
+
 ## 6. Masa Berlaku dan Refresh Token
 
 - Access token berumur pendek dan dikirim hanya ke API yang membutuhkan autentikasi.
-- Refresh token berumur lebih panjang, disimpan di penyimpanan aman, dan hanya digunakan pada endpoint refresh.
+- Refresh token berumur lebih panjang, disimpan di penyimpanan aman (`expo-secure-store`), dan hanya digunakan pada endpoint refresh.
 - Backend adalah sumber kebenaran untuk validitas, pencabutan, rotasi, dan masa berlaku token.
+- **Mekanisme Single-Flight / Queueing Refresh Token**: Jika beberapa request API dipanggil secara bersamaan saat access token kedaluwarsa (misal saat membuka halaman yang memuat grafik, profil, dan notifikasi), aplikasi harus memicu **hanya 1 request refresh token**. Request API lainnya ditahan (*queued*). Setelah token baru diterima, seluruh request yang mengantri di-retry secara transparan menggunakan access token baru tersebut.
+- **Global 401 Interceptor (Force Logout)**: Jika API mengembalikan respon `401 Unauthorized` atau `403 Forbidden` di tengah penggunaan aplikasi (karena sesi dicabut admin, password di-reset dari perangkat lain, atau refresh token ditolak), aplikasi harus menghapus sesi lokal, membatalkan antrean request, me-redirect pengguna ke layar Login, dan menampilkan notifikasi: *"Sesi Anda telah berakhir. Silakan login kembali."*
+- **Penanganan Ketidaksesuaian Waktu Perangkat (*Clock Skew Handling*)**: Jangan mengandalkan `Date.now()` jam HP lokal untuk mengevaluasi waktu kedaluwarsa JWT secara mutlak. Gunakan selisih waktu server (*server time offset*) atau serahkan penentuan kedaluwarsa penuh pada status HTTP `401` dari respon backend.
 - Jika refresh gagal karena token invalid/revoked, akhiri sesi lokal. Jika gagal karena jaringan/server, pertahankan sesi lokal dan sediakan retry; jangan menyamakan kegagalan jaringan dengan logout.
 - Backend sebaiknya mendeteksi penggunaan ulang refresh token yang sudah dirotasi dan dapat mencabut keluarga sesi terkait.
-- Jika refresh dapat terjadi dari beberapa request bersamaan, aplikasi perlu mencegah banyak refresh paralel dan mengulang request yang gagal secara terkendali.
 
 ## 7. Lupa dan Reset Password
 
 1. Pengguna memilih **Lupa password** di halaman Login.
 2. Pengguna memasukkan email/username yang terdaftar.
-3. Backend mengirim instruksi reset ke kontak terverifikasi.
+3. Backend mengirim instruksi reset ke kontak terverifikasi. Sediakan *Cooldown Timer* (60 detik) untuk opsi kirim ulang.
 4. Respons awal sebaiknya tidak membocorkan apakah suatu email/username terdaftar.
 5. Token/kode reset harus terbatas waktu, sekali pakai, dan terpisah dari activation code.
 6. Setelah password diganti, backend menerapkan kebijakan sesi yang dipilih: mempertahankan sesi lain atau mencabutnya.
 7. Pengguna mendapat konfirmasi dan mengikuti kebijakan login kembali yang disepakati.
 
-## 8. Logout
+## 8. Logout dan Pembersihan Sesi
 
 1. Pengguna memilih Logout dari Profile/Settings.
 2. Tampilkan konfirmasi bila tindakan mudah terpicu tanpa sengaja.
-3. Setelah dikonfirmasi, aplikasi meminta backend mencabut refresh token/sesi perangkat bila endpoint tersedia.
-4. Aplikasi menghapus access token, refresh token, dan data autentikasi lokal dari penyimpanan aman, termasuk bila permintaan pencabutan gagal.
-5. Arahkan ke Login dan tampilkan pesan bahwa pengguna telah logout.
-6. Saat aplikasi dibuka kembali, tidak ada sesi lokal sehingga pengguna tetap berada di Login.
+3. **Unregister Push Notification Token**: Aplikasi meminta backend mencabut keterikatan *Push Token* perangkat dari akun tersebut agar notifikasi privat tidak salah terkirim ke pengguna berikutnya.
+4. Setelah dikonfirmasi, aplikasi meminta backend mencabut refresh token/sesi perangkat bila endpoint tersedia.
+5. **Pembersihan Total State & Cache Local (*Purge Local Storage*)**: Aplikasi menghapus access token, refresh token dari `expo-secure-store`, serta melakukan `resetAllStores()` pada memori dan cache lokal (`MMKV` / `AsyncStorage` / `Zustand`) untuk mencegah kebocoran data (*data leak*) ke pengguna baru di perangkat yang sama.
+6. Arahkan ke Login dan tampilkan pesan bahwa pengguna telah logout.
+7. Saat aplikasi dibuka kembali, tidak ada sesi lokal sehingga pengguna tetap berada di Login.
 
 Logout pada satu perangkat dan **Logout dari semua perangkat** adalah tindakan berbeda. Jika fitur kedua dibutuhkan, tampilkan sebagai aksi terpisah dan pastikan backend mendukung pencabutan semua sesi.
 
@@ -305,7 +381,8 @@ Logout pada satu perangkat dan **Logout dari semua perangkat** adalah tindakan b
 | Email/username atau password salah | Pesan umum: kredensial tidak cocok; jangan mengungkap field mana yang valid. Beri kesempatan mencoba lagi dengan rate limit. |
 | Akun perlu aktivasi | Arahkan ke Aktivasi akun atau kirim ulang undangan melalui proses yang aman. |
 | Undangan invalid/kedaluwarsa/sudah dipakai | Jelaskan langkah berikutnya, misalnya minta undangan baru kepada admin. |
-| Akun terkunci/suspended | Tampilkan status yang aman dan cara menghubungi admin/support. |
+| Akun terkunci sementara (Rate limit) | Akibat salah input kredensial 5x berturut-turut. Tampilkan hitung mundur waktu ("Coba lagi dalam 15 menit") atau opsi reset password. |
+| Akun dibekukan / Suspended | Penonaktifan oleh admin. Tampilkan pesan akun dinonaktifkan beserta tombol kontak Admin/Support dengan template subjek email/chat terisi otomatis. |
 | Tidak ada internet | Pertahankan input yang aman, tampilkan status offline, dan sediakan Coba lagi. Jangan hapus sesi. |
 | Timeout/server error | Tampilkan kegagalan sementara dan retry; jangan menyatakan password salah. |
 | Access token kedaluwarsa | Coba refresh secara transparan satu kali sesuai kebijakan. |
@@ -317,6 +394,9 @@ Pesan error harus singkat, dapat dipahami, tidak menampilkan stack trace/token, 
 
 ## 10. Prinsip Keamanan
 
+- **Penyimpanan Kredensial Mobile**: Token sesi (*Access Token* & *Refresh Token*) wajib disimpan menggunakan enkripsi tingkat OS native via `expo-secure-store` (Keychain pada iOS, EncryptedSharedPreferences / Keystore pada Android). Data konfigurasi non-sensitif (seperti status onboarding atau preferensi tema) disimpan terpisah menggunakan `AsyncStorage` / `MMKV`.
+- **Manajemen Push Token**: Push Notification Token diikat ke `user_id` di server saat login dan wajib di-unregister saat logout untuk mencegah kebocoran notifikasi finansial antar-pengguna di perangkat yang sama.
+- **Deteksi Perangkat Terkompromi (*Jailbreak / Root Detection*)**: Aplikasi dapat melakukan pemeriksaan keamanan awal di bootstrap. Jika perangkat dalam kondisi *rooted* / *jailbroken*, aplikasi dapat memberikan peringatan risiko keamanan atau menonaktifkan fitur penyimpanan sesi persisten.
 - Password hanya dikirim melalui HTTPS dan diverifikasi di backend menggunakan algoritma hash password yang sesuai. Password tidak disimpan plaintext di backend maupun perangkat.
 - Activation code, OTP, reset token, access token, dan refresh token memiliki tujuan berbeda dan tidak boleh saling menggantikan.
 - Token rahasia tidak disimpan di log, analytics, URL, atau pesan error.
@@ -333,7 +413,7 @@ Pesan error harus singkat, dapat dipahami, tidak menampilkan stack trace/token, 
 - Penutupan aplikasi tidak otomatis menghapus sesi.
 - Sesi valid dipulihkan; token yang dicabut tidak dapat memulihkan sesi.
 - Kegagalan jaringan dapat dibedakan dari sesi yang benar-benar tidak valid.
-- Logout menghapus kredensial lokal dan mencabut sesi server sesuai kemampuan backend.
+- Logout menghapus kredensial lokal, me-reset seluruh cache lokal, me-unregister Push Token, dan mencabut sesi server.
 - Password tidak disimpan di perangkat dan token tidak dicatat ke log.
 - Error login/aktivasi/reset tidak membocorkan keberadaan akun secara tidak perlu.
 
@@ -349,18 +429,134 @@ Sebelum flow dianggap final, sepakati poin-poin berikut:
 6. Apakah beberapa perangkat boleh login bersamaan? Apa cakupan Logout biasa dan Logout semua perangkat?
 7. Setelah reset password, apakah sesi di perangkat lain harus dicabut?
 8. Apakah aplikasi perlu membuka konten tertentu saat offline?
-9. Apakah diperlukan verifikasi tambahan, seperti MFA atau biometrik untuk membuka kembali aplikasi?
+9. Berapa durasi ambang batas *Auto-Lock Timeout* (misal 5 menit) dan apakah verifikasi biometrik wajib atau opsional?
 10. Apa jalur pengguna jika undangan hilang, email tidak dapat diakses, atau admin salah memasukkan data?
 
 ## 13. Ringkasan Alur yang Diusulkan
 
 ```text
 Admin menyiapkan akun (pending_activation)
-    -> Backend mengirim/memberikan undangan yang terikat ke akun
-    -> Pengguna membuka aplikasi
-    -> Belum ada sesi: Login
-    -> Akun sudah active: Login -> Home
-    -> Akun pending_activation: Aktivasi -> Verifikasi -> Buat password -> Home
-    -> Aplikasi dibuka lagi dengan sesi valid: Pulihkan sesi -> Home
-    -> Sesi tidak valid/dicabut: Hapus sesi lokal -> Login
+    -> Backend mengirim/memberikan undangan (atau Deep Link) yang terikat ke akun
+    -> Pengguna membuka aplikasi / klik Deep Link
+    -> Periksa versi aplikasi (Force Update Check)
+    -> Belum ada sesi: Login / Aktivasi (via Deep Link)
+    -> Akun sudah active: Login -> Register Push Token -> Home
+    -> Akun pending_activation: Aktivasi -> OTP Cooldown -> Buat password -> Register Push Token -> Home
+    -> Aplikasi dibuka lagi dengan sesi valid: Cek Auto-Lock (Biometrik/PIN jika aktif) -> Pulihkan sesi -> Home
+    -> Sesi tidak valid/dicabut: Unregister Push Token -> Hapus sesi & Purge Cache lokal -> Login
+```
+
+## 14. Draf Kontrak Payload API
+
+Berikut adalah draf payload JSON sebagai referensi kontrak integrasi antara frontend dan backend:
+
+### 1. Login (`POST /api/v1/auth/login`)
+
+**Request:**
+```json
+{
+  "identifier": "trader@paltifx.com",
+  "password": "PasswordAman123!",
+  "device_id": "device-uuid-xxxx",
+  "device_name": "iPhone 15 Pro",
+  "platform": "ios"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "access_token": "eyJhbGciOi...",
+  "refresh_token": "dGhpcy1pcy1hLXJlZnJlc2g...",
+  "token_type": "Bearer",
+  "expires_in": 900,
+  "user": {
+    "id": "usr_987654",
+    "email": "trader@paltifx.com",
+    "name": "Alex",
+    "status": "active",
+    "onboarding_version": 1
+  }
+}
+```
+
+### 2. Aktivasi Akun (`POST /api/v1/auth/activate`)
+
+**Request:**
+```json
+{
+  "activation_code": "PLT-FX-8901",
+  "password": "PasswordBaru123!",
+  "accepted_terms_version": "v1.0",
+  "device_id": "device-uuid-xxxx",
+  "platform": "android"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "access_token": "eyJhbGciOi...",
+  "refresh_token": "dGhpcy1pcy1hLXJlZnJlc2g...",
+  "token_type": "Bearer",
+  "expires_in": 900,
+  "user": {
+    "id": "usr_987654",
+    "email": "trader@paltifx.com",
+    "status": "active",
+    "onboarding_version": 0
+  }
+}
+```
+
+### 3. Refresh Token (`POST /api/v1/auth/refresh`)
+
+**Request:**
+```json
+{
+  "refresh_token": "dGhpcy1pcy1hLXJlZnJlc2g..."
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "access_token": "eyJhbGciOi...new...",
+  "refresh_token": "dGhpcy1pcy1hLXJlZnJlc2gtbmV3...",
+  "expires_in": 900
+}
+```
+
+### 4. Pendaftaran Push Token (`POST /api/v1/notifications/push-token`)
+
+**Request:**
+```json
+{
+  "push_token": "ExponentPushToken[xxxxxxxxxxxxxx]",
+  "device_id": "device-uuid-xxxx"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "registered"
+}
+```
+
+### 5. Logout (`POST /api/v1/auth/logout`)
+
+**Request:**
+```json
+{
+  "refresh_token": "dGhpcy1pcy1hLXJlZnJlc2g...",
+  "push_token": "ExponentPushToken[xxxxxxxxxxxxxx]"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "logged_out"
+}
 ```
