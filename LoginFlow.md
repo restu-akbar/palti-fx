@@ -36,24 +36,174 @@
 
 ```mermaid
 flowchart TD
-    A[App dibuka] --> B{Ada sesi tersimpan?}
-    B -- Tidak --> C[Login]
-    B -- Ya --> D[Pulihkan sesi ke backend]
-    D -- Berhasil --> E[Home]
-    D -- Token tidak valid atau dicabut --> C
-    D -- Jaringan tidak tersedia --> F[Pesan offline dan coba lagi]
-    C --> G{Pilihan pengguna}
-    G -- Login --> H[Validasi kredensial]
-    H -- Akun active --> E
-    H -- Perlu aktivasi --> I[Aktivasi akun]
-    H -- Gagal --> J[Pesan error yang sesuai]
-    G -- Aktivasi akun --> I
-    G -- Lupa password --> K[Reset password]
-    I --> L[Verifikasi undangan dan identitas]
-    L --> M[Buat password]
-    M --> N[Akun active]
-    N --> E
+    A[App dibuka] --> B[Native launch screen]
+    B --> C[Bootstrap dan pemeriksaan sesi]
+    C --> D{Hasil pemeriksaan}
+    D -- Tidak ada sesi --> E[Login]
+    D -- Sesi valid --> F{Onboarding perlu ditampilkan?}
+    D -- Offline dan sesi belum dapat dipastikan --> G[Offline / Coba lagi]
+    D -- Sesi invalid atau dicabut --> E
+    F -- Ya --> H[Onboarding anggota]
+    F -- Tidak --> I[Home]
+    H --> I
+    E --> J{Pilihan pengguna}
+    J -- Login --> K[Validasi kredensial]
+    K -- Akun active --> F
+    K -- Perlu aktivasi --> L[Aktivasi akun]
+    K -- Gagal --> M[Pesan error yang sesuai]
+    J -- Aktivasi akun --> L
+    J -- Lupa password --> N[Reset password]
+    L --> O[Verifikasi undangan dan identitas]
+    O --> P[Buat password]
+    P --> Q[Akun active dan sesi dibuat]
+    Q --> F
 ```
+
+## Konsep Splash Screen dan Startup
+
+### Peran Splash
+
+Splash adalah layar transisi teknis saat aplikasi menyiapkan hal-hal minimum sebelum menentukan layar berikutnya. Splash bukan halaman promosi, onboarding, login, atau indikator bahwa pengguna sudah terautentikasi.
+
+Pisahkan dua pengalaman yang sering disebut "splash":
+
+1. **Native launch screen**: tampilan statis yang muncul segera ketika OS membuka aplikasi. Gunakan latar dan identitas visual PALTI FX yang sama dengan splash aplikasi. Animasi tidak perlu dipaksakan pada layer native.
+2. **Bootstrap splash**: tampilan aplikasi setelah proses JavaScript dimulai, saat aplikasi menunggu font/aset penting, data lokal selesai dibaca, dan status sesi dapat ditentukan.
+
+**Arah visual yang diusulkan:** jadikan logo PALTI FX sebagai satu-satunya fokus. Gunakan `LogoFull` dari `src/components/Logo.tsx` agar simbol dan wordmark terbaca sebagai satu lockup; gunakan `LogoMark` saja jika ukuran layar/aset native menuntut versi simbol. Hindari tagline, form, tombol, dekorasi tambahan, atau teks promosi.
+
+Animasi cukup satu kali: logo muncul dengan fade-in dan sedikit scale ke ukuran normal, lalu diam selama bootstrap. Durasi target sekitar 350-500 ms; gerakan bukan penentu kapan aplikasi boleh lanjut. Hindari pulse/infinite loop dan animasi berlapis. Bila persiapan selesai sebelum animasi selesai, lanjutkan tanpa menunggu; bila persiapan lebih lama, logo tetap tenang dan tidak berkedip.
+
+### Urutan Bootstrap yang Diusulkan
+
+1. OS menampilkan native launch screen statis.
+2. Setelah runtime aplikasi siap, tampilkan bootstrap splash berlogo dan mulai animasi masuk satu kali.
+3. Siapkan dependensi visual yang wajib, seperti font dan aset utama. Konten yang tidak kritis tidak boleh menghalangi masuk ke aplikasi.
+4. Baca data lokal yang diperlukan dan ambil kredensial sesi dari penyimpanan aman.
+5. Tentukan status autentikasi:
+   - Tidak ada sesi: buka Login.
+   - Sesi ada dan dapat dipulihkan: lanjutkan ke Home, atau ke onboarding jika memang belum selesai.
+   - Sesi dicabut/invalid: hapus sesi lokal, lalu buka Login.
+   - Jaringan tidak tersedia sehingga sesi tidak dapat dipastikan: tampilkan state offline/retry, jangan salah menyimpulkan pengguna telah logout.
+6. Selesaikan transisi ke layar tujuan tanpa memperlihatkan Home atau Login sekilas sebelum keputusan dibuat.
+
+Pembacaan data non-auth seperti jurnal/setting lokal dapat berjalan terpisah bila aman, tetapi tidak boleh menentukan apakah pengguna berhak mengakses API.
+
+### State dan Perilaku Splash
+
+| State | Perilaku |
+| --- | --- |
+| Bootstrap berjalan normal | Tampilkan `LogoFull` dengan fade-in dan sedikit scale satu kali; setelah animasi, logo tetap diam. Cegah interaksi dengan layar di belakangnya. |
+| Bootstrap selesai | Hilangkan splash segera dan tampilkan tujuan yang sudah diputuskan. Jangan menunggu timer animasi atau minimum display time. Hindari layar kosong/flicker. |
+| Font/aset opsional gagal | Gunakan fallback visual dan lanjutkan bila aman; jangan membuat pengguna terjebak. |
+| Pemeriksaan sesi gagal karena offline/timeout | Tampilkan status offline dengan Coba lagi; jangan hapus refresh token hanya karena server tidak terjangkau. |
+| Sesi dinyatakan invalid/revoked oleh backend | Bersihkan sesi secara lokal dan tampilkan Login. |
+| Kesalahan lokal yang fatal | Tampilkan pesan yang dapat dimengerti dan aksi coba lagi/restart; jangan menampilkan stack trace. |
+
+### Prinsip UX dan Aksesibilitas
+
+- Gunakan `LogoFull`/`LogoMark` dari komponen logo resmi; logo adalah satu-satunya fokus visual splash.
+- Animasi hanya fade-in dan scale ringan satu kali; tidak ada pulse berulang, parallax, atau animasi dekoratif.
+- Hormati reduce motion: tampilkan logo tanpa animasi atau dengan transisi opacity yang sangat singkat.
+- Tidak ada input, CTA pemasaran, atau tautan kebijakan di splash.
+- Splash tidak boleh memperpanjang startup hanya untuk menyelesaikan animasi.
+- Hormati pengaturan reduce motion; status loading harus tetap dapat dikenali tanpa animasi.
+- Pastikan kontras logo/indikator memadai dan perubahan state tidak hanya dibedakan lewat warna.
+- Splash tidak menerima input pengguna. Aksi retry hanya muncul pada layar error/offline setelah bootstrap gagal.
+- Jangan mengirim password, token, atau data sensitif ke analytics/log selama bootstrap.
+
+### Perilaku Saat App Kembali dari Background
+
+Kembali dari background tidak otomatis berarti cold start. Jangan menampilkan ulang brand splash setiap kali pengguna berpindah aplikasi. Saat app aktif kembali, lakukan validasi/refresh hanya sesuai kebijakan sesi, dan tampilkan loading lokal seperlunya. Jika refresh gagal karena offline, pertahankan state yang aman dan berikan retry; jika backend menyatakan sesi dicabut, arahkan ke Login.
+
+## Konsep Onboarding Anggota
+
+### Batas Onboarding
+
+Onboarding menjelaskan cara memakai produk; onboarding **bukan** proses membuat akun, aktivasi undangan, verifikasi OTP, persetujuan Terms, atau login. Karena akses PALTI FX bersifat undangan, pengguna tanpa sesi diarahkan ke Login/Aktivasi, bukan diberi kesan bahwa melewati onboarding akan membuat akun.
+
+**Usulan penempatan:** tampilkan onboarding satu kali setelah login pertama yang berhasil atau setelah aktivasi akun selesai. Setelah selesai atau dilewati, masuk ke Home. Login berikutnya langsung ke Home kecuali ada onboarding versi baru yang memang perlu diperkenalkan.
+
+Pilihan ini menjaga detail fitur privat tidak ditampilkan sebelum identitas pengguna diverifikasi. Jika onboarding publik sebelum login dianggap perlu, informasi yang tampil harus disetujui sebagai konten publik dan tidak boleh menjadi pengganti Login.
+
+### Tujuan Onboarding
+
+- Memberi orientasi singkat tentang manfaat utama PALTI FX.
+- Menunjukkan letak bagian yang membantu pengguna mulai tanpa meminta mereka mengambil keputusan finansial.
+- Mengurangi kejutan saat pertama kali melihat Home dan navigasi.
+- Tidak meminta informasi yang sudah dimiliki admin, password, activation code, atau data finansial.
+
+### Urutan Layar yang Diusulkan
+
+Onboarding terdiri dari tiga layar yang dapat dilewati. Setiap layar menyampaikan satu manfaat, bukan instruksi panjang atau tur yang memaksa pengguna mengetuk elemen tertentu.
+
+| Langkah | Pesan utama | Contoh judul dan copy | Visual yang disarankan |
+| --- | --- | --- | --- |
+| 1. Belajar | Materi disusun agar pengguna dapat membangun pemahaman secara bertahap. | **Belajar dengan terarah** — "Jelajahi materi forex dari dasar, lalu lanjutkan belajar sesuai progresmu." | Preview modul belajar dan penanda progres; jangan memakai chart harga yang memberi kesan rekomendasi pasar. |
+| 2. Kalkulator | Alat bantu membantu pengguna memahami angka dan risiko sebelum membuat keputusan sendiri. | **Pahami risiko sebelum membuka posisi** — "Gunakan kalkulator untuk mengeksplorasi ukuran lot, nilai pip, dan risk-reward." | Preview kalkulator atau hubungan sederhana antara input dan hasil, tanpa menyiratkan bahwa hasil kalkulasi menjamin trade aman/untung. |
+| 3. Jurnal | Pencatatan membuat pengguna dapat meninjau keputusan dan hasilnya. | **Catat dan evaluasi prosesmu** — "Simpan ringkasan trade dan lihat kembali pola dari waktu ke waktu." | Preview jurnal/equity yang bersifat ilustratif; gunakan data contoh yang jelas bukan data pengguna. |
+
+Di semua langkah, tampilkan logo/identitas secara kecil dan konsisten, indikator **Langkah X dari 3**, tombol **Lewati**, serta tombol utama **Lanjut**. Pada langkah pertama, **Kembali** tidak diperlukan. Pada langkah kedua dan ketiga, sediakan **Kembali**. Langkah ketiga mengganti **Lanjut** menjadi **Mulai menggunakan PALTI FX**. Setelah aksi utama, buka Home.
+
+Gunakan transisi horizontal singkat atau fade antar-layar, dengan arah yang konsisten dan dukungan reduce motion. Hindari autoplay, swipe sebagai satu-satunya navigasi, carousel yang tidak memiliki tombol, dan animasi yang menyamarkan perubahan konten. Seluruh isi harus terbaca tanpa menunggu animasi.
+
+### Tata Letak dan Interaksi
+
+- Satu pesan utama per layar: judul, paling banyak dua kalimat pendukung, visual fitur, progress, dan kontrol navigasi.
+- Letakkan **Lewati** konsisten di bagian atas; letakkan **Kembali** dan tombol utama di area bawah yang mudah dijangkau.
+- Beri label tombol yang menyebut aksi, bukan ikon saja. Area tekan cukup besar dan tidak saling berhimpitan.
+- Tampilkan langkah aktif dengan angka/teks selain warna, misalnya "Langkah 2 dari 3".
+- Teks dapat di-scroll pada layar pendek atau saat ukuran font diperbesar; tombol navigasi tetap dapat diakses.
+- Jangan meminta nama, email, password, kode undangan, izin notifikasi, atau data finansial di onboarding. Izin hanya diminta saat fitur yang memerlukannya digunakan dan alasannya jelas.
+- Hindari klaim hasil, janji profit, rekomendasi trading, atau copy yang dapat dibaca sebagai saran investasi.
+
+### Perilaku Skip dan Penyelesaian
+
+- **Lewati** langsung menandai onboarding versi tersebut selesai/dilewati lalu membuka Home; tidak ada modal konfirmasi untuk alur tiga langkah ini.
+- Tombol akhir **Mulai menggunakan PALTI FX** menyelesaikan onboarding dan membuka Home.
+- Tombol **Kembali** hanya mengubah langkah; tidak menghapus jawaban atau data akun karena onboarding tidak mengumpulkan data.
+- Tombol Android Back kembali satu langkah. Dari langkah pertama, Back tidak boleh keluar aplikasi tanpa sengaja; perlakukan sebagai tetap di onboarding atau tampilkan perilaku navigasi aplikasi yang sudah disepakati.
+- Bila aplikasi ditutup sebelum selesai, pengguna akan melihat onboarding lagi setelah sesi dipulihkan. Rekomendasi awal: mulai lagi dari langkah pertama karena hanya tiga layar dan tidak ada data yang perlu dipulihkan.
+
+Nama panggilan tidak diperlukan untuk aktivasi atau akses. Jika sapaan personal ingin dipertahankan, jadikan pengaturan profil opsional dan dapat diubah nanti; nama panggilan tidak boleh dianggap sebagai verifikasi identitas akun.
+
+### Aturan Progress dan Kemunculan Ulang
+
+- Completion baru dicatat setelah pengguna menekan **Mulai menggunakan PALTI FX** atau secara eksplisit memilih Lewati.
+- Jika aplikasi ditutup di tengah onboarding, rekomendasi awal adalah mulai kembali dari langkah pertama; progres satu/tiga langkah tidak perlu disimpan kecuali ada alasan produk yang kuat.
+- Setelah selesai/dilewati, onboarding tidak muncul pada setiap login atau app launch.
+- Sediakan akses untuk melihat ulang panduan dari bagian Bantuan/Profil bila memang dibutuhkan.
+- Gunakan versi onboarding yang eksplisit, bukan satu boolean permanen. Perubahan minor teks tidak perlu memunculkan ulang onboarding; perubahan alur yang material dapat menaikkan versi.
+- Rekomendasi: simpan versi onboarding yang sudah selesai per akun agar onboarding tidak muncul kembali saat pengguna login di perangkat lain. Backend menjadi sumber utama bila tersedia; cache lokal boleh dipakai untuk tampilan. Jangan gunakan satu flag global perangkat seperti `settings.welcomed` untuk semua akun.
+- Jangan mencampur status onboarding dengan persetujuan Terms. Persetujuan legal harus dicatat terpisah, eksplisit, dan dapat diaudit.
+
+### Aksesibilitas dan Kondisi Perangkat
+
+- Setiap langkah mendukung VoiceOver/TalkBack dengan urutan baca yang logis dan label tombol yang bermakna.
+- Teks tetap terbaca pada ukuran font aksesibilitas dan layar kecil; konten dapat di-scroll bila tinggi layar terbatas.
+- Progress memiliki keterangan teks, misalnya "Langkah 2 dari 3", bukan hanya titik berwarna.
+- Tombol Lewati dan Lanjut mudah dijangkau, tidak saling tertukar, dan memiliki area sentuh memadai.
+- Animasi boleh memperhalus perpindahan tetapi tidak boleh menunda navigasi atau menyampaikan informasi penting sendirian.
+
+### State Onboarding
+
+| Kondisi | Perilaku |
+| --- | --- |
+| Login/aktivasi berhasil, onboarding belum selesai | Tampilkan langkah pertama onboarding. |
+| Pengguna memilih Lewati | Tandai versi tersebut selesai/dilewati, lalu buka Home. |
+| Pengguna menyelesaikan langkah terakhir | Tandai versi selesai, lalu buka Home. |
+| App ditutup di tengah langkah | Saat dibuka lagi, pulihkan sesi lebih dulu; tampilkan onboarding lagi hanya jika statusnya belum selesai dan aturan produk menghendaki. |
+| Onboarding versi ini sudah selesai | Lewati onboarding dan buka Home. |
+| Pengguna logout | Hapus sesi, bukan progress onboarding. Jika pengguna login kembali dengan akun yang sama, jangan tampilkan lagi versi onboarding yang sudah selesai/dilewati. |
+| Pengguna berpindah langkah lalu memakai Back | Kembali ke langkah sebelumnya tanpa mengubah status completion. |
+| Reduce motion aktif | Hilangkan gerak slide/scale; perubahan langkah tetap terlihat melalui konten dan indikator progress. |
+| Layar kecil/teks diperbesar | Izinkan konten utama scroll; kontrol Lewati dan navigasi tetap dapat ditemukan dan dioperasikan. |
+
+## Kondisi Saat Ini di Aplikasi
+
+Pada implementasi sekarang, `Splash` hanya tampil ketika font belum selesai dimuat dan menggunakan `LogoMark` dengan pulse berulang. `WelcomeGate` menutupi layar utama selama `settings.welcomed` belum true; `WelcomeScreen` menampilkan sapaan, meminta nama panggilan, lalu menyimpan status tersebut lewat store lokal. Ini adalah layar sambutan satu kali, belum merupakan bootstrap sesi maupun onboarding bertahap.
+
+Karena itu, rancangan ini menyarankan pemisahan tanggung jawab sebelum implementasi autentikasi: bootstrap menampilkan logo dengan animasi sederhana lalu menentukan tujuan berdasarkan kesiapan dan sesi; Login/Aktivasi menangani akses akun; onboarding tiga langkah muncul setelah autentikasi pertama. `settings.welcomed` dan input nama perlu ditinjau terpisah sebelum dipakai sebagai status onboarding. Bagian ini hanya mencatat kondisi dan arah konsep, tidak mengubah kode.
 
 ## 1. Persiapan Akun oleh Admin
 
@@ -68,18 +218,18 @@ Kode undangan tidak boleh menjadi kode umum yang dapat membuat akun baru. Backen
 
 ## 2. Pengguna Pertama Kali Membuka Aplikasi
 
-1. Aplikasi menampilkan splash/loading screen sambil memeriksa apakah ada kredensial sesi yang tersimpan.
-2. Password tidak pernah disimpan di perangkat. Bila tidak ada sesi yang dapat dipulihkan, tampilkan halaman **Login**.
-3. Halaman Login menyediakan:
+1. Setelah bootstrap selesai, bila tidak ada sesi yang dapat dipulihkan, tampilkan halaman **Login**.
+2. Halaman Login menyediakan:
    - Email atau username.
    - Password.
    - Tampilkan/sembunyikan password.
    - Tombol Login.
    - Tautan Aktivasi akun.
    - Tautan Lupa password.
-4. Jangan tampilkan tombol Daftar atau alur pembuatan akun publik.
-5. Pengguna yang sudah mengaktifkan akunnya dapat langsung login.
-6. Pengguna dengan akun `pending_activation` mengikuti alur aktivasi, bukan membuat identitas baru.
+3. Jangan tampilkan tombol Daftar atau alur pembuatan akun publik.
+4. Pengguna yang sudah mengaktifkan akunnya dapat langsung login.
+5. Pengguna dengan akun `pending_activation` mengikuti alur aktivasi, bukan membuat identitas baru.
+6. Setelah login/aktivasi pertama berhasil, tampilkan onboarding anggota jika versi onboarding yang berlaku belum selesai; jika sudah selesai, buka Home.
 
 ## 3. Aktivasi Akun Undangan
 
@@ -89,7 +239,7 @@ Kode undangan tidak boleh menjadi kode umum yang dapat membuat akun baru. Backen
 4. Jika undangan valid, backend membuktikan kepemilikan kontak yang terdaftar, misalnya melalui OTP email. Kebutuhan OTP dan kanalnya perlu diputuskan sebelum implementasi.
 5. Pengguna menetapkan password baru dan mengonfirmasikannya. Aplikasi mengirim password melalui HTTPS untuk diverifikasi/disimpan sebagai hash oleh backend; aplikasi tidak menyimpan password.
 6. Backend mengubah status akun menjadi `active`, menandai undangan sudah terpakai, dan mencatat penerimaan syarat/kebijakan yang diperlukan beserta versinya.
-7. Usulan pengalaman: setelah aktivasi berhasil, backend menerbitkan sesi dan pengguna masuk ke Home. Jika aturan produk mengharuskan login terpisah, arahkan kembali ke Login dengan pesan sukses.
+7. Usulan pengalaman: setelah aktivasi berhasil, backend menerbitkan sesi dan aplikasi memeriksa versi onboarding. Jika belum selesai, tampilkan onboarding; setelah diselesaikan/dilewati, buka Home. Login terpisah tidak diperlukan kecuali ada kebijakan keamanan yang mengharuskannya.
 8. Kode tidak valid, kedaluwarsa, sudah dipakai, dibatalkan, atau terlalu banyak percobaan menghasilkan instruksi pemulihan yang aman. Jangan mengungkap detail akun yang tidak diperlukan.
 
 ## 4. Login Sehari-hari
@@ -99,7 +249,7 @@ Kode undangan tidak boleh menjadi kode umum yang dapat membuat akun baru. Backen
 3. Backend memverifikasi password dan status akun.
 4. Jika akun `active`, backend menerbitkan access token dan refresh token sesuai kebijakan sesi.
 5. Aplikasi menyimpan token menggunakan penyimpanan kredensial aman yang sesuai platform. Jangan menyimpannya sebagai password, jangan menulis token ke log, dan jangan menganggap penyimpanan biasa setara dengan penyimpanan aman.
-6. Aplikasi melanjutkan ke Home.
+6. Setelah login berhasil, periksa status onboarding untuk akun tersebut. Tampilkan onboarding yang belum selesai; jika sudah selesai, lanjutkan ke Home.
 7. Jika akun masih `pending_activation`, arahkan ke aktivasi. Jika akun `suspended/locked`, tampilkan jalur bantuan yang sesuai; jangan menawarkan pembuatan akun baru.
 
 ### Kebijakan "Remember Me"
