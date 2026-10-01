@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EquityChart } from '../components/EquityChart';
 import { LogoMark } from '../components/Logo';
@@ -42,7 +42,7 @@ const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 export function HomeScreen() {
   const nav = useNav();
   const insets = useSafeAreaInsets();
-  const { trades, completed, settings, updateSettings } = useStore();
+  const { trades, completed, settings, updateSettings, logout } = useStore();
   const { list: achList, unlockedCount, streak } = useAchievements();
   const [nameOpen, setNameOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -58,6 +58,23 @@ export function HomeScreen() {
   const [heroW, setHeroW] = useState(360);
   const tip = TIPS[now.getDate() % TIPS.length];
 
+  const handleLogout = () => {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm('Keluar dan kembali ke layar Onboarding?')) {
+        logout();
+      }
+    } else {
+      Alert.alert(
+        'Logout',
+        'Keluar dan kembali ke alur Onboarding?',
+        [
+          { text: 'Batal', style: 'cancel' },
+          { text: 'Logout', style: 'destructive', onPress: logout },
+        ]
+      );
+    }
+  };
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
@@ -67,13 +84,24 @@ export function HomeScreen() {
       {/* top bar */}
       <FadeIn from="none" duration={600}>
         <View style={st.top}>
-          <LogoMark size={44} />
+          <LogoMark size={42} />
           <View style={{ flex: 1 }} />
-          <View style={st.datePill}>
-            <Ionicons name="calendar-clear-outline" size={13} color={colors.gold} />
-            <Text style={st.dateText}>
-              {now.getDate()} {BULAN[now.getMonth()].slice(0, 3)}
-            </Text>
+          <View style={st.topRight}>
+            <View style={st.datePill}>
+              <Ionicons name="calendar-clear-outline" size={13} color={colors.gold} />
+              <Text style={st.dateText}>
+                {now.getDate()} {BULAN[now.getMonth()].slice(0, 3)}
+              </Text>
+            </View>
+            <PressScale
+              onPress={handleLogout}
+              scaleTo={0.93}
+              style={st.logoutPill}
+              accessibilityLabel="Logout dan kembali ke onboarding"
+            >
+              <Ionicons name="log-out-outline" size={14} color={colors.red} />
+              <Text style={st.logoutText}>Logout</Text>
+            </PressScale>
           </View>
         </View>
       </FadeIn>
@@ -311,6 +339,20 @@ export function HomeScreen() {
           }}
           style={{ marginTop: 14 }}
         />
+        <View style={st.sheetLogoutWrap}>
+          <Pressable
+            onPress={() => {
+              setNameOpen(false);
+              handleLogout();
+            }}
+            style={st.sheetLogoutBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Logout"
+          >
+            <Ionicons name="log-out-outline" size={17} color={colors.red} />
+            <Text style={st.sheetLogoutText}>Logout (Kembali ke Onboarding)</Text>
+          </Pressable>
+        </View>
       </Sheet>
     </ScrollView>
   );
@@ -336,6 +378,7 @@ function Mini({ label, value, color }: { label: string; value: string; color?: s
 
 const st = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   brand: { color: colors.text, fontFamily: fonts.display, fontSize: 16, letterSpacing: 2 },
   brandSub: { color: colors.gold, fontFamily: fonts.semi, fontSize: 11, letterSpacing: 0.5 },
   datePill: {
@@ -350,6 +393,36 @@ const st = StyleSheet.create({
     paddingVertical: 7,
   },
   dateText: { color: colors.text, fontFamily: fonts.semi, fontSize: 12 },
+  logoutPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,87,87,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,87,87,0.22)',
+    borderRadius: 20,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  logoutText: { color: colors.red, fontFamily: fonts.semi, fontSize: 12 },
+  sheetLogoutWrap: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  sheetLogoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,87,87,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,87,87,0.2)',
+  },
+  sheetLogoutText: { color: colors.red, fontFamily: fonts.semi, fontSize: 13 },
   hello: { color: colors.textDim, fontFamily: fonts.medium, fontSize: 16 },
   helloBig: { color: colors.text, fontFamily: fonts.display, fontSize: 30, letterSpacing: -0.8, flexShrink: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },

@@ -43,6 +43,7 @@ type StoreValue = {
   toggleLesson: (lessonId: string, done?: boolean) => void;
   settings: Settings;
   updateSettings: (patch: Partial<Settings>) => void;
+  logout: () => void;
 };
 
 const KEYS = { trades: 'pfx.trades.v1', completed: 'pfx.completed.v1', settings: 'pfx.settings.v1' };
@@ -119,9 +120,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const logout = useCallback(() => {
+    setSettings((prev) => {
+      const next = { ...prev, welcomed: false };
+      persist(KEYS.settings, next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo(
-    () => ({ ready, trades, saveTrade, deleteTrade, completed, toggleLesson, settings, updateSettings }),
-    [ready, trades, saveTrade, deleteTrade, completed, toggleLesson, settings, updateSettings],
+    () => ({ ready, trades, saveTrade, deleteTrade, completed, toggleLesson, settings, updateSettings, logout }),
+    [ready, trades, saveTrade, deleteTrade, completed, toggleLesson, settings, updateSettings, logout],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

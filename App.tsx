@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
 import { LogoMark } from './src/components/Logo';
 import { tap } from './src/components/motion';
 import { IconName } from './src/components/ui';
@@ -20,8 +21,8 @@ import { NavProvider, Route, TabKey, useNav } from './src/nav';
 import { EduScreen, LessonScreen, ModuleScreen } from './src/screens/EduScreens';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { JournalScreen, TradeFormScreen } from './src/screens/JournalScreens';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ToolScreen, ToolsScreen } from './src/screens/ToolScreens';
-import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { AchievementsScreen } from './src/screens/AchievementsScreen';
 import { AchievementWatcher } from './src/components/AchievementWatcher';
 import { colors, fonts, goldGradient } from './src/theme';
@@ -153,34 +154,70 @@ function TabBar() {
   );
 }
 
-/** Tampilkan layar sambutan eksklusif sekali, saat aplikasi pertama kali dibuka. */
-function WelcomeGate() {
-  const { ready, settings, updateSettings } = useStore();
-  if (!ready || settings.welcomed) return null;
-  return <WelcomeScreen onEnter={(name) => updateSettings({ welcomed: true, name: name || undefined })} />;
-}
+/**
+ * Splash Screen: LogoMark PALTI FX dengan animasi spring physics.
+ * Logo mulai dari posisi miring, melayang masuk dengan putaran halus ke tengah,
+ * lalu larut keluar dengan lembut. Menggunakan spring untuk motion yang natural.
+ */
+function Splash({ onFinish }: { onFinish: () => void }) {
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
 
-function Splash() {
-  const v = useRef(new Animated.Value(0)).current;
+  const progress = useRef(new Animated.Value(0)).current;
+  const fade = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(v, { toValue: 1, duration: 800, useNativeDriver: native }),
-        Animated.timing(v, { toValue: 0.4, duration: 800, useNativeDriver: native }),
-      ]),
-    ).start();
-  }, [v]);
+    if (Platform.OS !== 'web') {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+
+    // Spring entrance: natural deceleration tanpa easing buatan
+    Animated.spring(progress, {
+      toValue: 1,
+      tension: 28,
+      friction: 9,
+      useNativeDriver: true,
+    }).start();
+
+    // Setelah logo settle (~1.4s), larut keluar ke Onboarding
+    const exit = setTimeout(() => {
+      Animated.timing(fade, {
+        toValue: 0,
+        duration: 380,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start(() => onFinishRef.current());
+    }, 1400);
+
+    return () => clearTimeout(exit);
+  }, [progress, fade]);
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-      <Animated.View style={{ opacity: v }}>
-        <LogoMark size={110} />
+    <Animated.View
+      style={[
+        StyleSheet.absoluteFill,
+        { backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', zIndex: 9999, opacity: fade },
+      ]}
+      pointerEvents="none"
+    >
+      <Animated.View
+        style={{
+          opacity: progress.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 1, 1] }),
+          transform: [
+            { rotate: progress.interpolate({ inputRange: [0, 1], outputRange: ['-24deg', '0deg'] }) },
+            { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.68, 1] }) },
+          ],
+        }}
+      >
+        <LogoMark size={142} />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
-export default function App() {
-  const [loaded] = useFonts({
+function MainApp() {
+  const { updateSettings } = useStore();
+  const [fontsLoaded] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
@@ -189,21 +226,47 @@ export default function App() {
     ...Ionicons.font,
   });
 
-  if (!loaded) return <Splash />;
+  const [splashFinished, setSplashFinished] = useState(false);
+  const [onboarded, setOnboarded] = useState(false);
 
+  // Jika font masih belum termuat, render splash logo statis sejenak
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <LogoMark size={142} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={st.outer}>
+      <View style={st.app}>
+        <StatusBar style="light" />
+        <CurrentScreen />
+        <TabBar />
+        <AchievementWatcher />
+        {!onboarded && (
+          <OnboardingScreen
+            onDone={() => {
+              setOnboarded(true);
+              updateSettings({ welcomed: true });
+            }}
+          />
+        )}
+        {!splashFinished && (
+          <Splash onFinish={() => setSplashFinished(true)} />
+        )}
+      </View>
+    </View>
+  );
+}
+
+export default function App() {
   return (
     <SafeAreaProvider>
       <StoreProvider>
         <NavProvider>
-          <View style={st.outer}>
-            <View style={st.app}>
-              <StatusBar style="light" />
-              <CurrentScreen />
-              <TabBar />
-              <AchievementWatcher />
-              <WelcomeGate />
-            </View>
-          </View>
+          <MainApp />
         </NavProvider>
       </StoreProvider>
     </SafeAreaProvider>
