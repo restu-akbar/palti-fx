@@ -26,6 +26,8 @@ export type Settings = {
   lastSymbol?: string;
   /** Sudah melihat layar sambutan */
   welcomed?: boolean;
+  /** Status autentikasi login pengguna */
+  isLoggedIn?: boolean;
   /** Nama panggilan member (untuk sapaan) */
   name?: string;
   /** Pencapaian yang sudah terbuka: id → waktu terbuka (ms) */
@@ -122,7 +124,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     setSettings((prev) => {
-      const next = { ...prev, welcomed: false };
+      const next = { ...prev, welcomed: false, isLoggedIn: false };
       persist(KEYS.settings, next);
       return next;
     });

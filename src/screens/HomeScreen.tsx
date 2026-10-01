@@ -60,13 +60,13 @@ export function HomeScreen() {
 
   const handleLogout = () => {
     if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm('Keluar dan kembali ke layar Onboarding?')) {
+      if (typeof window !== 'undefined' && window.confirm('Keluar dan kembali ke halaman Login?')) {
         logout();
       }
     } else {
       Alert.alert(
         'Logout',
-        'Keluar dan kembali ke alur Onboarding?',
+        'Keluar dan kembali ke halaman Login?',
         [
           { text: 'Batal', style: 'cancel' },
           { text: 'Logout', style: 'destructive', onPress: logout },
@@ -350,7 +350,7 @@ export function HomeScreen() {
             accessibilityLabel="Logout"
           >
             <Ionicons name="log-out-outline" size={17} color={colors.red} />
-            <Text style={st.sheetLogoutText}>Logout (Kembali ke Onboarding)</Text>
+            <Text style={st.sheetLogoutText}>Logout (Kembali ke Halaman Login)</Text>
           </Pressable>
         </View>
       </Sheet>

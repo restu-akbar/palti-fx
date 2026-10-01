@@ -199,7 +199,13 @@ const STEPS: StepData[] = [
 ];
 
 /* ─── Komponen Utama Onboarding ──────────────────────────────────────────── */
-export function OnboardingScreen({ onDone }: { onDone: () => void }) {
+export function OnboardingScreen({
+  onDone,
+  onSkip,
+}: {
+  onDone: () => void;
+  onSkip?: () => void;
+}) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
   const [showSkipModal, setShowSkipModal] = useState(false);
@@ -302,6 +308,17 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
       easing: Easing.in(Easing.quad),
       useNativeDriver: native,
     }).start(onDone);
+  };
+
+  const handleSkip = () => {
+    setShowSkipModal(false);
+    tap('select');
+    Animated.timing(fadeOut, {
+      toValue: 0,
+      duration: 300,
+      easing: Easing.in(Easing.quad),
+      useNativeDriver: native,
+    }).start(onSkip ?? onDone);
   };
 
   const next = () => {
@@ -414,7 +431,7 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
 
               {/* Gradient Fade yang memudarkan & menyarukan bagian bawah card ke background */}
               <LinearGradient
-                colors={['rgba(7,9,14,0)', 'rgba(7,9,14,0.35)', 'rgba(7,9,14,0.85)', '#07090E']}
+                colors={['rgba(7,9,14,0)', 'rgba(7,9,14,0.35)', 'rgba(7,9,14,0.85)', colors.bg]}
                 locations={[0, 0.35, 0.75, 1]}
                 style={st.cardBottomFade}
                 pointerEvents="none"
@@ -550,10 +567,7 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
 
               <View style={{ flex: 1 }}>
                 <PressScale
-                  onPress={() => {
-                    setShowSkipModal(false);
-                    finish();
-                  }}
+                  onPress={handleSkip}
                   accessibilityLabel="Konfirmasi lewati ke halaman login"
                 >
                   <LinearGradient
@@ -577,7 +591,7 @@ export function OnboardingScreen({ onDone }: { onDone: () => void }) {
 /* ─── Styles Layar & Layout ──────────────────────────────────────────────── */
 const st = StyleSheet.create({
   root: {
-    backgroundColor: '#07090E',
+    backgroundColor: colors.bg,
     zIndex: 50,
     elevation: 50,
     justifyContent: 'space-between',

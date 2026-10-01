@@ -21,6 +21,7 @@ import { NavProvider, Route, TabKey, useNav } from './src/nav';
 import { EduScreen, LessonScreen, ModuleScreen } from './src/screens/EduScreens';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { JournalScreen, TradeFormScreen } from './src/screens/JournalScreens';
+import { LoginScreen } from './src/screens/LoginScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ToolScreen, ToolsScreen } from './src/screens/ToolScreens';
 import { AchievementsScreen } from './src/screens/AchievementsScreen';
@@ -216,7 +217,7 @@ function Splash({ onFinish }: { onFinish: () => void }) {
 }
 
 function MainApp() {
-  const { updateSettings } = useStore();
+  const { settings, updateSettings } = useStore();
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
@@ -229,6 +230,9 @@ function MainApp() {
   const [splashFinished, setSplashFinished] = useState(false);
   const [onboarded, setOnboarded] = useState(false);
 
+  const isLoggedIn = settings.isLoggedIn ?? false;
+  const isWelcomed = settings.welcomed ?? false;
+
   // Jika font masih belum termuat, render splash logo statis sejenak
   if (!fontsLoaded) {
     return (
@@ -238,6 +242,53 @@ function MainApp() {
     );
   }
 
+  // 1. Jika belum pernah melihat/melewati onboarding, tampilkan OnboardingScreen
+  if (!isWelcomed) {
+    return (
+      <View style={st.outer}>
+        <View style={st.app}>
+          <StatusBar style="light" />
+          <OnboardingScreen
+            onDone={() => {
+              setOnboarded(true);
+              updateSettings({ welcomed: true });
+            }}
+            onSkip={() => {
+              setOnboarded(true);
+              updateSettings({ welcomed: true });
+            }}
+          />
+          {!splashFinished && (
+            <Splash onFinish={() => setSplashFinished(true)} />
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // 2. Jika sudah melewati onboarding tetapi belum login, tampilkan LoginScreen
+  if (!isLoggedIn) {
+    return (
+      <View style={st.outer}>
+        <View style={st.app}>
+          <StatusBar style="light" />
+          <LoginScreen
+            onSuccess={({ identifier, name }) => {
+              updateSettings({
+                isLoggedIn: true,
+                name: name || settings.name || identifier,
+              });
+            }}
+          />
+          {!splashFinished && (
+            <Splash onFinish={() => setSplashFinished(true)} />
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // 3. Jika sudah login, tampilkan aplikasi utama (Beranda & TabBar)
   return (
     <View style={st.outer}>
       <View style={st.app}>
@@ -245,14 +296,6 @@ function MainApp() {
         <CurrentScreen />
         <TabBar />
         <AchievementWatcher />
-        {!onboarded && (
-          <OnboardingScreen
-            onDone={() => {
-              setOnboarded(true);
-              updateSettings({ welcomed: true });
-            }}
-          />
-        )}
         {!splashFinished && (
           <Splash onFinish={() => setSplashFinished(true)} />
         )}
