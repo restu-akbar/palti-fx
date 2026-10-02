@@ -26,9 +26,10 @@ const isWeb = Platform.OS === 'web';
 
 export type LoginScreenProps = {
   onSuccess: (credentials: { identifier: string; name?: string }) => void;
+  onForgotPassword?: (identifier?: string) => void;
 };
 
-export function LoginScreen({ onSuccess }: LoginScreenProps) {
+export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
   const insets = useSafeAreaInsets();
   const passwordRef = useRef<TextInput>(null);
 
@@ -135,10 +136,6 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
                 pointerEvents="none"
               />
 
-              {/* Handle Bar */}
-              <View style={st.handleWrap}>
-                <View style={st.handleBar} />
-              </View>
 
               <View style={st.cardContent}>
                 {/* Card Header */}
@@ -269,84 +266,229 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
       </KeyboardAvoidingView>
 
       {/* ── Modal: Pending ── */}
-      <Modal visible={showPendingSheet} transparent animationType="fade">
-        <View style={st.overlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowPendingSheet(false)} />
-          <View style={st.sheet}>
-            <View style={st.sheetHandle} />
-            <View style={[st.iconCircle, { backgroundColor: 'rgba(237,193,58,0.08)' }]}>
-              <Ionicons name="hourglass-outline" size={20} color={colors.gold} />
+      <Modal
+        visible={showPendingSheet}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowPendingSheet(false)}
+      >
+        <View style={st.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowPendingSheet(false)}>
+            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={st.modalDimmer} />
+          </Pressable>
+
+          <BlurView intensity={Platform.OS === 'ios' ? 25 : 15} tint="dark" style={st.modalCard}>
+            <Text style={st.modalTitle}>Akun Belum Diaktifkan</Text>
+            <Text style={st.modalDesc}>
+              Akun Anda sudah disiapkan oleh admin. Lakukan verifikasi undangan dan tetapkan kata sandi Anda.
+            </Text>
+
+            <View style={st.modalBtnRow}>
+              <Pressable
+                onPress={() => {
+                  tap('light');
+                  setShowPendingSheet(false);
+                }}
+                hitSlop={8}
+                style={st.modalCancelBtn}
+              >
+                <Text style={st.modalCancelText}>Tutup</Text>
+              </Pressable>
+
+              <View style={{ flex: 1 }}>
+                <PressScale
+                  onPress={() => {
+                    setShowPendingSheet(false);
+                    setShowActivateSheet(true);
+                  }}
+                >
+                  <LinearGradient
+                    colors={goldGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={st.modalConfirmBtn}
+                  >
+                    <Text style={st.modalConfirmText}>Aktivasi</Text>
+                  </LinearGradient>
+                </PressScale>
+              </View>
             </View>
-            <Text style={st.sheetTitle}>Akun Belum Diaktifkan</Text>
-            <Text style={st.sheetDesc}>Akun Anda sudah disiapkan oleh admin. Lakukan verifikasi undangan dan tetapkan kata sandi Anda.</Text>
-            <PressScale onPress={() => { setShowPendingSheet(false); setShowActivateSheet(true); }} style={st.sheetBtnWrap}>
-              <LinearGradient colors={goldGradient} style={st.sheetBtn}><Text style={st.sheetBtnTxt}>Aktivasi Sekarang</Text><Ionicons name="arrow-forward" size={14} color={colors.ink} /></LinearGradient>
-            </PressScale>
-            <Pressable onPress={() => setShowPendingSheet(false)} style={st.cancelBtn}><Text style={st.cancelTxt}>Tutup</Text></Pressable>
-          </View>
+          </BlurView>
         </View>
       </Modal>
 
       {/* ── Modal: Suspended ── */}
-      <Modal visible={showSuspendedModal} transparent animationType="fade">
-        <View style={st.overlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowSuspendedModal(false)} />
-          <View style={st.sheet}>
-            <View style={[st.iconCircle, { backgroundColor: 'rgba(240,98,92,0.08)' }]}>
-              <Ionicons name="lock-closed" size={20} color={colors.red} />
-            </View>
-            <Text style={st.sheetTitle}>Akses Akun Dibatasi</Text>
-            <Text style={st.sheetDesc}>Akun ini dinonaktifkan sementara oleh administrator. Hubungi tim support untuk pemulihan akses.</Text>
-            <PressScale onPress={() => { setShowSuspendedModal(false); openUrl('https://wa.me/?text=Halo%20Admin%20Palti%20FX,%20mohon%20bantuan%20akses%20akun%20saya'); }} style={st.sheetBtnWrap}>
-              <View style={[st.sheetBtn, { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }]}>
-                <Ionicons name="logo-whatsapp" size={15} color={colors.green} />
-                <Text style={[st.sheetBtnTxt, { color: colors.text }]}>Hubungi Admin / Support</Text>
+      <Modal
+        visible={showSuspendedModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowSuspendedModal(false)}
+      >
+        <View style={st.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowSuspendedModal(false)}>
+            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={st.modalDimmer} />
+          </Pressable>
+
+          <BlurView intensity={Platform.OS === 'ios' ? 25 : 15} tint="dark" style={st.modalCard}>
+            <Text style={st.modalTitle}>Akses Akun Dibatasi</Text>
+            <Text style={st.modalDesc}>
+              Akun ini dinonaktifkan sementara oleh administrator. Hubungi tim support untuk pemulihan akses.
+            </Text>
+
+            <View style={st.modalBtnRow}>
+              <Pressable
+                onPress={() => {
+                  tap('light');
+                  setShowSuspendedModal(false);
+                }}
+                hitSlop={8}
+                style={st.modalCancelBtn}
+              >
+                <Text style={st.modalCancelText}>Kembali</Text>
+              </Pressable>
+
+              <View style={{ flex: 1 }}>
+                <PressScale
+                  onPress={() => {
+                    setShowSuspendedModal(false);
+                    openUrl('https://wa.me/?text=Halo%20Admin%20Palti%20FX,%20mohon%20bantuan%20akses%20akun%20saya');
+                  }}
+                >
+                  <View style={[st.modalConfirmBtn, { backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }]}>
+                    <Text style={[st.modalConfirmText, { color: colors.text }]}>Hubungi Support</Text>
+                  </View>
+                </PressScale>
               </View>
-            </PressScale>
-            <Pressable onPress={() => setShowSuspendedModal(false)} style={st.cancelBtn}><Text style={st.cancelTxt}>Kembali ke Login</Text></Pressable>
-          </View>
+            </View>
+          </BlurView>
         </View>
       </Modal>
 
       {/* ── Modal: Forgot Password ── */}
-      <Modal visible={showForgotModal} transparent animationType="fade">
-        <View style={st.overlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowForgotModal(false)} />
-          <View style={st.sheet}>
-            <View style={st.sheetHandle} />
-            <View style={[st.iconCircle, { backgroundColor: 'rgba(237,193,58,0.08)' }]}>
-              <Ionicons name="key-outline" size={20} color={colors.gold} />
+      <Modal
+        visible={showForgotModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowForgotModal(false)}
+      >
+        <View style={st.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowForgotModal(false)}>
+            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={st.modalDimmer} />
+          </Pressable>
+
+          <BlurView intensity={Platform.OS === 'ios' ? 25 : 15} tint="dark" style={st.modalCard}>
+            <Text style={st.modalTitle}>Lupa Kata Sandi?</Text>
+            <Text style={st.modalDesc}>
+              Atur ulang kata sandi dengan verifikasi kode OTP ke email terdaftar Anda. Lanjutkan ke pemulihan akun?
+            </Text>
+
+            <View style={st.modalBtnRow}>
+              <Pressable
+                onPress={() => {
+                  tap('light');
+                  setShowForgotModal(false);
+                }}
+                hitSlop={8}
+                style={st.modalCancelBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Batal"
+              >
+                <Text style={st.modalCancelText}>Batal</Text>
+              </Pressable>
+
+              <View style={{ flex: 1 }}>
+                <PressScale
+                  onPress={() => {
+                    tap('select');
+                    setShowForgotModal(false);
+                    if (onForgotPassword) {
+                      onForgotPassword(identifier);
+                    }
+                  }}
+                  accessibilityLabel="Konfirmasi lanjutkan reset kata sandi"
+                >
+                  <LinearGradient
+                    colors={goldGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={st.modalConfirmBtn}
+                  >
+                    <Text style={st.modalConfirmText}>Ya, Lanjutkan</Text>
+                  </LinearGradient>
+                </PressScale>
+              </View>
             </View>
-            <Text style={st.sheetTitle}>Lupa Kata Sandi?</Text>
-            <Text style={st.sheetDesc}>Akses PALTI FX dikelola langsung oleh administrator. Hubungi admin untuk mendapatkan tautan pemulihan sandi baru.</Text>
-            <PressScale onPress={() => { setShowForgotModal(false); openUrl('https://wa.me/?text=Halo%20Admin%20Palti%20FX,%20saya%20membutuhkan%20reset%20kata%20sandi'); }} style={st.sheetBtnWrap}>
-              <LinearGradient colors={goldGradient} style={st.sheetBtn}><Ionicons name="chatbubbles-outline" size={15} color={colors.ink} /><Text style={st.sheetBtnTxt}>Minta Reset ke Admin</Text></LinearGradient>
-            </PressScale>
-            <Pressable onPress={() => setShowForgotModal(false)} style={st.cancelBtn}><Text style={st.cancelTxt}>Batal</Text></Pressable>
-          </View>
+          </BlurView>
         </View>
       </Modal>
 
       {/* ── Modal: Activate ── */}
-      <Modal visible={showActivateSheet} transparent animationType="fade">
-        <View style={st.overlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowActivateSheet(false)} />
-          <View style={st.sheet}>
-            <View style={st.sheetHandle} />
-            <View style={[st.iconCircle, { backgroundColor: 'rgba(237,193,58,0.08)' }]}>
-              <Ionicons name="mail-open-outline" size={20} color={colors.gold} />
-            </View>
-            <Text style={st.sheetTitle}>Aktivasi Akun Undangan</Text>
-            <Text style={st.sheetDesc}>Masukkan kode aktivasi 6-karakter yang Anda terima dari admin untuk memverifikasi akun.</Text>
-            <View style={[st.inputBox, { marginTop: 18, width: '100%' }]}>
+      <Modal
+        visible={showActivateSheet}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowActivateSheet(false)}
+      >
+        <View style={st.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowActivateSheet(false)}>
+            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={st.modalDimmer} />
+          </Pressable>
+
+          <BlurView intensity={Platform.OS === 'ios' ? 25 : 15} tint="dark" style={st.modalCard}>
+            <Text style={st.modalTitle}>Aktivasi Akun Undangan</Text>
+            <Text style={st.modalDesc}>
+              Masukkan kode aktivasi 6-karakter yang Anda terima dari admin untuk memverifikasi akun.
+            </Text>
+
+            <View style={[st.inputBox, { marginBottom: 16, width: '100%' }]}>
               <Ionicons name="ticket-outline" size={15} color={colors.gold} style={st.fieldIco} />
-              <TextInput placeholder="MISAL: PFX-889" placeholderTextColor="rgba(255,255,255,0.18)" autoCapitalize="characters" style={[st.textInput, { fontFamily: fonts.bold, letterSpacing: 2 }]} />
+              <TextInput
+                placeholder="MISAL: PFX-889"
+                placeholderTextColor="rgba(255,255,255,0.18)"
+                autoCapitalize="characters"
+                style={[st.textInput, { fontFamily: fonts.bold, letterSpacing: 2 }]}
+              />
             </View>
-            <PressScale onPress={() => { setShowActivateSheet(false); Alert.alert('Aktivasi Berhasil', 'Akun Anda berhasil diverifikasi. Silakan masuk.'); }} style={[st.sheetBtnWrap, { marginTop: 16 }]}>
-              <LinearGradient colors={goldGradient} style={st.sheetBtn}><Text style={st.sheetBtnTxt}>Verifikasi Kode</Text></LinearGradient>
-            </PressScale>
-            <Pressable onPress={() => setShowActivateSheet(false)} style={st.cancelBtn}><Text style={st.cancelTxt}>Batal</Text></Pressable>
-          </View>
+
+            <View style={st.modalBtnRow}>
+              <Pressable
+                onPress={() => {
+                  tap('light');
+                  setShowActivateSheet(false);
+                }}
+                hitSlop={8}
+                style={st.modalCancelBtn}
+              >
+                <Text style={st.modalCancelText}>Batal</Text>
+              </Pressable>
+
+              <View style={{ flex: 1 }}>
+                <PressScale
+                  onPress={() => {
+                    setShowActivateSheet(false);
+                    Alert.alert('Aktivasi Berhasil', 'Akun Anda berhasil diverifikasi. Silakan masuk.');
+                  }}
+                >
+                  <LinearGradient
+                    colors={goldGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={st.modalConfirmBtn}
+                  >
+                    <Text style={st.modalConfirmText}>Verifikasi</Text>
+                  </LinearGradient>
+                </PressScale>
+              </View>
+            </View>
+          </BlurView>
         </View>
       </Modal>
     </View>
@@ -391,19 +533,6 @@ const st = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.045)',
     ...(isWeb ? ({ backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)' } as any) : {}),
   },
-  handleWrap: {
-    width: '100%',
-    alignItems: 'center',
-    paddingTop: 10,
-    paddingBottom: 0,
-    zIndex: 10,
-  },
-  handleBar: {
-    width: 36,
-    height: 3.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.20)',
-  },
   cardBorderTopCap: {
     position: 'absolute',
     top: 0,
@@ -441,7 +570,7 @@ const st = StyleSheet.create({
   },
   cardContent: {
     paddingHorizontal: 22,
-    paddingTop: 14,
+    paddingTop: 22,
     paddingBottom: 24,
     gap: 20,
   },
@@ -516,31 +645,89 @@ const st = StyleSheet.create({
   /* Version */
   ver: { color: 'rgba(255,255,255,0.14)', fontFamily: fonts.medium, fontSize: 10, textAlign: 'center', letterSpacing: 0.5 },
 
-  /* Modals */
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
-  sheet: {
-    width: '100%',
-    maxWidth: 350,
-    backgroundColor: 'rgba(10,12,18,0.92)',
-    borderRadius: 20,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.07)',
-    padding: 22,
+  /* Modals (Konsisten dengan Onboarding) */
+  modalOverlay: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  modalDimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 310,
+    backgroundColor: 'rgba(12, 16, 24, 0.90)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 18,
+    alignItems: 'center',
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.6,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 18,
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
     ...(isWeb ? ({ backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' } as any) : {}),
   },
-  sheetHandle: { width: 36, height: 3.5, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)', marginBottom: 16 },
-  iconCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  sheetTitle: { color: 'rgba(255,255,255,0.88)', fontFamily: fonts.bold, fontSize: 16, textAlign: 'center', letterSpacing: -0.2 },
-  sheetDesc: { color: 'rgba(255,255,255,0.45)', fontFamily: fonts.body, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 5 },
-  sheetBtnWrap: { width: '100%', marginTop: 18 },
-  sheetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 13, paddingHorizontal: 20, width: '100%' },
-  sheetBtnTxt: { color: colors.ink, fontFamily: fonts.bold, fontSize: 13.5 },
-  cancelBtn: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 14 },
-  cancelTxt: { color: 'rgba(255,255,255,0.35)', fontFamily: fonts.medium, fontSize: 12.5 },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontFamily: fonts.semi,
+    fontSize: 16,
+    letterSpacing: -0.2,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalDesc: {
+    color: 'rgba(255, 255, 255, 0.55)',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18.5,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  modalCancelText: {
+    color: 'rgba(255, 255, 255, 0.65)',
+    fontFamily: fonts.medium,
+    fontSize: 13,
+  },
+  modalConfirmBtn: {
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  modalConfirmText: {
+    color: colors.ink,
+    fontFamily: fonts.semi,
+    fontSize: 13,
+    letterSpacing: 0.2,
+  },
 });

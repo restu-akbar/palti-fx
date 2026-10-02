@@ -23,6 +23,7 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { JournalScreen, TradeFormScreen } from './src/screens/JournalScreens';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { ToolScreen, ToolsScreen } from './src/screens/ToolScreens';
 import { AchievementsScreen } from './src/screens/AchievementsScreen';
 import { AchievementWatcher } from './src/components/AchievementWatcher';
@@ -229,6 +230,8 @@ function MainApp() {
 
   const [splashFinished, setSplashFinished] = useState(false);
   const [onboarded, setOnboarded] = useState(false);
+  const [authView, setAuthView] = useState<'login' | 'forgot_password'>('login');
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
 
   const isLoggedIn = settings.isLoggedIn ?? false;
   const isWelcomed = settings.welcomed ?? false;
@@ -242,8 +245,8 @@ function MainApp() {
     );
   }
 
-  // 1. Jika belum pernah melihat/melewati onboarding, tampilkan OnboardingScreen
-  if (!isWelcomed) {
+  // 1. Tampilkan OnboardingScreen di awal setiap sesi (untuk kebutuhan review client)
+  if (!onboarded) {
     return (
       <View style={st.outer}>
         <View style={st.app}>
@@ -266,13 +269,35 @@ function MainApp() {
     );
   }
 
-  // 2. Jika sudah melewati onboarding tetapi belum login, tampilkan LoginScreen
+  // 2. Jika sudah melewati onboarding tetapi belum login, tampilkan LoginScreen atau ResetPasswordScreen
   if (!isLoggedIn) {
+    if (authView === 'forgot_password') {
+      return (
+        <View style={st.outer}>
+          <View style={st.app}>
+            <StatusBar style="light" />
+            <ResetPasswordScreen
+              initialIdentifier={forgotIdentifier}
+              onBackToLogin={() => setAuthView('login')}
+              onSuccess={() => setAuthView('login')}
+            />
+            {!splashFinished && (
+              <Splash onFinish={() => setSplashFinished(true)} />
+            )}
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={st.outer}>
         <View style={st.app}>
           <StatusBar style="light" />
           <LoginScreen
+            onForgotPassword={(id) => {
+              setForgotIdentifier(id || '');
+              setAuthView('forgot_password');
+            }}
             onSuccess={({ identifier, name }) => {
               updateSettings({
                 isLoggedIn: true,
