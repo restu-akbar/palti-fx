@@ -134,25 +134,9 @@ export function ResetPasswordScreen({
 
   return (
     <View style={st.container}>
-      {/* Top Header: Tombol Kembali */}
-      <View style={[st.topNav, { top: insets.top + 12 }]}>
-        <Pressable
-          onPress={() => {
-            tap('select');
-            onBackToLogin();
-          }}
-          hitSlop={12}
-          style={st.backBtn}
-          accessibilityLabel="Kembali ke halaman login"
-        >
-          <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.6)" />
-          <Text style={st.backBtnText}>Kembali ke Login</Text>
-        </Pressable>
-      </View>
-
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={[st.scroll, { paddingTop: insets.top + 54, paddingBottom: insets.bottom + 32 }]}
+          contentContainerStyle={[st.scroll, { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 32 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -335,6 +319,27 @@ export function ResetPasswordScreen({
                         </LinearGradient>
                       </View>
                     </PressScale>
+
+                    {/* Divider + Kembali ke Login */}
+                    <View style={st.footerSection}>
+                      <View style={st.footerDividerRow}>
+                        <View style={st.footerDivLine} />
+                        <Text style={st.footerDivText}>atau</Text>
+                        <View style={st.footerDivLine} />
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          tap('select');
+                          onBackToLogin();
+                        }}
+                        hitSlop={8}
+                        style={st.backToLoginBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel="Kembali ke Login"
+                      >
+                        <Text style={st.backToLoginTxt}>Kembali ke Login</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 )}
 
@@ -539,28 +544,21 @@ export function ResetPasswordScreen({
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
 
-  /* Top Navigation */
-  topNav: {
-    position: 'absolute',
-    left: 20,
-    zIndex: 20,
-  },
-  backBtn: {
-    flexDirection: 'row',
+  /* Footer (Divider + Kembali ke Login) */
+  footerSection: { gap: 12, marginTop: 4 },
+  footerDividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  footerDivLine: { flex: 1, height: 0.5, backgroundColor: 'rgba(255,255,255,0.06)' },
+  footerDivText: { color: 'rgba(255,255,255,0.22)', fontFamily: fonts.medium, fontSize: 11 },
+  backToLoginBtn: {
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    justifyContent: 'center',
+    height: 42,
+    borderRadius: 13,
     borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
-  backBtnText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontFamily: fonts.medium,
-    fontSize: 12,
-  },
+  backToLoginTxt: { color: 'rgba(255,255,255,0.50)', fontFamily: fonts.semi, fontSize: 12.5 },
 
   /* Scroll */
   scroll: {
@@ -695,9 +693,9 @@ const st = StyleSheet.create({
   flowBlock: {
     gap: 18,
   },
-  cardHead: { gap: 4 },
-  cardTitle: { color: 'rgba(255,255,255,0.92)', fontFamily: fonts.bold, fontSize: 18, letterSpacing: -0.3 },
-  cardSub: { color: 'rgba(255,255,255,0.42)', fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18 },
+  cardHead: { gap: 4, alignItems: 'center' },
+  cardTitle: { color: 'rgba(255,255,255,0.92)', fontFamily: fonts.bold, fontSize: 18, letterSpacing: -0.3, textAlign: 'center' },
+  cardSub: { color: 'rgba(255,255,255,0.42)', fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, textAlign: 'center' },
 
   /* Error */
   errBanner: {

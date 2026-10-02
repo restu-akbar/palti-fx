@@ -45,6 +45,45 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [showActivateSheet, setShowActivateSheet] = useState(false);
 
+  /* State Aktivasi Akun Baru */
+  const [activateIdentifier, setActivateIdentifier] = useState('');
+  const [activationCode, setActivationCode] = useState('');
+  const [isActivating, setIsActivating] = useState(false);
+  const [activateError, setActivateError] = useState<string | null>(null);
+  const [activateSuccess, setActivateSuccess] = useState(false);
+
+  const handleOpenActivate = () => {
+    tap('select');
+    setActivateIdentifier(identifier);
+    setActivationCode('');
+    setActivateError(null);
+    setActivateSuccess(false);
+    setShowActivateSheet(true);
+  };
+
+  const handleActivateSubmit = () => {
+    Keyboard.dismiss();
+    setActivateError(null);
+    if (!activateIdentifier.trim()) {
+      setActivateError('Masukkan email atau username terlebih dahulu.');
+      return;
+    }
+    if (!activationCode.trim()) {
+      setActivateError('Masukkan kode aktivasi undangan dari admin.');
+      return;
+    }
+    tap('select');
+    setIsActivating(true);
+
+    setTimeout(() => {
+      setIsActivating(false);
+      tap('success');
+      setActivateSuccess(true);
+    }, 850);
+  };
+
+  const isActivateValid = activateIdentifier.trim().length > 0 && activationCode.trim().length >= 4;
+
   const handleIdentifierBlur = () => {
     setFocusedField(null);
     if (identifier.includes('@')) {
@@ -249,7 +288,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                     <View style={st.footerDivLine} />
                   </View>
                   <Pressable
-                    onPress={() => { tap('select'); setShowActivateSheet(true); }}
+                    onPress={handleOpenActivate}
                     hitSlop={8}
                     style={st.activateBtn}
                   >
@@ -301,7 +340,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                 <PressScale
                   onPress={() => {
                     setShowPendingSheet(false);
-                    setShowActivateSheet(true);
+                    handleOpenActivate();
                   }}
                 >
                   <LinearGradient
@@ -428,54 +467,43 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
         </View>
       </Modal>
 
-      {/* ── Modal: Activate ── */}
+      {/* ── Modal: Aktivasi Akun Baru (Konsisten, Besar, Urgent, Elegan) ── */}
       <Modal
         visible={showActivateSheet}
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={() => setShowActivateSheet(false)}
+        onRequestClose={() => {
+          if (!isActivating) setShowActivateSheet(false);
+        }}
       >
         <View style={st.modalOverlay}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowActivateSheet(false)}>
-            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              if (!isActivating) setShowActivateSheet(false);
+            }}
+          >
+            <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />
             <View style={st.modalDimmer} />
           </Pressable>
 
-          <BlurView intensity={Platform.OS === 'ios' ? 25 : 15} tint="dark" style={st.modalCard}>
-            <Text style={st.modalTitle}>Aktivasi Akun Undangan</Text>
-            <Text style={st.modalDesc}>
-              Masukkan kode aktivasi 6-karakter yang Anda terima dari admin untuk memverifikasi akun.
-            </Text>
+          {activateSuccess ? (
+            <BlurView intensity={Platform.OS === 'ios' ? 25 : 15} tint="dark" style={st.modalCard}>
+              <Text style={st.modalTitle}>Aktivasi Akun Berhasil</Text>
+              <Text style={st.modalDesc}>
+                Undangan Anda berhasil diverifikasi. Akun Anda kini aktif dan siap digunakan untuk masuk.
+              </Text>
 
-            <View style={[st.inputBox, { marginBottom: 16, width: '100%' }]}>
-              <Ionicons name="ticket-outline" size={15} color={colors.gold} style={st.fieldIco} />
-              <TextInput
-                placeholder="MISAL: PFX-889"
-                placeholderTextColor="rgba(255,255,255,0.18)"
-                autoCapitalize="characters"
-                style={[st.textInput, { fontFamily: fonts.bold, letterSpacing: 2 }]}
-              />
-            </View>
-
-            <View style={st.modalBtnRow}>
-              <Pressable
-                onPress={() => {
-                  tap('light');
-                  setShowActivateSheet(false);
-                }}
-                hitSlop={8}
-                style={st.modalCancelBtn}
-              >
-                <Text style={st.modalCancelText}>Batal</Text>
-              </Pressable>
-
-              <View style={{ flex: 1 }}>
+              <View style={{ width: '100%' }}>
                 <PressScale
                   onPress={() => {
+                    tap('success');
                     setShowActivateSheet(false);
-                    Alert.alert('Aktivasi Berhasil', 'Akun Anda berhasil diverifikasi. Silakan masuk.');
+                    setIdentifier(activateIdentifier);
+                    passwordRef.current?.focus();
                   }}
+                  accessibilityLabel="Masuk ke Akun"
                 >
                   <LinearGradient
                     colors={goldGradient}
@@ -483,12 +511,124 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                     end={{ x: 1, y: 1 }}
                     style={st.modalConfirmBtn}
                   >
-                    <Text style={st.modalConfirmText}>Verifikasi</Text>
+                    <Text style={st.modalConfirmText}>Masuk ke Akun</Text>
                   </LinearGradient>
                 </PressScale>
               </View>
-            </View>
-          </BlurView>
+            </BlurView>
+          ) : (
+            <BlurView intensity={Platform.OS === 'ios' ? 40 : 25} tint="dark" style={st.activateCard}>
+              {/* Glass Sheen & Border Top Cap */}
+              <LinearGradient
+                colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.01)', 'transparent']}
+                style={st.cardSheen}
+                pointerEvents="none"
+              />
+              <View style={st.cardBorderTopCap} pointerEvents="none" />
+
+              <View style={{ gap: 16 }}>
+                {/* Head */}
+                <View style={st.activateHead}>
+                  <Text style={st.activateTitle}>Aktivasi Akun Baru</Text>
+                  <Text style={st.activateDesc}>
+                    Akun Anda telah disiapkan oleh administrator. Masukkan kode undangan resmi untuk mengaktifkan akun dan membuat kata sandi.
+                  </Text>
+                </View>
+
+                {/* Error Banner */}
+                {activateError && (
+                  <View style={st.errBanner}>
+                    <Ionicons name="alert-circle" size={14} color={colors.red} />
+                    <Text style={st.errText}>{activateError}</Text>
+                  </View>
+                )}
+
+                {/* Field 1: Email / Username */}
+                <View style={st.fieldCol}>
+                  <Text style={st.activateLabel}>EMAIL ATAU USERNAME</Text>
+                  <View style={st.inputBox}>
+                    <Ionicons name="mail-outline" size={15} color="rgba(255,255,255,0.25)" style={st.fieldIco} />
+                    <TextInput
+                      value={activateIdentifier}
+                      onChangeText={(t) => {
+                        setActivateIdentifier(t);
+                        if (activateError) setActivateError(null);
+                      }}
+                      placeholder="nama@email.com atau username"
+                      placeholderTextColor="rgba(255,255,255,0.18)"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      selectionColor={colors.gold}
+                      style={st.textInput}
+                    />
+                  </View>
+                </View>
+
+                {/* Field 2: Kode Undangan (No ticket emoticon) */}
+                <View style={st.fieldCol}>
+                  <Text style={st.activateLabel}>KODE AKTIVASI UNDANGAN</Text>
+                  <View style={st.inputBox}>
+                    <Ionicons name="key-outline" size={15} color="rgba(255,255,255,0.25)" style={st.fieldIco} />
+                    <TextInput
+                      value={activationCode}
+                      onChangeText={(t) => {
+                        setActivationCode(t.toUpperCase());
+                        if (activateError) setActivateError(null);
+                      }}
+                      placeholder="Contoh: PFX-8890"
+                      placeholderTextColor="rgba(255,255,255,0.18)"
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      selectionColor={colors.gold}
+                      style={st.textInput}
+                    />
+                  </View>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={{ gap: 8, marginTop: 4 }}>
+                  <PressScale
+                    onPress={isActivating || !isActivateValid ? undefined : handleActivateSubmit}
+                    scaleTo={isActivating || !isActivateValid ? 1 : 0.98}
+                  >
+                    <View style={st.submitWrap}>
+                      <LinearGradient
+                        colors={isActivateValid && !isActivating ? goldGradient : ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.03)']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[st.submitBtn, (!isActivateValid || isActivating) && { opacity: 0.5 }]}
+                      >
+                        {isActivating ? (
+                          <View style={st.loadRow}>
+                            <ActivityIndicator size="small" color={colors.ink} />
+                            <Text style={[st.submitTxt, { color: colors.ink }]}>Memverifikasi Undangan...</Text>
+                          </View>
+                        ) : (
+                          <Text style={[st.submitTxt, { color: isActivateValid ? colors.ink : 'rgba(255,255,255,0.30)' }]}>
+                            Verifikasi & Aktifkan Akun
+                          </Text>
+                        )}
+                      </LinearGradient>
+                    </View>
+                  </PressScale>
+
+                  <Pressable
+                    onPress={() => {
+                      tap('light');
+                      setShowActivateSheet(false);
+                      setActivateError(null);
+                    }}
+                    hitSlop={8}
+                    style={st.activateCancelBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Batal aktivasi"
+                  >
+                    <Text style={st.activateCancelTxt}>Batal</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </BlurView>
+          )}
         </View>
       </Modal>
     </View>
@@ -574,9 +714,9 @@ const st = StyleSheet.create({
     paddingBottom: 24,
     gap: 20,
   },
-  cardHead: { gap: 4 },
-  cardTitle: { color: 'rgba(255,255,255,0.92)', fontFamily: fonts.bold, fontSize: 19, letterSpacing: -0.3 },
-  cardSub: { color: 'rgba(255,255,255,0.42)', fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18 },
+  cardHead: { gap: 4, alignItems: 'center' },
+  cardTitle: { color: 'rgba(255,255,255,0.92)', fontFamily: fonts.bold, fontSize: 19, letterSpacing: -0.3, textAlign: 'center' },
+  cardSub: { color: 'rgba(255,255,255,0.42)', fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, textAlign: 'center' },
 
   /* Error */
   errBanner: {
@@ -723,11 +863,73 @@ const st = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
+    width: '100%',
   },
   modalConfirmText: {
     color: colors.ink,
     fontFamily: fonts.semi,
     fontSize: 13,
     letterSpacing: 0.2,
+  },
+
+  /* Activate Card (Lebar, Elegan, Konsisten) */
+  activateCard: {
+    width: '100%',
+    maxWidth: 375,
+    borderRadius: 24,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: 'rgba(12, 16, 24, 0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 22,
+    shadowColor: '#000',
+    shadowOpacity: 0.6,
+    shadowRadius: 25,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 15,
+    ...(isWeb ? ({ backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)' } as any) : {}),
+  },
+  activateHead: {
+    gap: 4,
+    alignItems: 'center',
+  },
+  activateTitle: {
+    color: '#FFFFFF',
+    fontFamily: fonts.bold,
+    fontSize: 18,
+    letterSpacing: -0.3,
+    textAlign: 'center',
+  },
+  activateDesc: {
+    color: 'rgba(255, 255, 255, 0.52)',
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  activateLabel: {
+    color: 'rgba(255, 255, 255, 0.45)',
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    marginBottom: 6,
+  },
+  activateCancelBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 40,
+    borderRadius: 12,
+    marginTop: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  activateCancelTxt: {
+    color: 'rgba(255, 255, 255, 0.60)',
+    fontFamily: fonts.semi,
+    fontSize: 13,
   },
 });
