@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EquityChart } from '../components/EquityChart';
 import { LogoMark } from '../components/Logo';
 import { MarketSessions } from '../components/MarketSessions';
-import { AnimatedBar, CountUp, FadeIn, Float, PressScale, ProgressRing, Shimmer } from '../components/motion';
+import { AnimatedBar, CountUp, FadeIn, Float, PressScale, ProgressRing, Shimmer, tap } from '../components/motion';
 import { Card, Chip, GoldButton, IconBadge, IconName, SectionTitle, Sheet } from '../components/ui';
 import { Medal, useAchievements } from '../components/Medal';
 import { StreakChip } from '../components/Streak';
@@ -46,6 +47,7 @@ export function HomeScreen() {
   const { list: achList, unlockedCount, streak } = useAchievements();
   const [nameOpen, setNameOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const memberName = settings.name?.trim() || 'Member';
   const medalsPreview = [...achList]
     .sort((x, y) => (x.unlocked !== y.unlocked ? (x.unlocked ? -1 : 1) : (y.at ?? 0) - (x.at ?? 0)))
@@ -59,52 +61,41 @@ export function HomeScreen() {
   const tip = TIPS[now.getDate() % TIPS.length];
 
   const handleLogout = () => {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm('Keluar dan kembali ke halaman Login?')) {
-        logout();
-      }
-    } else {
-      Alert.alert(
-        'Logout',
-        'Keluar dan kembali ke halaman Login?',
-        [
-          { text: 'Batal', style: 'cancel' },
-          { text: 'Logout', style: 'destructive', onPress: logout },
-        ]
-      );
-    }
+    tap('select');
+    setShowLogoutModal(true);
   };
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: 120 }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* top bar */}
-      <FadeIn from="none" duration={600}>
-        <View style={st.top}>
-          <LogoMark size={42} />
-          <View style={{ flex: 1 }} />
-          <View style={st.topRight}>
-            <View style={st.datePill}>
-              <Ionicons name="calendar-clear-outline" size={13} color={colors.gold} />
-              <Text style={st.dateText}>
-                {now.getDate()} {BULAN[now.getMonth()].slice(0, 3)}
-              </Text>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.bg }}
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* top bar */}
+        <FadeIn from="none" duration={600}>
+          <View style={st.top}>
+            <LogoMark size={42} />
+            <View style={{ flex: 1 }} />
+            <View style={st.topRight}>
+              <View style={st.datePill}>
+                <Ionicons name="calendar-clear-outline" size={13} color={colors.gold} />
+                <Text style={st.dateText}>
+                  {now.getDate()} {BULAN[now.getMonth()].slice(0, 3)}
+                </Text>
+              </View>
+              <PressScale
+                onPress={handleLogout}
+                scaleTo={0.93}
+                style={st.logoutPill}
+                accessibilityLabel="Logout dan kembali ke login"
+              >
+                <Ionicons name="log-out-outline" size={14} color={colors.red} />
+                <Text style={st.logoutText}>Logout</Text>
+              </PressScale>
             </View>
-            <PressScale
-              onPress={handleLogout}
-              scaleTo={0.93}
-              style={st.logoutPill}
-              accessibilityLabel="Logout dan kembali ke onboarding"
-            >
-              <Ionicons name="log-out-outline" size={14} color={colors.red} />
-              <Text style={st.logoutText}>Logout</Text>
-            </PressScale>
           </View>
-        </View>
-      </FadeIn>
+        </FadeIn>
 
       <FadeIn delay={80}>
         <Text style={st.hello}>{greeting(now)},</Text>
@@ -354,7 +345,66 @@ export function HomeScreen() {
           </Pressable>
         </View>
       </Sheet>
-    </ScrollView>
+      </ScrollView>
+
+      {/* ── Modal Konfirmasi Logout (Konsisten dengan Onboarding & Login) ── */}
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={st.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowLogoutModal(false)}>
+            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={st.modalDimmer} />
+          </Pressable>
+
+          <BlurView intensity={Platform.OS === 'ios' ? 25 : 15} tint="dark" style={st.modalCard}>
+            <Text style={st.modalTitle}>Keluar dari Akun?</Text>
+            <Text style={st.modalDesc}>
+              Anda akan keluar dari sesi ini dan kembali ke halaman login.
+            </Text>
+
+            <View style={st.modalBtnRow}>
+              <Pressable
+                onPress={() => {
+                  tap('light');
+                  setShowLogoutModal(false);
+                }}
+                hitSlop={8}
+                style={st.modalCancelBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Batal keluar"
+              >
+                <Text style={st.modalCancelText}>Batal</Text>
+              </Pressable>
+
+              <View style={{ flex: 1 }}>
+                <PressScale
+                  onPress={() => {
+                    tap('select');
+                    setShowLogoutModal(false);
+                    logout();
+                  }}
+                  accessibilityLabel="Konfirmasi keluar dari akun"
+                >
+                  <LinearGradient
+                    colors={goldGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={st.modalConfirmBtn}
+                  >
+                    <Text style={st.modalConfirmText}>Ya, Keluar</Text>
+                  </LinearGradient>
+                </PressScale>
+              </View>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -535,5 +585,91 @@ const st = StyleSheet.create({
     textAlign: 'center',
     marginTop: 24,
     paddingHorizontal: 12,
+  },
+
+  /* Modal Popup Logout (Konsisten dengan Onboarding & Login) */
+  modalOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  modalDimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 310,
+    backgroundColor: 'rgba(12, 16, 24, 0.90)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 18,
+    alignItems: 'center',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+    ...(Platform.OS === 'web' ? ({ backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' } as any) : {}),
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontFamily: fonts.semi,
+    fontSize: 16,
+    letterSpacing: -0.2,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalDesc: {
+    color: 'rgba(255, 255, 255, 0.55)',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18.5,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  modalCancelText: {
+    color: 'rgba(255, 255, 255, 0.65)',
+    fontFamily: fonts.medium,
+    fontSize: 13,
+  },
+  modalConfirmBtn: {
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  modalConfirmText: {
+    color: colors.ink,
+    fontFamily: fonts.semi,
+    fontSize: 13,
+    letterSpacing: 0.2,
   },
 });

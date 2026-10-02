@@ -124,7 +124,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     setSettings((prev) => {
-      const next = { ...prev, welcomed: false, isLoggedIn: false };
+      const next = { ...prev, isLoggedIn: false };
       persist(KEYS.settings, next);
       return next;
     });

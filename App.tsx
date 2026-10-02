@@ -236,6 +236,12 @@ function MainApp() {
   const isLoggedIn = settings.isLoggedIn ?? false;
   const isWelcomed = settings.welcomed ?? false;
 
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setAuthView('login');
+    }
+  }, [isLoggedIn]);
+
   // Jika font masih belum termuat, render splash logo statis sejenak
   if (!fontsLoaded) {
     return (
