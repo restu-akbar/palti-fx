@@ -4,6 +4,10 @@ This repository uses a **spec-first, test-first, evidence-driven, human-in-the-l
 workflow. The agent owns the mechanics; **the human owns approval decisions**.
 The agent MUST stop at every approval gate and wait for explicit human approval.
 
+This is a monorepo containing:
+- `frontend/`: Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
+- `backend/`: Node.js + Express + TypeScript REST API server.
+
 ## Authority order (if instructions conflict)
 
 `AGENTS.md` > `specs/<feature>/approval.md` gate status > `docs/agent/*` >
@@ -23,6 +27,19 @@ in other artifacts.
 Fast-track (trivial only, all must hold: ≤3 files, ≤50 diff lines, no API/schema/
 storage-key/dependency/config change): mini-spec (≤15 lines) → straight to Gate 4
 with diff + fresh evidence. When in doubt, use the full 4 gates.
+
+Run commands from the appropriate directory or use workspace scripts:
+```bash
+# Frontend
+npm run start:frontend       # start mobile dev server
+npm run test:frontend        # run mobile tests
+npm run lint:frontend        # lint mobile app
+cd frontend && npx tsc --noEmit # typecheck mobile app
+
+# Backend
+npm run start:backend        # run backend in dev mode with hot reload
+npm run build:backend        # build backend TypeScript to dist/
+```
 
 ## Approval rules (binding)
 

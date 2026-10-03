@@ -1,48 +1,85 @@
-# PALTI FX
+# PALTI FX - Monorepo Workspace
 
-Aplikasi edukasi + kalkulator + jurnal trading forex (Expo, satu codebase untuk
-Android / iOS / Web). Tampilan web dibatasi lebar 480px by design (`App.tsx`).
+Repositori ini telah dirapikan ke dalam struktur monorepo yang memisahkan antara **Frontend (Aplikasi Mobile Expo / React Native)** dan **Backend (API Server Express & TypeScript)**.
 
-## Struktur
+---
 
-```text
-App.tsx / index.ts        # entry + shell (font, StoreProvider > NavProvider)
-src/nav.tsx               # navigasi tab custom (home|edu|tools|journal)
-src/theme.ts              # token warna/font/radius
-src/lib/                  # calc, instruments, sessions, format, store (AsyncStorage pfx.*.v1)
-src/data/modules.ts       # materi edukasi (satu-satunya sumber konten)
-src/screens/              # HomeScreen, EduScreens, ToolScreens, JournalScreens
-src/components/           # ui, motion, Logo, EquityChart, MarketSessions
-tests/                    # calc, instruments, sessions, store (vitest)
-app.json / eas.json       # config rilis (version/versionCode)
+## 📁 Struktur Direktori
+
+```
+palti-fx/
+├── frontend/             # Aplikasi Mobile Expo / React Native
+│   ├── assets/           # Ikon, splash, dan gambar brand
+│   ├── src/              # Kode aplikasi mobile (screens, components, lib, data)
+│   ├── tests/            # Unit testing mobile (kalkulator, streak, dll)
+│   ├── App.tsx           # Entry root component mobile
+│   ├── app.json          # Konfigurasi Expo & build EAS
+│   ├── package.json      # Dependensi frontend (@palti-fx/frontend)
+│   └── tsconfig.json     # Konfigurasi TypeScript Expo
+│
+├── backend/              # Server API RESTful (Node.js + Express + TypeScript)
+│   ├── src/
+│   │   ├── config/       # Environment & JWT setup
+│   │   ├── controllers/  # Auth, Jurnal Trade, dan Sesi Pasar
+│   │   ├── middlewares/  # JWT Auth & Error Handling
+│   │   ├── models/       # Skema data (User, Trade)
+│   │   ├── routes/       # Endpoint API (/api/v1/...)
+│   │   ├── services/     # Business logic & mock storage
+│   │   ├── utils/        # Standard response formatter
+│   │   ├── app.ts        # Setup Express
+│   │   └── index.ts      # Server entry point
+│   ├── .env              # Konfigurasi environment backend
+│   ├── package.json      # Dependensi backend (@palti-fx/backend)
+│   ├── tsconfig.json     # Konfigurasi TypeScript backend
+│   └── README.md         # Dokumentasi lengkap API backend
+│
+├── ANALISIS-PALTI-FX.md  # Dokumen analisis sistem aplikasi
+├── LoginFlow.md          # Spesifikasi alur autentikasi & onboarding
+├── PANDUAN-BUILD-APK.md  # Panduan build APK EAS
+├── package.json          # Root package.json (Monorepo Workspaces)
+└── .gitignore            # Konfigurasi git ignore terpadu
 ```
 
-## Perintah
+---
 
-| Kebutuhan | Perintah |
-|---|---|
-| Dev | `npx expo start` (scan QR via Expo Go) |
-| Test penuh | `npx vitest run` (atau `npm test`) |
-| Satu file | `npx vitest run tests/calc.test.ts` |
-| Typecheck | `npx tsc --noEmit` (atau `npm run typecheck`) |
-| Lint | `npm run lint` |
-| Web statis | `npx expo export --platform web` → `dist/` |
-| Android preview (APK) | `npx eas-cli@latest build -p android --profile preview` |
-| Produksi | `npx eas-cli@latest build --platform all --profile production` |
+## ⚡ Panduan Menjalankan Project
 
-Detail build bertahap: `PANDUAN-BUILD-APK.md`.
+### 1. Menjalankan Frontend (Mobile Expo)
 
-## Bekerja dengan coding agent
+Dari root project:
+```bash
+npm run start:frontend
+```
+Atau masuk ke folder frontend:
+```bash
+cd frontend
+npx expo start
+```
 
-Repo ini memakai workflow human-in-the-loop. Agent membaca **`AGENTS.md`**
-(kontrak, menang atas semua instruksi lain), lalu `docs/agent/`:
+### 2. Menjalankan Backend (Express API)
 
-- `context.md` — peta repo, stack, perintah kanonis
-- `guardrails.md` — anti-hallucination, minimal diff, policy permukaan baru
-- `conventions.md` — pola existing yang wajib diikuti
-- `verification.md` — definisi selesai operasional
-- `workflow-details.md` — definisi gate + fast-track trivial
+Dari root project:
+```bash
+npm run start:backend
+```
+Atau masuk ke folder backend:
+```bash
+cd backend
+npm run dev
+```
+Backend akan aktif di `http://localhost:5000` (Health check: `http://localhost:5000/health`).
 
-Mulai fitur: `./scripts/new-feature.sh 042 password-reset` → isi `spec.md` →
-STOP di Gate 1. Frasa approval sah: `approve spec|plan|tasks|final`.
-"looks good"/"oke" tanpa nama gate = ambigu, bukan approval.
+---
+
+## 🧪 Testing & Linting
+
+```bash
+# Test frontend
+npm run test:frontend
+
+# Linting frontend
+npm run lint:frontend
+
+# Build backend
+npm run build:backend
+```

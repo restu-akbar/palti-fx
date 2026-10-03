@@ -53,6 +53,8 @@ Thumbs.db
 /android
 mobile/ios
 mobile/android
+frontend/ios
+frontend/android
 
 # Editor / Tooling
 .opencode/
