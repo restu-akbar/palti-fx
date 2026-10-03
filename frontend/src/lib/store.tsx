@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { supabase } from './supabase';
+import { getSecureNickname, setSecureNickname } from './nicknameStorage';
 
 export type Trade = {
   id: string;
@@ -30,6 +32,8 @@ export type Settings = {
   isLoggedIn?: boolean;
   /** Nama panggilan member (untuk sapaan) */
   name?: string;
+  /** Identifier / Email akun yang sedang aktif */
+  activeUser?: string;
   /** Pencapaian yang sudah terbuka: id → waktu terbuka (ms) */
   unlocked?: Record<string, number>;
   /** Berapa kali kalkulator Lot Size dibuka */
@@ -80,9 +84,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         load<Record<string, boolean>>(KEYS.completed, {}),
         load<Settings>(KEYS.settings, {}),
       ]);
+      const secureName = s.activeUser ? await getSecureNickname(s.activeUser) : null;
       setTrades(t);
       setCompleted(c);
-      setSettings(s);
+      setSettings({ ...s, name: secureName || s.name });
       setReady(true);
     })();
   }, []);
@@ -117,14 +122,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
+      // Simpan nama panggilan spesifik untuk user yang sedang aktif
+      if (patch.name !== undefined) {
+        const targetUser = next.activeUser || prev.activeUser;
+        setSecureNickname(targetUser, patch.name);
+      }
       persist(KEYS.settings, next);
       return next;
     });
   }, []);
 
   const logout = useCallback(() => {
+    supabase.auth.signOut({ scope: 'local' }).catch(() => {});
     setSettings((prev) => {
-      const next = { ...prev, isLoggedIn: false };
+      // Hapus status login, nama, dan user aktif agar tidak bocor ke akun berikutnya
+      const next = {
+        ...prev,
+        isLoggedIn: false,
+        name: undefined,
+        activeUser: undefined,
+      };
       persist(KEYS.settings, next);
       return next;
     });

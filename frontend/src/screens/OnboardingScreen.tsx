@@ -300,12 +300,82 @@ export function OnboardingScreen({
     setStep(nextIndex);
   };
 
+  /* ── PanResponder untuk Gesture Geser Layar Horizontal (Swipe Left / Right) ── */
+  const swipeResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => {
+        return Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy) * 1.25;
+      },
+      onPanResponderGrant: () => {
+        slideX.stopAnimation();
+      },
+      onPanResponderMove: (_, g) => {
+        if ((step === 0 && g.dx > 0) || (step === STEPS.length - 1 && g.dx < 0)) {
+          slideX.setValue(g.dx * 0.25);
+        } else {
+          slideX.setValue(g.dx);
+        }
+      },
+      onPanResponderRelease: (_, g) => {
+        const threshold = SW * 0.18;
+        const velocityThreshold = 0.25;
+
+        // Geser ke kiri (Next)
+        if (g.dx < -threshold || (g.dx < -20 && g.vx < -velocityThreshold)) {
+          if (step < STEPS.length - 1) {
+            tap('select');
+            animateTo(step + 1, 'fwd');
+          } else {
+            Animated.spring(slideX, {
+              toValue: 0,
+              tension: 65,
+              friction: 9,
+              useNativeDriver: native,
+            }).start();
+          }
+        }
+        // Geser ke kanan (Back)
+        else if (g.dx > threshold || (g.dx > 20 && g.vx > velocityThreshold)) {
+          if (step > 0) {
+            tap('light');
+            animateTo(step - 1, 'back');
+          } else {
+            Animated.spring(slideX, {
+              toValue: 0,
+              tension: 65,
+              friction: 9,
+              useNativeDriver: native,
+            }).start();
+          }
+        }
+        // Kembalikan ke tengah jika geseran tidak cukup
+        else {
+          Animated.spring(slideX, {
+            toValue: 0,
+            tension: 65,
+            friction: 9,
+            useNativeDriver: native,
+          }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(slideX, {
+          toValue: 0,
+          tension: 65,
+          friction: 9,
+          useNativeDriver: native,
+        }).start();
+      },
+    })
+  ).current;
+
   const finish = () => {
     tap('success');
     Animated.timing(fadeOut, {
       toValue: 0,
-      duration: 320,
-      easing: Easing.in(Easing.quad),
+      duration: 250,
+      easing: Easing.out(Easing.quad),
       useNativeDriver: native,
     }).start(onDone);
   };
@@ -315,8 +385,8 @@ export function OnboardingScreen({
     tap('select');
     Animated.timing(fadeOut, {
       toValue: 0,
-      duration: 300,
-      easing: Easing.in(Easing.quad),
+      duration: 250,
+      easing: Easing.out(Easing.quad),
       useNativeDriver: native,
     }).start(onSkip ?? onDone);
   };
@@ -337,8 +407,8 @@ export function OnboardingScreen({
       {/* Safe area spacer atas */}
       <View style={{ height: insets.top + 8 }} />
 
-      {/* ── Konten Utama ── */}
-      <View style={st.contentContainer}>
+      {/* ── Konten Utama (dengan Gesture Swipe Horizontal) ── */}
+      <View style={st.contentContainer} {...swipeResponder.panHandlers}>
         <Animated.View style={[st.slideContent, { transform: [{ translateX: slideX }] }]}>
           {/* Area Teks di Tengah dengan Watermark Logo Ekstra Besar di Belakangnya */}
           <Animated.View

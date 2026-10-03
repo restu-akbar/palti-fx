@@ -18,6 +18,8 @@ import { tap } from './src/components/motion';
 import { IconName } from './src/components/ui';
 import { StoreProvider, useStore } from './src/lib/store';
 import { NavProvider, Route, TabKey, useNav } from './src/nav';
+import { AuthService } from './src/lib/authService';
+import { getSecureNickname } from './src/lib/nicknameStorage';
 import { EduScreen, LessonScreen, ModuleScreen } from './src/screens/EduScreens';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { JournalScreen, TradeFormScreen } from './src/screens/JournalScreens';
@@ -116,12 +118,11 @@ function TabBar() {
   }, [idx, x]);
   const tabW = w / TABS.length;
   return (
-    <View style={[st.tabWrap, { paddingBottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
+    <View style={[st.tabWrap, { paddingBottom: Math.max(insets.bottom, 12), pointerEvents: 'box-none' }]}>
       <LinearGradient
         colors={['rgba(6,6,8,0)', 'rgba(6,6,8,0.92)', colors.bg]}
         locations={[0, 0.55, 1]}
-        style={st.fade}
-        pointerEvents="none"
+        style={[st.fade, { pointerEvents: 'none' }]}
       />
       <View style={st.tabBar} onLayout={(e) => setW(e.nativeEvent.layout.width - 12)}>
         {w > 0 && (
@@ -178,7 +179,7 @@ function Splash({ onFinish }: { onFinish: () => void }) {
       toValue: 1,
       tension: 28,
       friction: 9,
-      useNativeDriver: true,
+      useNativeDriver: native,
     }).start();
 
     // Setelah logo settle (~1.4s), larut keluar ke Onboarding
@@ -187,7 +188,7 @@ function Splash({ onFinish }: { onFinish: () => void }) {
         toValue: 0,
         duration: 380,
         easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
+        useNativeDriver: native,
       }).start(() => onFinishRef.current());
     }, 1400);
 
@@ -198,9 +199,15 @@ function Splash({ onFinish }: { onFinish: () => void }) {
     <Animated.View
       style={[
         StyleSheet.absoluteFill,
-        { backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', zIndex: 9999, opacity: fade },
+        {
+          backgroundColor: colors.bg,
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          opacity: fade,
+          pointerEvents: 'none',
+        },
       ]}
-      pointerEvents="none"
     >
       <Animated.View
         style={{
@@ -218,7 +225,7 @@ function Splash({ onFinish }: { onFinish: () => void }) {
 }
 
 function MainApp() {
-  const { settings, updateSettings } = useStore();
+  const { ready, settings, updateSettings } = useStore();
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
@@ -229,9 +236,9 @@ function MainApp() {
   });
 
   const [splashFinished, setSplashFinished] = useState(false);
-  const [onboarded, setOnboarded] = useState(false);
   const [authView, setAuthView] = useState<'login' | 'forgot_password'>('login');
   const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [authChecked, setAuthChecked] = useState(false);
 
   const isLoggedIn = settings.isLoggedIn ?? false;
   const isWelcomed = settings.welcomed ?? false;
@@ -242,8 +249,44 @@ function MainApp() {
     }
   }, [isLoggedIn]);
 
-  // Jika font masih belum termuat, render splash logo statis sejenak
-  if (!fontsLoaded) {
+  // Rekonsiliasi sesi sekali saat startup (setelah store ready)
+  const sessionCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!ready || sessionCheckedRef.current) return;
+    sessionCheckedRef.current = true;
+
+    AuthService.restoreSession().then(async (res) => {
+      if (res.state === 'authenticated') {
+        const userKey = res.identifier;
+        const savedNick = await getSecureNickname(userKey);
+        updateSettings({
+          isLoggedIn: true,
+          activeUser: userKey,
+          name: savedNick || res.name || res.identifier,
+        });
+      } else if (res.state === 'unauthenticated') {
+        if (isLoggedIn) {
+          updateSettings({ isLoggedIn: false, name: undefined, activeUser: undefined });
+        }
+      }
+      setAuthChecked(true);
+    });
+  }, [ready, isLoggedIn, updateSettings]);
+
+  // Listener bila sesi berakhir di luar app (misal token revoke)
+  useEffect(() => {
+    const sub = AuthService.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        updateSettings({ isLoggedIn: false });
+      }
+    });
+    return () => {
+      sub.unsubscribe();
+    };
+  }, [updateSettings]);
+
+  // 1. Tunggu hingga data lokal AsyncStorage siap, font selesai dimuat, dan cek sesi awal tuntas
+  if (!ready || !fontsLoaded || !authChecked) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
         <LogoMark size={142} />
@@ -251,82 +294,63 @@ function MainApp() {
     );
   }
 
-  // 1. Tampilkan OnboardingScreen di awal setiap sesi (untuk kebutuhan review client)
-  if (!onboarded) {
-    return (
-      <View style={st.outer}>
-        <View style={st.app}>
-          <StatusBar style="light" />
-          <OnboardingScreen
-            onDone={() => {
-              setOnboarded(true);
-              updateSettings({ welcomed: true });
-            }}
-            onSkip={() => {
-              setOnboarded(true);
-              updateSettings({ welcomed: true });
-            }}
-          />
-          {!splashFinished && (
-            <Splash onFinish={() => setSplashFinished(true)} />
-          )}
-        </View>
-      </View>
-    );
-  }
+  // Helper untuk menentukan konten layar aktif tanpa glitch / re-mount splash
+  const renderContent = () => {
+    // A. Pengguna sudah login -> Masuk ke Dashboard Beranda & Navigasi
+    if (isLoggedIn) {
+      return (
+        <>
+          <CurrentScreen />
+          <TabBar />
+          <AchievementWatcher />
+        </>
+      );
+    }
 
-  // 2. Jika sudah melewati onboarding tetapi belum login, tampilkan LoginScreen atau ResetPasswordScreen
-  if (!isLoggedIn) {
+    // B. Pengguna baru (belum pernah menyelesaikan onboarding) -> Tampilkan Onboarding
+    if (!isWelcomed) {
+      return (
+        <OnboardingScreen
+          onDone={() => updateSettings({ welcomed: true })}
+          onSkip={() => updateSettings({ welcomed: true })}
+        />
+      );
+    }
+
+    // C. Pengguna sudah melewati onboarding -> Tampilkan Login atau Reset Password
     if (authView === 'forgot_password') {
       return (
-        <View style={st.outer}>
-          <View style={st.app}>
-            <StatusBar style="light" />
-            <ResetPasswordScreen
-              initialIdentifier={forgotIdentifier}
-              onBackToLogin={() => setAuthView('login')}
-              onSuccess={() => setAuthView('login')}
-            />
-            {!splashFinished && (
-              <Splash onFinish={() => setSplashFinished(true)} />
-            )}
-          </View>
-        </View>
+        <ResetPasswordScreen
+          initialIdentifier={forgotIdentifier}
+          onBackToLogin={() => setAuthView('login')}
+          onSuccess={() => setAuthView('login')}
+        />
       );
     }
 
     return (
-      <View style={st.outer}>
-        <View style={st.app}>
-          <StatusBar style="light" />
-          <LoginScreen
-            onForgotPassword={(id) => {
-              setForgotIdentifier(id || '');
-              setAuthView('forgot_password');
-            }}
-            onSuccess={({ identifier, name }) => {
-              updateSettings({
-                isLoggedIn: true,
-                name: name || settings.name || identifier,
-              });
-            }}
-          />
-          {!splashFinished && (
-            <Splash onFinish={() => setSplashFinished(true)} />
-          )}
-        </View>
-      </View>
+      <LoginScreen
+        onForgotPassword={(id) => {
+          setForgotIdentifier(id || '');
+          setAuthView('forgot_password');
+        }}
+        onSuccess={async ({ identifier, name }) => {
+          const savedNick = await getSecureNickname(identifier);
+          updateSettings({
+            isLoggedIn: true,
+            activeUser: identifier,
+            name: savedNick || name || identifier,
+          });
+        }}
+      />
     );
-  }
+  };
 
-  // 3. Jika sudah login, tampilkan aplikasi utama (Beranda & TabBar)
   return (
     <View style={st.outer}>
       <View style={st.app}>
         <StatusBar style="light" />
-        <CurrentScreen />
-        <TabBar />
-        <AchievementWatcher />
+        {renderContent()}
         {!splashFinished && (
           <Splash onFinish={() => setSplashFinished(true)} />
         )}

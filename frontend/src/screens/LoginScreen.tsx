@@ -4,7 +4,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -20,6 +19,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LogoMark, Wordmark } from '../components/Logo';
 import { PressScale, tap } from '../components/motion';
+import { AuthService } from '../lib/authService';
+import {
+  isEmail,
+  normalizeIdentifier,
+  normalizeInviteCode,
+  validatePassword,
+} from '../lib/authUtils';
 import { colors, fonts, goldGradient } from '../theme';
 
 const isWeb = Platform.OS === 'web';
@@ -48,41 +54,85 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
   /* State Aktivasi Akun Baru */
   const [activateIdentifier, setActivateIdentifier] = useState('');
   const [activationCode, setActivationCode] = useState('');
+  const [activatePassword, setActivatePassword] = useState('');
+  const [activateConfirmPassword, setActivateConfirmPassword] = useState('');
+  const [showActivatePassword, setShowActivatePassword] = useState(false);
+  const [showActivateConfirmPassword, setShowActivateConfirmPassword] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [activateError, setActivateError] = useState<string | null>(null);
   const [activateSuccess, setActivateSuccess] = useState(false);
+  const [activateResult, setActivateResult] = useState<{
+    signedIn: boolean;
+    identifier: string;
+    name?: string;
+  } | null>(null);
 
   const handleOpenActivate = () => {
     tap('select');
-    setActivateIdentifier(identifier);
+    const clean = normalizeIdentifier(identifier);
+    setActivateIdentifier(isEmail(clean) ? clean : '');
     setActivationCode('');
+    setActivatePassword('');
+    setActivateConfirmPassword('');
     setActivateError(null);
     setActivateSuccess(false);
+    setActivateResult(null);
     setShowActivateSheet(true);
   };
 
-  const handleActivateSubmit = () => {
+  const handleActivateSubmit = async () => {
     Keyboard.dismiss();
     setActivateError(null);
-    if (!activateIdentifier.trim()) {
-      setActivateError('Masukkan email atau username terlebih dahulu.');
+
+    const mail = normalizeIdentifier(activateIdentifier);
+    const code = normalizeInviteCode(activationCode);
+    const pass = activatePassword;
+    const confirm = activateConfirmPassword;
+
+    if (!isEmail(mail)) {
+      setActivateError('Format email tidak valid.');
       return;
     }
-    if (!activationCode.trim()) {
-      setActivateError('Masukkan kode aktivasi undangan dari admin.');
+    if (code.length < 4) {
+      setActivateError('Masukkan kode aktivasi undangan resmi.');
       return;
     }
+    const pwErr = validatePassword(pass);
+    if (pwErr) {
+      setActivateError(pwErr);
+      return;
+    }
+    if (pass !== confirm) {
+      setActivateError('Konfirmasi kata sandi tidak cocok.');
+      return;
+    }
+
     tap('select');
     setIsActivating(true);
 
-    setTimeout(() => {
-      setIsActivating(false);
-      tap('success');
-      setActivateSuccess(true);
-    }, 850);
+    const res = await AuthService.activate(mail, code, pass);
+    setIsActivating(false);
+
+    if (!res.success) {
+      tap('light');
+      setActivateError(res.error || 'Aktivasi gagal. Periksa kembali kode undangan Anda.');
+      return;
+    }
+
+    tap('success');
+    setActivateResult({
+      signedIn: res.signedIn ?? false,
+      identifier: res.identifier || mail,
+      name: res.name,
+    });
+    setActivateSuccess(true);
   };
 
-  const isActivateValid = activateIdentifier.trim().length > 0 && activationCode.trim().length >= 4;
+  const isActivateValid =
+    isEmail(normalizeIdentifier(activateIdentifier)) &&
+    normalizeInviteCode(activationCode).length >= 4 &&
+    activatePassword.length >= 8 &&
+    activatePassword === activateConfirmPassword;
 
   const handleIdentifierBlur = () => {
     setFocusedField(null);
@@ -94,28 +144,38 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
     }
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     Keyboard.dismiss();
     setErrorMessage(null);
-    const cleanId = identifier.trim().toLowerCase();
+    const cleanId = normalizeIdentifier(identifier);
     const cleanPass = password;
     if (!cleanId || !cleanPass) return;
     tap('select');
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      if (cleanId === 'error') {
-        tap('light');
-        setErrorMessage('Email atau kata sandi tidak cocok. Silakan periksa kembali.');
-        setPassword('');
+
+    const res = await AuthService.signIn(cleanId, cleanPass);
+    setIsSubmitting(false);
+
+    if (!res.success) {
+      tap('light');
+      if (res.status === 'pending') {
+        if (res.identifier) setActivateIdentifier(res.identifier);
+        setShowPendingSheet(true);
         return;
       }
-      if (cleanId === 'pending') { tap('light'); setShowPendingSheet(true); return; }
-      if (cleanId === 'suspended') { tap('light'); setShowSuspendedModal(true); return; }
-      tap('success');
-      const displayName = cleanId.includes('@') ? cleanId.split('@')[0] : cleanId;
-      onSuccess({ identifier: cleanId, name: displayName.charAt(0).toUpperCase() + displayName.slice(1) });
-    }, 900);
+      if (res.status === 'suspended') {
+        setShowSuspendedModal(true);
+        return;
+      }
+      setErrorMessage(res.error || 'Email/ID Member atau kata sandi tidak cocok.');
+      return;
+    }
+
+    tap('success');
+    onSuccess({
+      identifier: res.identifier || cleanId,
+      name: res.name || 'Trader Palti',
+    });
   };
 
   const isFormValid = identifier.trim().length > 0 && password.length > 0;
@@ -492,7 +552,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
             <BlurView intensity={Platform.OS === 'ios' ? 25 : 15} tint="dark" style={st.modalCard}>
               <Text style={st.modalTitle}>Aktivasi Akun Berhasil</Text>
               <Text style={st.modalDesc}>
-                Undangan Anda berhasil diverifikasi. Akun Anda kini aktif dan siap digunakan untuk masuk.
+                Kode undangan Anda berhasil diverifikasi. Akun Anda kini aktif sepenuhnya dan siap digunakan.
               </Text>
 
               <View style={{ width: '100%' }}>
@@ -500,8 +560,15 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                   onPress={() => {
                     tap('success');
                     setShowActivateSheet(false);
-                    setIdentifier(activateIdentifier);
-                    passwordRef.current?.focus();
+                    if (activateResult?.signedIn) {
+                      onSuccess({
+                        identifier: activateResult.identifier,
+                        name: activateResult.name || 'Trader Palti',
+                      });
+                    } else {
+                      setIdentifier(activateResult?.identifier || activateIdentifier);
+                      passwordRef.current?.focus();
+                    }
                   }}
                   accessibilityLabel="Masuk ke Akun"
                 >
@@ -511,7 +578,9 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                     end={{ x: 1, y: 1 }}
                     style={st.modalConfirmBtn}
                   >
-                    <Text style={st.modalConfirmText}>Masuk ke Akun</Text>
+                    <Text style={st.modalConfirmText}>
+                      {activateResult?.signedIn ? 'Lanjut ke Beranda' : 'Masuk ke Akun'}
+                    </Text>
                   </LinearGradient>
                 </PressScale>
               </View>
@@ -526,7 +595,12 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
               />
               <View style={st.cardBorderTopCap} pointerEvents="none" />
 
-              <View style={{ gap: 16 }}>
+              <ScrollView
+                style={{ maxHeight: 480 }}
+                contentContainerStyle={{ gap: 14, paddingBottom: 4 }}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
                 {/* Head */}
                 <View style={st.activateHead}>
                   <Text style={st.activateTitle}>Aktivasi Akun Baru</Text>
@@ -543,9 +617,9 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                   </View>
                 )}
 
-                {/* Field 1: Email / Username */}
+                {/* Field 1: Email */}
                 <View style={st.fieldCol}>
-                  <Text style={st.activateLabel}>EMAIL ATAU USERNAME</Text>
+                  <Text style={st.activateLabel}>EMAIL</Text>
                   <View style={st.inputBox}>
                     <Ionicons name="mail-outline" size={15} color="rgba(255,255,255,0.25)" style={st.fieldIco} />
                     <TextInput
@@ -554,9 +628,10 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                         setActivateIdentifier(t);
                         if (activateError) setActivateError(null);
                       }}
-                      placeholder="nama@email.com atau username"
+                      placeholder="nama@email.com"
                       placeholderTextColor="rgba(255,255,255,0.18)"
                       autoCapitalize="none"
+                      keyboardType="email-address"
                       autoCorrect={false}
                       selectionColor={colors.gold}
                       style={st.textInput}
@@ -564,7 +639,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                   </View>
                 </View>
 
-                {/* Field 2: Kode Undangan (No ticket emoticon) */}
+                {/* Field 2: Kode Undangan */}
                 <View style={st.fieldCol}>
                   <Text style={st.activateLabel}>KODE AKTIVASI UNDANGAN</Text>
                   <View style={st.inputBox}>
@@ -582,6 +657,64 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                       selectionColor={colors.gold}
                       style={st.textInput}
                     />
+                  </View>
+                </View>
+
+                {/* Field 3: Kata Sandi Baru */}
+                <View style={st.fieldCol}>
+                  <Text style={st.activateLabel}>KATA SANDI BARU</Text>
+                  <View style={st.inputBox}>
+                    <Ionicons name="lock-closed-outline" size={15} color="rgba(255,255,255,0.25)" style={st.fieldIco} />
+                    <TextInput
+                      value={activatePassword}
+                      onChangeText={(t) => {
+                        setActivatePassword(t);
+                        if (activateError) setActivateError(null);
+                      }}
+                      placeholder="Minimal 8 karakter"
+                      placeholderTextColor="rgba(255,255,255,0.18)"
+                      secureTextEntry={!showActivatePassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      selectionColor={colors.gold}
+                      style={st.textInput}
+                    />
+                    <Pressable onPress={() => setShowActivatePassword((p) => !p)} hitSlop={12}>
+                      <Ionicons
+                        name={showActivatePassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={16}
+                        color={showActivatePassword ? colors.gold : 'rgba(255,255,255,0.20)'}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+
+                {/* Field 4: Konfirmasi Kata Sandi */}
+                <View style={st.fieldCol}>
+                  <Text style={st.activateLabel}>KONFIRMASI KATA SANDI</Text>
+                  <View style={st.inputBox}>
+                    <Ionicons name="lock-closed-outline" size={15} color="rgba(255,255,255,0.25)" style={st.fieldIco} />
+                    <TextInput
+                      value={activateConfirmPassword}
+                      onChangeText={(t) => {
+                        setActivateConfirmPassword(t);
+                        if (activateError) setActivateError(null);
+                      }}
+                      placeholder="Ketik ulang kata sandi"
+                      placeholderTextColor="rgba(255,255,255,0.18)"
+                      secureTextEntry={!showActivateConfirmPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      selectionColor={colors.gold}
+                      style={st.textInput}
+                    />
+                    <Pressable onPress={() => setShowActivateConfirmPassword((p) => !p)} hitSlop={12}>
+                      <Ionicons
+                        name={showActivateConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={16}
+                        color={showActivateConfirmPassword ? colors.gold : 'rgba(255,255,255,0.20)'}
+                      />
+                    </Pressable>
                   </View>
                 </View>
 
@@ -626,7 +759,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                     <Text style={st.activateCancelTxt}>Batal</Text>
                   </Pressable>
                 </View>
-              </View>
+              </ScrollView>
             </BlurView>
           )}
         </View>

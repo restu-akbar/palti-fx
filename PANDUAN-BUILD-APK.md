@@ -11,7 +11,7 @@ Waktu pertama kali: sekitar 20–30 menit (sebagian besar menunggu antrean build
 
 ## 2. Buka terminal di folder project
 
-1. Buka folder `C:\PaltiFX` di File Explorer.
+1. Buka folder `C:\PaltiFX\frontend` di File Explorer (atau masuk ke folder `frontend` di terminal).
 2. Klik address bar, ketik `cmd`, lalu tekan Enter.
 
 ## 3. Install dependensi

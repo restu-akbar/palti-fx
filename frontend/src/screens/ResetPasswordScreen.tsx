@@ -18,6 +18,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LogoMark, Wordmark } from '../components/Logo';
 import { PressScale, tap } from '../components/motion';
+import { AuthService } from '../lib/authService';
+import { normalizeIdentifier, normalizeOtp, validatePassword } from '../lib/authUtils';
 import { colors, fonts, goldGradient } from '../theme';
 
 const isWeb = Platform.OS === 'web';
@@ -38,6 +40,8 @@ export function ResetPasswordScreen({
   // Steps: 1 = Minta & Masukkan OTP, 2 = Password Baru & Konfirmasi
   const [step, setStep] = useState<1 | 2>(1);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showHomeConfirmModal, setShowHomeConfirmModal] = useState(false);
+  const savedSuccessfullyRef = useRef(false);
 
   // Step 1 state
   const [identifier, setIdentifier] = useState(initialIdentifier);
@@ -58,6 +62,30 @@ export function ResetPasswordScreen({
 
   const confirmPasswordRef = useRef<TextInput>(null);
 
+  // Cleanup: bila unmount di step 2 sebelum simpan sandi baru, putus sesi recovery Supabase
+  useEffect(() => {
+    return () => {
+      if (step === 2 && !savedSuccessfullyRef.current) {
+        AuthService.signOut().catch(() => {});
+      }
+    };
+  }, [step]);
+
+  // Back button handling: jika di step 2, tampilkan modal konfirmasi
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const { BackHandler } = require('react-native');
+    const onBackPress = () => {
+      if (step === 2) {
+        setShowHomeConfirmModal(true);
+        return true;
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [step]);
+
   // Countdown timer for OTP resend
   useEffect(() => {
     if (countdown <= 0) return;
@@ -68,9 +96,10 @@ export function ResetPasswordScreen({
   }, [countdown]);
 
   // Handle Send OTP
-  const handleSendOtp = () => {
-    if (!identifier.trim()) {
-      setOtpError('Masukkan email atau username terlebih dahulu');
+  const handleSendOtp = async () => {
+    const cleanId = normalizeIdentifier(identifier);
+    if (!cleanId) {
+      setOtpError('Masukkan email atau ID Member terlebih dahulu');
       return;
     }
     setOtpError(null);
@@ -78,39 +107,57 @@ export function ResetPasswordScreen({
     tap('select');
     setIsSendingOtp(true);
 
-    setTimeout(() => {
-      setIsSendingOtp(false);
-      setOtpSent(true);
-      setCountdown(60);
-      tap('success');
-    }, 750);
+    const res = await AuthService.requestPasswordReset(cleanId);
+    setIsSendingOtp(false);
+
+    if (!res.success) {
+      tap('light');
+      if (res.rateLimited) {
+        setCountdown(60);
+      }
+      setOtpError(res.error || 'Gagal mengirim kode OTP.');
+      return;
+    }
+
+    setOtpSent(true);
+    setCountdown(60);
+    tap('success');
   };
 
   // Handle Verify OTP
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     Keyboard.dismiss();
     setOtpError(null);
-    if (otp.trim().length < 6) {
-      setOtpError('Masukkan 6 digit kode OTP');
+    const cleanId = normalizeIdentifier(identifier);
+    const cleanOtp = normalizeOtp(otp);
+    if (cleanOtp.length < 6) {
+      setOtpError('Masukkan kode OTP yang valid (6-8 digit)');
       return;
     }
     tap('select');
     setIsVerifyingOtp(true);
 
-    setTimeout(() => {
-      setIsVerifyingOtp(false);
-      tap('success');
-      setStep(2);
-    }, 700);
+    const res = await AuthService.verifyResetOtp(cleanId, cleanOtp);
+    setIsVerifyingOtp(false);
+
+    if (!res.success) {
+      tap('light');
+      setOtpError(res.error || 'Kode OTP tidak valid atau sudah kedaluwarsa.');
+      return;
+    }
+
+    tap('success');
+    setStep(2);
   };
 
   // Handle Save New Password
-  const handleSavePassword = () => {
+  const handleSavePassword = async () => {
     Keyboard.dismiss();
     setPasswordError(null);
 
-    if (newPassword.length < 8) {
-      setPasswordError('Kata sandi baru minimal 8 karakter');
+    const pwErr = validatePassword(newPassword);
+    if (pwErr) {
+      setPasswordError(pwErr);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -121,14 +168,23 @@ export function ResetPasswordScreen({
     tap('select');
     setIsSavingPassword(true);
 
-    setTimeout(() => {
-      setIsSavingPassword(false);
-      tap('success');
-      setShowSuccessModal(true);
-    }, 750);
+    const res = await AuthService.updatePassword(newPassword);
+    setIsSavingPassword(false);
+
+    if (!res.success) {
+      tap('light');
+      setPasswordError(res.error || 'Gagal memperbarui kata sandi.');
+      return;
+    }
+
+    savedSuccessfullyRef.current = true;
+    tap('success');
+    setShowSuccessModal(true);
   };
 
-  const isStep1Valid = identifier.trim().length > 0 && otp.trim().length === 6;
+  const isStep1Valid =
+    normalizeIdentifier(identifier).length > 0 &&
+    normalizeOtp(otp).length >= 6;
   const isStep2Valid =
     newPassword.length >= 8 && confirmPassword.length >= 8 && newPassword === confirmPassword;
 
@@ -204,7 +260,7 @@ export function ResetPasswordScreen({
                     <View style={st.cardHead}>
                       <Text style={st.cardTitle}>Verifikasi Kode OTP</Text>
                       <Text style={st.cardSub}>
-                        Masukkan email akun Anda untuk menerima kode OTP 6-digit.
+                        Masukkan email akun Anda untuk menerima kode OTP verifikasi.
                       </Text>
                     </View>
 
@@ -281,13 +337,13 @@ export function ResetPasswordScreen({
                         <TextInput
                           value={otp}
                           onChangeText={(t) => {
-                            setOtp(t.replace(/[^0-9]/g, '').slice(0, 6));
+                            setOtp(t.replace(/[^0-9]/g, '').slice(0, 8));
                             if (otpError) setOtpError(null);
                           }}
-                          placeholder="Masukkan 6 digit kode OTP"
+                          placeholder="Masukkan kode OTP"
                           placeholderTextColor="rgba(255,255,255,0.18)"
                           keyboardType="number-pad"
-                          maxLength={6}
+                          maxLength={8}
                           selectionColor={colors.gold}
                           style={st.textInput}
                         />
@@ -487,6 +543,27 @@ export function ResetPasswordScreen({
                         </LinearGradient>
                       </View>
                     </PressScale>
+
+                    {/* Divider + Kembali ke Beranda */}
+                    <View style={st.footerSection}>
+                      <View style={st.footerDividerRow}>
+                        <View style={st.footerDivLine} />
+                        <Text style={st.footerDivText}>atau</Text>
+                        <View style={st.footerDivLine} />
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          tap('select');
+                          setShowHomeConfirmModal(true);
+                        }}
+                        hitSlop={8}
+                        style={st.backToLoginBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel="Kembali ke Beranda"
+                      >
+                        <Text style={st.backToLoginTxt}>Kembali ke Beranda</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 )}
               </View>
@@ -533,6 +610,59 @@ export function ResetPasswordScreen({
                   <Text style={st.modalConfirmText}>Masuk ke Akun</Text>
                 </LinearGradient>
               </PressScale>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
+
+      {/* ── Modal Popup: Konfirmasi Kembali ke Beranda ── */}
+      <Modal
+        visible={showHomeConfirmModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setShowHomeConfirmModal(false)}
+      >
+        <View style={st.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowHomeConfirmModal(false)}>
+            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={st.modalDimmer} />
+          </Pressable>
+
+          <BlurView intensity={Platform.OS === 'ios' ? 25 : 15} tint="dark" style={st.modalCard}>
+            <Text style={st.modalTitle}>Kembali ke Beranda?</Text>
+            <Text style={st.modalDesc}>
+              Kata sandi baru belum disimpan. Sesi pemulihan akan dibatalkan jika Anda kembali ke beranda.
+            </Text>
+
+            <View style={st.modalBtnRow}>
+              <Pressable
+                onPress={() => {
+                  tap('light');
+                  setShowHomeConfirmModal(false);
+                }}
+                hitSlop={8}
+                style={st.modalNeutralBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Batal kembali"
+              >
+                <Text style={st.modalNeutralText}>Batal</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  tap('select');
+                  setShowHomeConfirmModal(false);
+                  AuthService.signOut().catch(() => {});
+                  onBackToLogin();
+                }}
+                hitSlop={8}
+                style={st.modalNeutralBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Konfirmasi kembali ke beranda"
+              >
+                <Text style={st.modalNeutralText}>Iya</Text>
+              </Pressable>
             </View>
           </BlurView>
         </View>
@@ -818,5 +948,26 @@ const st = StyleSheet.create({
     fontFamily: fonts.semi,
     fontSize: 13,
     letterSpacing: 0.2,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+  },
+  modalNeutralBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  modalNeutralText: {
+    color: colors.textDim,
+    fontFamily: fonts.medium,
+    fontSize: 13,
   },
 });
