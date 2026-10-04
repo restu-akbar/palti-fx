@@ -1,42 +1,20 @@
 {
   "name": "palti-fx",
   "version": "1.0.0",
-  "main": "index.ts",
-  "dependencies": {
-    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
-    "@expo/vector-icons": "^15.0.2",
-    "@react-native-async-storage/async-storage": "2.2.0",
-    "expo": "~57.0.24",
-    "expo-font": "~57.0.4",
-    "expo-haptics": "~57.0.3",
-    "expo-linear-gradient": "~57.0.2",
-    "expo-splash-screen": "~57.0.9",
-    "expo-status-bar": "~57.0.1",
-    "expo-system-ui": "~57.0.4",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "react-native": "0.86.3",
-    "react-native-safe-area-context": "~5.7.0",
-    "react-native-svg": "15.15.4",
-    "react-native-web": "~0.21.0"
-  },
-  "devDependencies": {
-    "@types/react": "~19.2.2",
-    "@vitest/coverage-v8": "^5.0.2",
-    "eslint": "^9.0.0",
-    "eslint-config-expo": "~57.0.2",
-    "typescript": "~6.0.3",
-    "vitest": "^5.0.2"
-  },
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
-    "test": "vitest run",
-    "test:file": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "lint": "expo lint"
-  },
-  "private": true
+    "start": "npm run start --workspace=frontend",
+    "start:frontend": "npm run start --workspace=frontend",
+    "start:backend": "npm run dev --workspace=backend",
+    "android": "npm run android --workspace=frontend",
+    "ios": "npm run ios --workspace=frontend",
+    "web": "npm run web --workspace=frontend",
+    "lint": "npm run lint --workspace=frontend",
+    "test": "npm run test --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend"
+  }
 }

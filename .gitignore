@@ -2,12 +2,20 @@
 
 # dependencies
 node_modules/
+*/node_modules/
 
-# Expo
+# Expo / Frontend
 .expo/
+frontend/.expo/
 dist/
 web-build/
 expo-env.d.ts
+
+# Backend build & environment
+backend/dist/
+.env
+.env*.local
+backend/.env
 
 # Native
 .kotlin/
@@ -26,12 +34,10 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# macOS
+# OS
 .DS_Store
+Thumbs.db
 *.pem
-
-# local env files
-.env*.local
 
 # typescript
 *.tsbuildinfo
@@ -39,5 +45,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+frontend/ios
+frontend/android
 
 .opencode/
