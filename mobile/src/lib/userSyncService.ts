@@ -17,20 +17,23 @@ export class UserSyncService {
   }
 
   /**
-   * Mengambil data user dari cloud Supabase saat login / restore session:
+   * Mengambil seluruh data user dari cloud Supabase saat login / restore session:
    * 1. Progres Bab Edukasi (completed lessons)
-   * 2. Catatan Jurnal Trading (trades)
-   * Catatan: Medali Pencapaian dikelola murni lokal per-akun (tidak disinkronkan ke Supabase).
+   * 2. Pencapaian Medali (unlocked achievements)
+   * 3. Catatan Jurnal Trading (trades)
    */
   static async fetchUserData(userId: string): Promise<{
     completed: Record<string, boolean>;
+    unlocked: Record<string, number>;
     trades: Trade[];
   }> {
     const result: {
       completed: Record<string, boolean>;
+      unlocked: Record<string, number>;
       trades: Trade[];
     } = {
       completed: {},
+      unlocked: {},
       trades: [],
     };
 
@@ -49,7 +52,20 @@ export class UserSyncService {
         });
       }
 
-      // 2. Fetch Trades (Pencapaian dikelola lokal per akun, bukan di Supabase)
+      // 2. Fetch Achievements
+      const { data: achData } = await supabase
+        .from('user_achievements')
+        .select('achievement_id, unlocked_at')
+        .eq('user_id', userId);
+
+      if (achData) {
+        achData.forEach((row: any) => {
+          const timestamp = row.unlocked_at ? new Date(row.unlocked_at).getTime() : Date.now();
+          result.unlocked[row.achievement_id] = timestamp;
+        });
+      }
+
+      // 3. Fetch Trades
       const { data: tradeData } = await supabase
         .from('user_trades')
         .select('*')
@@ -109,7 +125,23 @@ export class UserSyncService {
     }
   }
 
-
+  /**
+   * Menyimpan medali pencapaian yang baru terbuka ke tabel user_achievements di Supabase.
+   */
+  static async saveAchievement(userId: string, achievementId: string, unlockedAt: number): Promise<void> {
+    try {
+      await supabase.from('user_achievements').upsert(
+        {
+          user_id: userId,
+          achievement_id: achievementId,
+          unlocked_at: new Date(unlockedAt).toISOString(),
+        },
+        { onConflict: 'user_id,achievement_id' }
+      );
+    } catch (err) {
+      console.warn('[UserSyncService.saveAchievement] Error:', err);
+    }
+  }
 
   /**
    * Menyimpan trade jurnal ke tabel user_trades di Supabase.
