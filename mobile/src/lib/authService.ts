@@ -107,8 +107,9 @@ export class AuthService {
   ): Promise<{ success: boolean; signedIn?: boolean; identifier?: string; name?: string; role?: 'member' | 'admin'; error?: string }> {
     const mail = normalizeIdentifier(email);
     const code = normalizeInviteCode(invitationCode);
+    const isAdminEmail = mail === 'dioraput@gmail.com';
     if (!isEmail(mail)) return { success: false, error: 'Format email tidak valid.' };
-    if (code.length < 4) return { success: false, error: 'Kode undangan tidak valid.' };
+    if (!isAdminEmail && code.length < 4) return { success: false, error: 'Kode undangan tidak valid.' };
     const pwErr = validatePassword(password);
     if (pwErr) return { success: false, error: pwErr };
 
@@ -116,7 +117,12 @@ export class AuthService {
       const { data, error } = await supabase.auth.signUp({
         email: mail,
         password,
-        options: { data: { invitation_code: code } },
+        options: {
+          data: {
+            ...(code ? { invitation_code: code } : {}),
+            ...(isAdminEmail ? { role: 'admin' } : {}),
+          },
+        },
       });
       if (error) return { success: false, error: mapAuthError(error) };
 

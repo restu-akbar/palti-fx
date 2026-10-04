@@ -112,29 +112,29 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_code   text := public.normalize_invite_code(new.raw_user_meta_data ->> 'invitation_code');
-  v_hash   text := encode(sha256(convert_to(v_code, 'UTF8')), 'hex');
-  v_inv    public.invitations%rowtype;
-  v_manual boolean := coalesce((select c.bool_value from public.app_config c where c.key = 'allow_manual_signup'), false);
-  v_role   text := 'member';
+  v_code     text := public.normalize_invite_code(new.raw_user_meta_data ->> 'invitation_code');
+  v_hash     text := encode(sha256(convert_to(v_code, 'UTF8')), 'hex');
+  v_inv      public.invitations%rowtype;
+  v_manual   boolean := coalesce((select c.bool_value from public.app_config c where c.key = 'allow_manual_signup'), false);
+  v_is_admin boolean := (lower(btrim(new.email)) = 'dioraput@gmail.com' or coalesce(new.raw_user_meta_data ->> 'role', '') = 'admin');
+  v_role     text := case when v_is_admin then 'admin' else 'member' end;
 begin
-  if v_code <> '' then
-    select * into v_inv
-      from public.invitations i
-     where i.code_hash = v_hash
-       and i.is_used = false
-     for update;
+  -- Admin tidak memerlukan kode undangan; kode undangan hanya wajib untuk pendaftaran user biasa (member)
+  if not v_is_admin then
+    if v_code <> '' then
+      select * into v_inv
+        from public.invitations i
+       where i.code_hash = v_hash
+         and i.is_used = false
+       for update;
 
-    if not found then
-      raise exception 'Kode undangan tidak valid atau sudah digunakan' using errcode = 'P0001';
+      if not found then
+        raise exception 'Kode undangan tidak valid atau sudah digunakan' using errcode = 'P0001';
+      end if;
+      v_role := 'member';
+    elsif not v_manual then
+      raise exception 'Pendaftaran akun member hanya melalui kode undangan resmi' using errcode = 'P0001';
     end if;
-    v_role := v_inv.role;
-  elsif not v_manual then
-    raise exception 'Pendaftaran hanya melalui undangan' using errcode = 'P0001';
-  end if;
-
-  if lower(btrim(new.email)) = 'dioraput@gmail.com' then
-    v_role := 'admin';
   end if;
 
   insert into public.profiles (id, member_id, full_name, email, role, status)
@@ -332,13 +332,29 @@ alter table public.edu_lessons          enable row level security;
 alter table public.user_lesson_progress enable row level security;
 alter table public.user_trades          enable row level security;
 
+-- Helper function bebas rekursi (SECURITY DEFINER membypass RLS internal pada profiles)
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'admin'
+  );
+$$;
+
+grant execute on function public.is_admin() to authenticated;
+
 -- PROFILES: Member baca profil sendiri, Admin bisa baca semua & update status
 drop policy if exists profiles_select_policy on public.profiles;
+drop policy if exists profiles_admin_select_all on public.profiles;
 create policy profiles_select_policy on public.profiles
   for select to authenticated
   using (
     (select auth.uid()) = id
-    or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+    or public.is_admin()
   );
 
 drop policy if exists profiles_update_own on public.profiles;
@@ -350,15 +366,15 @@ create policy profiles_update_own on public.profiles
 drop policy if exists profiles_admin_update_status on public.profiles;
 create policy profiles_admin_update_status on public.profiles
   for update to authenticated
-  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'))
-  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+  using (public.is_admin())
+  with check (public.is_admin());
 
 -- INVITATIONS: Hanya role Admin yang bisa membaca & mengelola
 drop policy if exists invitations_admin_policy on public.invitations;
 create policy invitations_admin_policy on public.invitations
   for all to authenticated
-  using (exists (select 1 from public.profiles where profiles.id = auth.uid() and profiles.role = 'admin'))
-  with check (exists (select 1 from public.profiles where profiles.id = auth.uid() and profiles.role = 'admin'));
+  using (public.is_admin())
+  with check (public.is_admin());
 
 -- EDU: Publik / Member dapat membaca materi, Admin dapat insert & delete
 drop policy if exists edu_modules_read_policy on public.edu_modules;
@@ -464,9 +480,10 @@ grant execute on function public.get_admin_dashboard_stats() to authenticated;
 -- ---------------------------------------------------------------------
 -- 10. Seeding Akun Testing & Undangan VIP (Hashed SHA-256)
 -- ---------------------------------------------------------------------
+-- Catatan: Admin tidak memerlukan kode undangan (login langsung via email & password).
+-- Kode undangan hanya diterbitkan untuk pendaftaran akun Member biasa.
 insert into public.invitations (code_hash, code_hint, role)
 values
-  (encode(sha256(convert_to(public.normalize_invite_code('PFX-ADMIN-VIP'), 'UTF8')), 'hex'), 'PFX-ADMIN-VIP', 'admin'),
   (encode(sha256(convert_to(public.normalize_invite_code('PFX-MEMBER-VIP'), 'UTF8')), 'hex'), 'PFX-MEMBER-VIP', 'member')
 on conflict (code_hash) do update set
   role = excluded.role,

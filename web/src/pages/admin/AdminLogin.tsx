@@ -40,7 +40,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
 
   const handleFillTestAdmin = () => {
     setEmail('dioraput@gmail.com');
-    setPassword('Palti123!');
+    setPassword('admin123');
   };
 
   return (

@@ -266,9 +266,9 @@ on conflict (id) do update set
   sort_order = excluded.sort_order;
 
 -- 5. Penugasan Role Akun Testing & Undangan VIP
+-- Catatan: Admin tidak memerlukan kode undangan. Kode undangan hanya untuk Member.
 insert into public.invitations (code, email, full_name, role)
 values
-  ('PFX-ADMIN-VIP', 'dioraput@gmail.com', 'Diora Put (Admin)', 'admin'),
   ('PFX-MEMBER-VIP', 'diorahmanputra@gmail.com', 'Diora Rahman (Member)', 'member')
 on conflict (code_norm) do update set
   role = excluded.role,

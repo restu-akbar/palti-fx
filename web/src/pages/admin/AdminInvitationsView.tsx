@@ -19,7 +19,6 @@ export const AdminInvitationsView: React.FC = () => {
   // Form State
   const [code, setCode] = useState('');
   const [hint, setHint] = useState('');
-  const [role, setRole] = useState<'member' | 'admin'>('member');
 
   // Success Modal State setelah terbit
   const [createdResult, setCreatedResult] = useState<{ rawCode: string; role: string } | null>(null);
@@ -53,7 +52,6 @@ export const AdminInvitationsView: React.FC = () => {
     const random = AdminInvitationsService.generateRandomCode();
     setCode(random);
     setHint('');
-    setRole('member');
     setShowCreateModal(true);
   };
 
@@ -68,7 +66,7 @@ export const AdminInvitationsView: React.FC = () => {
     try {
       const res = await AdminInvitationsService.createInvitation({
         code,
-        role,
+        role: 'member',
         hint: hint.trim() || undefined,
       });
 
@@ -78,7 +76,7 @@ export const AdminInvitationsView: React.FC = () => {
         setShowCreateModal(false);
         setCreatedResult({
           rawCode: res.rawCode || code,
-          role,
+          role: 'member',
         });
         fetchInvitations();
       }
@@ -125,7 +123,7 @@ export const AdminInvitationsView: React.FC = () => {
             Kode Undangan VIP
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
-            Penerbitan kode aktivasi aman (disimpan dalam bentuk SHA-256 hash di database).
+            Penerbitan kode aktivasi aman untuk calon Member (disimpan dalam bentuk hash SHA-256). Admin tidak memerlukan kode undangan.
           </p>
         </div>
 
@@ -320,16 +318,20 @@ export const AdminInvitationsView: React.FC = () => {
                 />
               </div>
 
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label className="pfx-label">Peran Akun Calon Pengguna</label>
-                <select
-                  className="pfx-select"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as any)}
-                >
-                  <option value="member">Member</option>
-                  <option value="admin">Administrator</option>
-                </select>
+              <div style={{
+                marginBottom: '1.5rem',
+                padding: '0.85rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Hak Akses Undangan</span>
+                  <span className="pfx-badge pfx-badge-neutral">MEMBER (TRADER)</span>
+                </div>
+                <p style={{ fontSize: '0.73rem', color: 'var(--text-dim)', margin: 0, lineHeight: 1.45 }}>
+                  Kode undangan dikhususkan untuk calon Member biasa. Akun Administrator tidak memerlukan kode undangan.
+                </p>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
