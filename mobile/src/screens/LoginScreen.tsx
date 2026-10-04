@@ -31,7 +31,7 @@ import { colors, fonts, goldGradient } from '../theme';
 const isWeb = Platform.OS === 'web';
 
 export type LoginScreenProps = {
-  onSuccess: (credentials: { identifier: string; name?: string }) => void;
+  onSuccess: (credentials: { identifier: string; name?: string; role?: 'member' | 'admin' }) => void;
   onForgotPassword?: (identifier?: string) => void;
 };
 
@@ -65,6 +65,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
     signedIn: boolean;
     identifier: string;
     name?: string;
+    role?: 'member' | 'admin';
   } | null>(null);
 
   const handleOpenActivate = () => {
@@ -124,6 +125,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
       signedIn: res.signedIn ?? false,
       identifier: res.identifier || mail,
       name: res.name,
+      role: res.role,
     });
     setActivateSuccess(true);
   };
@@ -175,6 +177,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
     onSuccess({
       identifier: res.identifier || cleanId,
       name: res.name || 'Trader Palti',
+      role: res.role || 'member',
     });
   };
 
@@ -564,6 +567,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                       onSuccess({
                         identifier: activateResult.identifier,
                         name: activateResult.name || 'Trader Palti',
+                        role: activateResult.role || 'member',
                       });
                     } else {
                       setIdentifier(activateResult?.identifier || activateIdentifier);

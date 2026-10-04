@@ -109,6 +109,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return merged;
       });
 
+      // Gabungan: unggah unlocked lokal yang belum ada di cloud, gabung kedua sisi,
+      // simpan ke storage lokal per-akun + persist global agar tidak ada fungsi yang hilang.
+      setSettings((prev) => {
+        const cloudUnlocked: Record<string, number> = (cloud as { unlocked?: Record<string, number> }).unlocked || {};
+        if (prev.unlocked) {
+          Object.entries(prev.unlocked).forEach(([achId, ts]) => {
+            if (!cloudUnlocked[achId]) {
+              UserSyncService.saveAchievement(uid, achId, ts);
+            }
+          });
+        }
+        const mergedUnlocked = { ...cloudUnlocked, ...(prev.unlocked || {}) };
+        const next = { ...prev, unlocked: mergedUnlocked };
+        persist(KEYS.settings, next);
+        const targetUser = next.activeUser || prev.activeUser;
+        saveLocalAchievementsForUser(targetUser, mergedUnlocked);
+        return next;
+      });
       setTrades((prev) => {
         const idMap = new Map<string, Trade>();
         // Masukkan data transaksi dari cloud
@@ -206,10 +224,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setSettings((cur) => ({ ...cur, unlocked: ach }));
         });
       }
-      // Simpan medali pencapaian secara lokal ke partisi storage akun terkait (tidak ke Supabase)
+      // Simpan medali pencapaian secara lokal + sinkronkan ke cloud (tidak memutus salah satu sisi)
       if (patch.unlocked !== undefined) {
         const targetUser = next.activeUser || prev.activeUser;
         saveLocalAchievementsForUser(targetUser, patch.unlocked);
+        getCurrentUserId().then((uid) => {
+          if (uid && patch.unlocked) {
+            Object.entries(patch.unlocked).forEach(([achId, ts]) => {
+              UserSyncService.saveAchievement(uid, achId, ts);
+            });
+          }
+        });
       }
       persist(KEYS.settings, next);
       return next;

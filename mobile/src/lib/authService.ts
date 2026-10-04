@@ -13,12 +13,13 @@ export interface AuthResult {
   success: boolean;
   identifier?: string;
   name?: string;
+  role?: 'member' | 'admin';
   error?: string;
   status?: 'active' | 'pending' | 'suspended';
 }
 
 export type RestoreResult =
-  | { state: 'authenticated'; name: string; identifier: string }
+  | { state: 'authenticated'; name: string; identifier: string; role?: 'member' | 'admin' }
   | { state: 'unauthenticated' }
   | { state: 'unknown' }; // gagal menghubungi server → jangan paksa logout
 
@@ -38,10 +39,10 @@ async function fetchProfile(userId: string) {
   try {
     const { data } = await supabase
       .from('profiles')
-      .select('full_name, status, member_id')
+      .select('full_name, status, member_id, role')
       .eq('id', userId)
       .maybeSingle();
-    return data as { full_name: string | null; status: string; member_id: string } | null;
+    return data as { full_name: string | null; status: string; member_id: string; role?: 'member' | 'admin' } | null;
   } catch {
     return null;
   }
@@ -91,6 +92,7 @@ export class AuthService {
         status: 'active',
         identifier: user.email ?? email,
         name: profile?.full_name || fallbackName(user.email, user.user_metadata),
+        role: (profile?.role as 'member' | 'admin') || 'member',
       };
     } catch (err: any) {
       return { success: false, error: mapAuthError(err) };
@@ -102,7 +104,7 @@ export class AuthService {
     email: string,
     invitationCode: string,
     password: string
-  ): Promise<{ success: boolean; signedIn?: boolean; identifier?: string; name?: string; error?: string }> {
+  ): Promise<{ success: boolean; signedIn?: boolean; identifier?: string; name?: string; role?: 'member' | 'admin'; error?: string }> {
     const mail = normalizeIdentifier(email);
     const code = normalizeInviteCode(invitationCode);
     if (!isEmail(mail)) return { success: false, error: 'Format email tidak valid.' };
@@ -130,6 +132,7 @@ export class AuthService {
           signedIn: true,
           identifier: data.user.email ?? mail,
           name: profile?.full_name || fallbackName(data.user.email, data.user.user_metadata),
+          role: (profile?.role as 'member' | 'admin') || 'member',
         };
       }
       return { success: true, signedIn: false, identifier: mail };
@@ -236,6 +239,7 @@ export class AuthService {
         state: 'authenticated',
         identifier: u.user.email ?? '',
         name: profile?.full_name || fallbackName(u.user.email, u.user.user_metadata),
+        role: (profile?.role as 'member' | 'admin') || 'member',
       };
     } catch {
       return { state: 'unknown' };

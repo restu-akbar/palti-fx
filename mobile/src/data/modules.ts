@@ -15,9 +15,12 @@
 
 export type Lesson = {
   id: string;
+  moduleId?: string;
   title: string;
   minutes: number;
+  youtubeUrls?: string[];
   content: string;
+  sortOrder?: number;
 };
 
 export type Module = {
@@ -27,6 +30,7 @@ export type Module = {
   level: 'Pemula' | 'Menengah' | 'Lanjutan';
   icon: 'school-outline' | 'shield-checkmark-outline' | 'analytics-outline' | 'bulb-outline' | 'trending-up-outline';
   lessons: Lesson[];
+  sortOrder?: number;
 };
 
 export const MODULES: Module[] = [
