@@ -3,18 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "frontend",
-    "backend"
+    "mobile",
+    "web"
   ],
   "scripts": {
-    "start": "npm run start --workspace=frontend",
-    "start:frontend": "npm run start --workspace=frontend",
-    "start:backend": "npm run dev --workspace=backend",
-    "android": "npm run android --workspace=frontend",
-    "ios": "npm run ios --workspace=frontend",
-    "web": "npm run web --workspace=frontend",
-    "lint": "npm run lint --workspace=frontend",
-    "test": "npm run test --workspace=frontend",
-    "build:backend": "npm run build --workspace=backend"
+    "start": "npm run start --workspace=mobile",
+    "start:mobile": "npm run start --workspace=mobile",
+    "start:web": "npm run dev --workspace=web",
+    "build:web": "npm run build --workspace=web",
+    "android": "npm run android --workspace=mobile",
+    "ios": "npm run ios --workspace=mobile",
+    "lint": "npm run lint --workspace=mobile",
+    "lint:mobile": "npm run lint --workspace=mobile",
+    "test": "npm run test --workspace=mobile",
+    "test:mobile": "npm run test --workspace=mobile"
   }
 }

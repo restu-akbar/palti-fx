@@ -1,0 +1,467 @@
+:root {
+  /* Ultra-Premium Dark Base with Atmospheric Depth */
+  --bg-deep: #07090D;
+  --bg-subtle: #0B0E15;
+  
+  /* Transparent Glass Surfaces with White Rim Lighting */
+  --glass-bg-subtle: rgba(255, 255, 255, 0.02);
+  --glass-bg: rgba(255, 255, 255, 0.035);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.055);
+  --glass-bg-hover: rgba(255, 255, 255, 0.075);
+  --glass-input: rgba(255, 255, 255, 0.03);
+  
+  /* Textures & Blurs */
+  --blur-sm: blur(14px);
+  --blur-md: blur(24px);
+  --blur-lg: blur(36px);
+  
+  /* White Light & Hairline Borders */
+  --border-glass: rgba(255, 255, 255, 0.08);
+  --border-glass-hover: rgba(255, 255, 255, 0.18);
+  --border-glass-focus: rgba(255, 255, 255, 0.3);
+  
+  /* Specular White Rim Glows (The "cahaya putih tipis" effect) */
+  --specular-white: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --specular-white-bright: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  --glass-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --glass-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6);
+  
+  /* Typography Colors */
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-dim: #64748B;
+  
+  /* Accent Warm Gold (Refined & Minimal) */
+  --gold-accent: #CFA85E;
+  --gold-hover: #DFBC77;
+  --gold-subtle: rgba(207, 168, 94, 0.12);
+  --gold-border: rgba(207, 168, 94, 0.25);
+  
+  /* Status Colors */
+  --success: #34D399;
+  --success-bg: rgba(52, 211, 153, 0.08);
+  --success-border: rgba(52, 211, 153, 0.22);
+  
+  --danger: #FB7185;
+  --danger-bg: rgba(251, 113, 133, 0.08);
+  --danger-border: rgba(251, 113, 133, 0.22);
+  
+  --info: #38BDF8;
+  --info-bg: rgba(56, 189, 248, 0.08);
+  --info-border: rgba(56, 189, 248, 0.22);
+  
+  /* Fonts & Radius */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', 'Inter', sans-serif;
+  
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background-color: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Atmospheric Ambient Lights (Gives glass surfaces subtle light to refract) */
+body::before {
+  content: '';
+  position: fixed;
+  top: -150px;
+  left: 20%;
+  width: 700px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.04) 0%, rgba(207, 168, 94, 0.03) 40%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  bottom: -150px;
+  right: 15%;
+  width: 600px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.025) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: #FFFFFF;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ─── Glassmorphism Panels (Transparent Blur + Cahaya Putih Tipis - Static & Calm) ─── */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--glass-shadow), var(--specular-white);
+  border-radius: var(--radius-lg);
+}
+
+.glass-panel-elevated {
+  background: var(--glass-bg-elevated);
+  backdrop-filter: var(--blur-lg);
+  -webkit-backdrop-filter: var(--blur-lg);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow: var(--glass-shadow-lg), var(--specular-white-bright);
+  border-radius: var(--radius-xl);
+}
+
+/* ─── Frosted Form Controls ─── */
+.pfx-input, .pfx-select, .pfx-textarea {
+  width: 100%;
+  background: var(--glass-input);
+  backdrop-filter: var(--blur-sm);
+  -webkit-backdrop-filter: var(--blur-sm);
+  border: 1px solid var(--border-glass);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  padding: 0.65rem 0.95rem;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.pfx-input:focus, .pfx-select:focus, .pfx-textarea:focus {
+  border-color: var(--border-glass-focus);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.pfx-input::placeholder, .pfx-textarea::placeholder {
+  color: var(--text-dim);
+}
+
+.pfx-textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.pfx-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Refined Glass Buttons (Calm, No Jumping Animations) ─── */
+.btn-primary {
+  background: var(--gold-accent);
+  color: #07090D;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.84rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary:hover {
+  background: var(--gold-hover);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-sm);
+  -webkit-backdrop-filter: var(--blur-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.84rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-glass);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--border-glass-hover);
+}
+
+.btn-secondary:active {
+  transform: translateY(0);
+}
+
+/* ─── Editorial Action Links (Unboxed, Natural, Calm) ─── */
+.editorial-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: #FFFFFF;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+
+.editorial-link svg {
+  color: var(--gold-accent);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.18s ease;
+}
+
+.editorial-link:hover {
+  color: var(--gold-hover);
+}
+
+.editorial-link:hover svg {
+  transform: translateX(4px);
+  color: var(--gold-hover);
+}
+
+.btn-danger-ghost {
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.82rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.btn-danger-ghost:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+/* ─── Frosted Badges ─── */
+.pfx-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.02em;
+  backdrop-filter: var(--blur-sm);
+}
+
+.pfx-badge-gold {
+  background: var(--gold-subtle);
+  color: var(--gold-hover);
+  border: 1px solid var(--gold-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.pfx-badge-success {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.pfx-badge-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+}
+
+.pfx-badge-info {
+  background: var(--info-bg);
+  color: var(--info);
+  border: 1px solid var(--info-border);
+}
+
+.pfx-badge-neutral {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ─── Frosted Transparent Table ─── */
+.pfx-table-container {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  box-shadow: var(--glass-shadow), var(--specular-white);
+}
+
+.pfx-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.pfx-table th {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.85rem 1.15rem;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.pfx-table td {
+  padding: 0.95rem 1.15rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.pfx-table tr:last-child td {
+  border-bottom: none;
+}
+
+.pfx-table tr:hover td {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ─── Frosted Modal / Sheet ─── */
+.pfx-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 5, 8, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 1000;
+  animation: pfxFadeIn 0.2s ease-out;
+}
+
+.pfx-modal-panel {
+  background: rgba(14, 18, 26, 0.82);
+  backdrop-filter: blur(32px) saturate(160%);
+  -webkit-backdrop-filter: blur(32px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-xl);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  padding: 2rem;
+  animation: pfxSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes pfxFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pfxSlideIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Spin animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 0.8s linear infinite;
+}
+
+/* ─── Landscape Horizontal Admin Login Layout ─── */
+.admin-login-landscape {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  width: 100%;
+  max-width: 820px;
+  min-height: 460px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .admin-login-landscape {
+    grid-template-columns: 1fr;
+    max-width: 440px;
+    min-height: auto;
+  }
+}
