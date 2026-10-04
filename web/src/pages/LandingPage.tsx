@@ -36,21 +36,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
         }}>
           {/* Brand Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, #FFE082 0%, #D4AF37 50%, #996515 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#07090E',
-              fontWeight: 900,
-              fontSize: '1.25rem',
-              boxShadow: '0 0 20px rgba(212, 175, 55, 0.35)',
-            }}>
-              P
-            </div>
+            <img
+              src="/palti-logo.png"
+              alt="PALTI FX Logo"
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                border: '1px solid rgba(212, 175, 55, 0.35)',
+                boxShadow: '0 0 20px rgba(212, 175, 55, 0.25)',
+                objectFit: 'cover',
+              }}
+            />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.3rem', letterSpacing: '0.05em' }}>
@@ -396,9 +393,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
           gap: '1.5rem',
         }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
-              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.1rem' }}>PALTI</span>
-              <span className="gold-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '1.1rem' }}>FX</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+              <img
+                src="/palti-logo.png"
+                alt="PALTI FX Logo"
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(212, 175, 55, 0.3)',
+                  objectFit: 'cover',
+                }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.1rem' }}>PALTI</span>
+                <span className="gold-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '1.1rem' }}>FX</span>
+              </div>
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               © 2026 PALTI FX. Seluruh hak cipta dilindungi undang-undang.
