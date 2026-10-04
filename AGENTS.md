@@ -6,9 +6,9 @@ Dokumen ini berisi arsitektur inti, aturan proyek, alur kerja, dan konvensi baku
 
 ## 📁 Ikhtisar Monorepo
 
-Monorepo ini terdiri dari:
-- `frontend/`: Aplikasi mobile berbasis **Expo / React Native** (React 19, TypeScript). Mengedepankan pola *mobile-first*, estetika *glassmorphism* bertema *gold/dark*, performa responsif, dan kompabilitas lintas platform (Android, iOS, Web).
-- `backend/`: Server RESTful API (**Node.js + Express + TypeScript**) serta skema migrasi database **Supabase PostgreSQL** (`backend/supabase/`).
+Monorepo ini terdiri dari 2 workspace utama:
+- `mobile/`: Aplikasi mobile berbasis **Expo / React Native** (React 19, TypeScript) serta skema database **Supabase PostgreSQL** (`mobile/supabase/`). Mengedepankan pola *mobile-first*, estetika *glassmorphism* bertema *gold/dark*, performa responsif, dan kompabilitas lintas platform (Android, iOS, Web).
+- `web/`: Portal Web Publik (Landing Page) & Backoffice Admin (**React 19 + Vite + TypeScript**). Dikhususkan untuk input kurikulum edukasi skala besar (CRUD Modul & Bab, Multi-Video YouTube, live preview), generator kode undangan VIP otomatis/kustom, serta monitoring akun member.
 
 ---
 
@@ -17,20 +17,20 @@ Monorepo ini terdiri dari:
 Jalankan perintah dari direktori root atau workspace terkait:
 
 ```bash
-# Frontend
-npm run start:frontend          # Jalankan mobile dev server dari root
-npm run lint:frontend           # Linter ESLint mobile app
-npm run test:frontend           # Unit test mobile (kalkulator, streak, auth, storage)
-cd frontend && npx tsc --noEmit # Typecheck TypeScript mobile app
-cd frontend && npm run dev      # Jalankan Expo dev server langsung dari frontend/
+# Mobile (Expo / React Native App)
+npm run start:mobile          # Jalankan mobile dev server dari root
+npm run lint:mobile           # Linter ESLint mobile app
+npm run test:mobile           # Unit test mobile (kalkulator, streak, auth, storage)
+cd mobile && npx tsc --noEmit # Typecheck TypeScript mobile app
+cd mobile && npm run start    # Jalankan Expo dev server langsung dari mobile/
 
-# Backend
-npm run start:backend           # Jalankan backend dalam dev mode (hot reload tsx)
-npm run build:backend           # Kompilasi backend TypeScript ke folder dist/
-cd backend && npx tsc --noEmit  # Typecheck TypeScript backend
+# Web (Landing Page & Admin Backoffice)
+npm run start:web             # Jalankan web portal dalam dev mode (Vite)
+npm run build:web             # Kompilasi web TypeScript & bundle production
+cd web && npm run build       # Typecheck & build production workspace web
 ```
 
-> **Wajib:** Jalankan `lint:frontend` dan `cd frontend && npx tsc --noEmit` sebelum menyatakan tugas selesai (*Definition of Done*).
+> **Wajib:** Jalankan `npm run lint:mobile`, `cd mobile && npx tsc --noEmit`, dan `npm run build:web` sebelum menyatakan tugas selesai (*Definition of Done*).
 
 ---
 
@@ -50,14 +50,14 @@ cd backend && npx tsc --noEmit  # Typecheck TypeScript backend
 
 ## ☁️ Ketahanan Data Cloud (*Cloud Persistence & Auto-Sync*)
 
-1. **Anti-Hilang Data (*The "Wasalaam" Rule*)**:
-   - Dilarang hanya mengandalkan `AsyncStorage` lokal untuk data kritis pengguna.
-   - Progres bab selesai (`public.user_lesson_progress`), medali pencapaian (`public.user_achievements`), catatan jurnal (`public.user_trades`), dan nama panggilan (`public.profiles.full_name`) **wajib** disinkronkan ke Supabase Cloud via [`UserSyncService`](file:///c:/Work/palti-fx/palti-fx/frontend/src/lib/userSyncService.ts).
+1. **Pemisahan Data Cloud & Cache Lokal Permanen**:
+   - Data kritis pengguna: Progres bab selesai (`public.user_lesson_progress`), catatan jurnal (`public.user_trades`), dan nama profil disinkronkan ke Supabase Cloud via [`UserSyncService`](file:///c:/Work/palti-fx/palti-fx/mobile/src/lib/userSyncService.ts).
+   - **Medali Pencapaian (Achievement)**: Disimpan permanen di penyimpanan lokal perangkat terisolasi per-akun (`@pfx_achievements_user_${userKey}`). Tidak disimpan di Supabase agar database cloud tetap ramping, hemat query, dan ringan.
 2. **Pola Offline-First**:
    - Perbarui state lokal dan `AsyncStorage` secara instan (0ms latency), lalu jalankan sinkronisasi latar belakang (`upsert`) ke Supabase.
-   - Saat startup dan pasca-login, fungsi `syncFromCloud()` wajib dipanggil untuk menarik data cloud dan mengunggah data lokal yang dibuat saat offline.
+   - Saat startup dan pasca-login, fungsi `syncFromCloud()` dipanggil untuk menarik data cloud dan mengunggah data lokal yang dibuat saat offline.
 3. **Pembersihan Bersih Saat Logout**:
-   - Saat fungsi `logout()` dieksekusi, kosongkan memori state dan storage lokal (`trades`, `completed`, `unlocked`, `name`, `activeUser`) untuk mencegah kebocoran data antar-pengguna di perangkat yang sama.
+   - Saat fungsi `logout()` dieksekusi, kosongkan memori state aktif (`trades`, `completed`, `unlocked`, `name`, `activeUser`) untuk mencegah kebocoran sesi. Cache medali akun di disk lokal tetap aman tersimpan untuk akun tersebut dan tidak tertimpa saat akun lain login.
 
 ---
 
@@ -87,4 +87,4 @@ cd backend && npx tsc --noEmit  # Typecheck TypeScript backend
 
 - 📘 [`AuthFlow.md`](file:///c:/Work/palti-fx/palti-fx/AuthFlow.md): Blueprint arsitektur autentikasi, RBAC, CRUD edukasi, dan sinkronisasi cloud.
 - 📙 [`LoginFlow.md`](file:///c:/Work/palti-fx/palti-fx/LoginFlow.md): Spesifikasi lengkap 6 layar auth (Splash, Onboarding, Login, OTP, Sandi Baru, Aktivasi).
-- 🗄️ [`backend/supabase/schema.sql`](file:///c:/Work/palti-fx/palti-fx/backend/supabase/schema.sql): Skema master basis data PostgreSQL & RLS.
+- 🗄️ [`mobile/supabase/schema.sql`](file:///c:/Work/palti-fx/palti-fx/mobile/supabase/schema.sql): Skema master basis data PostgreSQL & RLS.
