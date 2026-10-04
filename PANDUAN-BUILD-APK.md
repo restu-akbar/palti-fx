@@ -1,69 +1,154 @@
-# Panduan Build APK PALTI FX (Windows)
+# Panduan Lengkap Build APK PALTI FX (Android Standalone)
 
-Build dijalankan di server Expo (EAS), jadi laptop kamu tidak perlu Android Studio.
-Waktu pertama kali: sekitar 20–30 menit (sebagian besar menunggu antrean build).
+Panduan ini menjelaskan cara membuat file installer **APK Android (`.apk`)** untuk aplikasi PALTI FX menggunakan layanan **EAS Build (Expo Application Services)** di cloud.
 
-## 1. Persiapan (sekali saja)
+> 💡 **Kelebihan EAS Build:**
+> Kompilasi kode dilakukan di server cloud Expo, sehingga laptop/PC Anda **tidak memerlukan Android Studio, Java SDK, ataupun spesifikasi komputer yang berat**.
 
-1. Install **Node.js LTS** dari https://nodejs.org (pilih tombol "LTS", lalu Next sampai selesai).
-2. Buat akun gratis di https://expo.dev/signup.
-3. Ekstrak file `palti-fx-source.zip` ke folder, misalnya `C:\PaltiFX`.
+---
 
-## 2. Buka terminal di folder project
+## 📋 Prasyarat (*Prerequisites*)
 
-1. Buka folder `C:\PaltiFX\frontend` di File Explorer (atau masuk ke folder `frontend` di terminal).
-2. Klik address bar, ketik `cmd`, lalu tekan Enter.
+1. **Node.js LTS** (Versi 20 ke atas disarankan): Unduh di [nodejs.org](https://nodejs.org).
+2. **Akun Expo Gratis**: Daftar di [expo.dev/signup](https://expo.dev/signup) jika belum memiliki akun.
+3. **Koneksi Internet Aktif**: Untuk mengunggah kode dan memantau status kompilasi di cloud.
 
-## 3. Install dependensi
+---
 
+## 🚀 Langkah-Langkah Build APK
+
+### 1. Buka Terminal di Folder Frontend
+
+Aplikasi mobile berada di dalam folder `frontend/` pada monorepo PALTI FX.
+
+1. Buka terminal (PowerShell / Command Prompt / Git Bash).
+2. Masuk ke direktori `frontend`:
+   ```bash
+   cd c:\Work\palti-fx\palti-fx\frontend
+   ```
+
+---
+
+### 2. Pastikan Kredensial Supabase Terpasang
+
+Pastikan file `frontend/.env` sudah ada dan memuat kredensial Supabase proyek Anda:
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://proyek-anda.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsIn...
 ```
-npm install
-```
 
-## 4. Login ke Expo
+> ⚠️ **Catatan Penting:** Variabel yang diawali dengan `EXPO_PUBLIC_` akan otomatis disematkan oleh EAS ke dalam bundle APK saat build berjalan, sehingga aplikasi APK dapat terhubung ke database Supabase secara langsung.
 
+---
+
+### 3. Validasi Kode Bebas Error (*Pre-flight Check*)
+
+Sebelum memulai antrean build di cloud, pastikan kode TypeScript dan linter bersih tanpa error:
+
+```bash
+# 1. Typecheck TypeScript
+npx tsc --noEmit
+
+# 2. Linter ESLint
+npm run lint
 ```
+*Pastikan kedua perintah di atas selesai dengan 0 error.*
+
+---
+
+### 4. Login ke Akun Expo
+
+Jalankan perintah login EAS CLI:
+
+```bash
 npx eas-cli@latest login
 ```
+- Masukkan **Email / Username** dan **Password** akun Expo Anda.
 
-Masukkan email/username dan password akun Expo.
+---
 
-## 5. Build APK
+### 5. Jalankan Perintah Build APK
 
-```
+Eksekusi perintah pembuatan APK dengan profil `preview`:
+
+```bash
 npx eas-cli@latest build -p android --profile preview
 ```
 
-Pertanyaan yang muncul saat build pertama:
+#### Pertanyaan Interaktif (Hanya Muncul Saat Build Pertama Kali):
+1. **"Would you like to automatically create an EAS project for @username/palti-fx?"**  
+   👉 Ketik **`Y`** lalu Enter.
+2. **"Generate a new Android Keystore?"**  
+   👉 Ketik **`Y`** lalu Enter *(Expo akan membuat dan menyimpan kunci sertifikat penandatanganan aplikasi Anda secara aman di cloud)*.
 
-- "Create an EAS project?" → **Y**
-- "Generate a new Android Keystore?" → **Y** (Expo menyimpan kunci aplikasi dengan aman)
+---
 
-Setelah build selesai, terminal menampilkan **link download APK** dan QR code.
-Buka link itu di HP Android, download, lalu install (izinkan "Install dari sumber tidak dikenal" jika diminta).
-Link APK ini bisa dibagikan ke member.
+### 6. Proses Kompilasi di Cloud (~10–15 Menit)
 
-## Coba cepat tanpa build (opsional)
+Setelah kode diunggah, server Expo akan memproses build:
+- Terminal akan menampilkan tautan live progress dashboard, misalnya:  
+  `https://expo.dev/accounts/username/projects/palti-fx/builds/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
+- Anda dapat menutup terminal jika diinginkan, karena proses berjalan independen di server Expo.
 
-Install aplikasi **Expo Go** dari Play Store, lalu jalankan di laptop:
+---
 
-```
-npx expo start
-```
+### 7. Unduh & Instal File APK
 
-Scan QR code yang muncul memakai Expo Go (HP dan laptop harus di WiFi yang sama).
-Jika versi Expo Go di Play Store belum mendukung SDK 57, gunakan cara build APK di atas.
+Ketika proses build selesai, terminal (dan dashboard web Expo) akan menampilkan:
+1. **Tautan Unduh File APK langsung (`.apk`)**.
+2. **Kode QR**: Pindai langsung menggunakan kamera HP Android Anda untuk mengunduh installer.
 
-## Update aplikasi
+#### Cara Instal di HP Android:
+1. Buka file `.apk` yang telah diunduh di ponsel Android.
+2. Jika muncul peringatan keamanan sistem:
+   - Pilih **Setelan / Settings** -> Aktifkan **"Izinkan dari sumber ini"** (*Install unknown apps*).
+3. Klik **Instal**.
+4. Aplikasi **PALTI FX** siap digunakan dan dapat dibagikan kepada seluruh member!
 
-Setiap ada perubahan (misal materi baru), naikkan `version` dan `android.versionCode` di `app.json`
-(contoh 1.0.0 → 1.0.1, versionCode 1 → 2), lalu jalankan lagi perintah build di langkah 5.
+---
 
-## Play Store & iOS (nanti)
+## 🔄 Pembaruan Materi Tanpa Perlu Build Ulang APK!
 
-- Play Store: `npx eas-cli@latest build -p android --profile production` menghasilkan file .aab untuk diunggah ke Google Play Console (akun developer Google USD 25, sekali bayar).
-- iOS: `npx eas-cli@latest build -p ios` (butuh akun Apple Developer USD 99/tahun).
+> 🎉 **Keunggulan Sistem Baru PALTI FX:**
+> Seluruh kurikulum edukasi (Modul, Bab, Teks Markdown, dan Embed Video YouTube) sekarang **tersimpan live di Database Cloud Supabase**.
 
-## Mengubah materi edukasi
+- **Admin mengedit/menambah materi?**  
+  Admin cukup membuka aplikasi di HP dengan akun `dioraput@gmail.com`, lalu menambah/mengedit modul dan bab secara langsung. Materi seketika diperbarui untuk seluruh member **tanpa perlu build APK baru**.
+- **Kapan perlu build APK ulang?**  
+  Build APK baru **HANYA** diperlukan jika ada:
+  1. Perubahan logika kodingan frontend lokal / penambahan library native baru.
+  2. Perubahan desain visual UI inti atau logo ikon aplikasi.
+  3. Pembaruan nomor versi rilis aplikasi.
 
-Semua materi ada di file `src/data/modules.ts`. Format penulisannya dijelaskan di bagian atas file tersebut.
+---
+
+## 📦 Penomoran Versi Aplikasi Saat Rilis Baru
+
+Jika Anda melakukan perubahan kode aplikasi dan ingin membuat update APK baru:
+
+1. Buka file [`frontend/app.json`](file:///c:/Work/palti-fx/palti-fx/frontend/app.json).
+2. Naikkan versi aplikasi pada bagian:
+   ```json
+   "version": "1.0.1",
+   "android": {
+     "versionCode": 2
+   }
+   ```
+3. Jalankan kembali perintah:
+   ```bash
+   npx eas-cli@latest build -p android --profile preview
+   ```
+
+---
+
+## 🌐 Rilis ke Google Play Store (*Production*)
+
+Jika nantinya aplikasi PALTI FX ingin dipublikasikan resmi ke Google Play Store:
+
+1. Butuh akun Google Play Developer ($25 sekali bayar).
+2. Jalankan perintah kompilasi bundel `.aab`:
+   ```bash
+   npx eas-cli@latest build -p android --profile production
+   ```
+3. Unduh file `.aab` yang dihasilkan dan unggah ke **Google Play Console**.

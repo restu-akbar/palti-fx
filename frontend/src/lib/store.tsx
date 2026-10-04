@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabase';
 import { getSecureNickname, setSecureNickname } from './nicknameStorage';
+import { UserSyncService } from './userSyncService';
 
 export type Trade = {
   id: string;
@@ -30,6 +31,8 @@ export type Settings = {
   welcomed?: boolean;
   /** Status autentikasi login pengguna */
   isLoggedIn?: boolean;
+  /** Role akun: member atau admin */
+  role?: 'member' | 'admin';
   /** Nama panggilan member (untuk sapaan) */
   name?: string;
   /** Identifier / Email akun yang sedang aktif */
@@ -50,11 +53,21 @@ type StoreValue = {
   settings: Settings;
   updateSettings: (patch: Partial<Settings>) => void;
   logout: () => void;
+  syncFromCloud: (userId?: string) => Promise<void>;
 };
 
 const KEYS = { trades: 'pfx.trades.v1', completed: 'pfx.completed.v1', settings: 'pfx.settings.v1' };
 
 const Ctx = createContext<StoreValue | null>(null);
+
+async function getCurrentUserId(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data?.user?.id || null;
+  } catch {
+    return null;
+  }
+}
 
 async function load<T>(key: string, fallback: T): Promise<T> {
   try {
@@ -77,6 +90,59 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [completed, setCompleted] = useState<Record<string, boolean>>({});
   const [settings, setSettings] = useState<Settings>({});
 
+  const syncFromCloud = useCallback(async (userId?: string) => {
+    const uid = userId || (await getCurrentUserId());
+    if (!uid) return;
+    try {
+      const cloud = await UserSyncService.fetchUserData(uid);
+
+      setCompleted((prev) => {
+        // Unggah progres lokal yang belum tercatat di cloud
+        Object.entries(prev).forEach(([lId, done]) => {
+          if (done && !cloud.completed[lId]) {
+            UserSyncService.saveLessonProgress(uid, lId, true);
+          }
+        });
+        const merged = { ...cloud.completed, ...prev };
+        persist(KEYS.completed, merged);
+        return merged;
+      });
+
+      setSettings((prev) => {
+        if (prev.unlocked) {
+          Object.entries(prev.unlocked).forEach(([achId, ts]) => {
+            if (!cloud.unlocked[achId]) {
+              UserSyncService.saveAchievement(uid, achId, ts);
+            }
+          });
+        }
+        const mergedUnlocked = { ...(cloud.unlocked || {}), ...(prev.unlocked || {}) };
+        const next = { ...prev, unlocked: mergedUnlocked };
+        persist(KEYS.settings, next);
+        return next;
+      });
+
+      setTrades((prev) => {
+        const idMap = new Map<string, Trade>();
+        // Masukkan data transaksi dari cloud
+        cloud.trades.forEach((t) => idMap.set(t.id, t));
+        // Unggah transaksi lokal yang belum tercatat di cloud
+        prev.forEach((t) => {
+          if (!idMap.has(t.id)) {
+            UserSyncService.saveTrade(uid, t);
+          }
+          idMap.set(t.id, t);
+        });
+        const merged = Array.from(idMap.values());
+        merged.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt));
+        persist(KEYS.trades, merged);
+        return merged;
+      });
+    } catch (err) {
+      console.warn('[store.syncFromCloud] Error syncing from cloud:', err);
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       const [t, c, s] = await Promise.all([
@@ -89,8 +155,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setCompleted(c);
       setSettings({ ...s, name: secureName || s.name });
       setReady(true);
+
+      if (s.isLoggedIn) {
+        syncFromCloud();
+      }
     })();
-  }, []);
+  }, [syncFromCloud]);
 
   const saveTrade = useCallback<StoreValue['saveTrade']>((t) => {
     setTrades((prev) => {
@@ -99,6 +169,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const next = exists ? prev.map((p) => (p.id === item.id ? item : p)) : [item, ...prev];
       next.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt));
       persist(KEYS.trades, next);
+      getCurrentUserId().then((uid) => {
+        if (uid) UserSyncService.saveTrade(uid, item);
+      });
       return next;
     });
   }, []);
@@ -107,14 +180,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setTrades((prev) => {
       const next = prev.filter((p) => p.id !== id);
       persist(KEYS.trades, next);
+      getCurrentUserId().then((uid) => {
+        if (uid) UserSyncService.deleteTrade(uid, id);
+      });
       return next;
     });
   }, []);
 
   const toggleLesson = useCallback((lessonId: string, done?: boolean) => {
     setCompleted((prev) => {
-      const next = { ...prev, [lessonId]: done ?? !prev[lessonId] };
+      const isDone = done ?? !prev[lessonId];
+      const next = { ...prev, [lessonId]: isDone };
       persist(KEYS.completed, next);
+      getCurrentUserId().then((uid) => {
+        if (uid) UserSyncService.saveLessonProgress(uid, lessonId, isDone);
+      });
       return next;
     });
   }, []);
@@ -126,6 +206,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (patch.name !== undefined) {
         const targetUser = next.activeUser || prev.activeUser;
         setSecureNickname(targetUser, patch.name);
+        getCurrentUserId().then((uid) => {
+          if (uid) UserSyncService.updateProfileName(uid, patch.name || null);
+        });
+      }
+      if (patch.unlocked !== undefined) {
+        getCurrentUserId().then((uid) => {
+          if (uid && patch.unlocked) {
+            Object.entries(patch.unlocked).forEach(([achId, ts]) => {
+              UserSyncService.saveAchievement(uid, achId, ts);
+            });
+          }
+        });
       }
       persist(KEYS.settings, next);
       return next;
@@ -134,13 +226,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    setTrades([]);
+    setCompleted({});
+    AsyncStorage.removeItem(KEYS.trades).catch(() => {});
+    AsyncStorage.removeItem(KEYS.completed).catch(() => {});
     setSettings((prev) => {
       // Hapus status login, nama, dan user aktif agar tidak bocor ke akun berikutnya
       const next = {
         ...prev,
         isLoggedIn: false,
+        role: undefined,
         name: undefined,
         activeUser: undefined,
+        unlocked: {},
       };
       persist(KEYS.settings, next);
       return next;
@@ -148,8 +246,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ready, trades, saveTrade, deleteTrade, completed, toggleLesson, settings, updateSettings, logout }),
-    [ready, trades, saveTrade, deleteTrade, completed, toggleLesson, settings, updateSettings, logout],
+    () => ({
+      ready,
+      trades,
+      saveTrade,
+      deleteTrade,
+      completed,
+      toggleLesson,
+      settings,
+      updateSettings,
+      logout,
+      syncFromCloud,
+    }),
+    [
+      ready,
+      trades,
+      saveTrade,
+      deleteTrade,
+      completed,
+      toggleLesson,
+      settings,
+      updateSettings,
+      logout,
+      syncFromCloud,
+    ],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

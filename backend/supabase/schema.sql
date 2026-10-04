@@ -119,6 +119,10 @@ begin
     raise exception 'Pendaftaran hanya melalui undangan' using errcode = 'P0001';
   end if;
 
+  if lower(btrim(new.email)) = 'dioraput@gmail.com' then
+    v_role := 'admin';
+  end if;
+
   insert into public.profiles (id, member_id, full_name, email, role, status)
   values (
     new.id,
@@ -320,3 +324,146 @@ select u.id,
 -- bisa mendaftar tanpa undangan.
 --   update public.app_config set bool_value = true  where key = 'allow_manual_signup';
 --   update public.app_config set bool_value = false where key = 'allow_manual_signup';
+
+-- ---------------------------------------------------------------------
+-- 9. Modul & Bab Edukasi (CRUD & YouTube Video)
+-- ---------------------------------------------------------------------
+create table if not exists public.edu_modules (
+  id          text primary key default ('mod-' || lower(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))),
+  title       text not null,
+  subtitle    text not null default '',
+  level       text not null default 'Pemula' check (level in ('Pemula', 'Menengah', 'Lanjutan')),
+  icon        text not null default 'school-outline',
+  sort_order  int not null default 0,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create table if not exists public.edu_lessons (
+  id            text primary key default ('les-' || lower(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))),
+  module_id     text not null references public.edu_modules (id) on delete cascade,
+  title         text not null,
+  minutes       int not null default 5,
+  youtube_urls  text[] not null default '{}',
+  content       text not null default '',
+  sort_order    int not null default 0,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+drop trigger if exists edu_modules_touch_updated_at on public.edu_modules;
+create trigger edu_modules_touch_updated_at
+  before update on public.edu_modules
+  for each row execute function public.touch_updated_at();
+
+drop trigger if exists edu_lessons_touch_updated_at on public.edu_lessons;
+create trigger edu_lessons_touch_updated_at
+  before update on public.edu_lessons
+  for each row execute function public.touch_updated_at();
+
+alter table public.edu_modules enable row level security;
+alter table public.edu_lessons enable row level security;
+
+drop policy if exists "edu_modules_read_policy" on public.edu_modules;
+create policy "edu_modules_read_policy" on public.edu_modules for select using (true);
+
+drop policy if exists "edu_lessons_read_policy" on public.edu_lessons;
+create policy "edu_lessons_read_policy" on public.edu_lessons for select using (true);
+
+drop policy if exists "edu_modules_admin_policy" on public.edu_modules;
+create policy "edu_modules_admin_policy" on public.edu_modules for all to authenticated
+  using (exists (select 1 from public.profiles where profiles.id = auth.uid() and profiles.role = 'admin'))
+  with check (exists (select 1 from public.profiles where profiles.id = auth.uid() and profiles.role = 'admin'));
+
+drop policy if exists "edu_lessons_admin_policy" on public.edu_lessons;
+create policy "edu_lessons_admin_policy" on public.edu_lessons for all to authenticated
+  using (exists (select 1 from public.profiles where profiles.id = auth.uid() and profiles.role = 'admin'))
+  with check (exists (select 1 from public.profiles where profiles.id = auth.uid() and profiles.role = 'admin'));
+
+grant select on public.edu_modules to anon, authenticated;
+grant all on public.edu_modules to authenticated;
+grant select on public.edu_lessons to anon, authenticated;
+grant all on public.edu_lessons to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 10. Data Pengguna Cloud: Progres Edukasi, Pencapaian, & Jurnal
+-- ---------------------------------------------------------------------
+create table if not exists public.user_lesson_progress (
+  user_id       uuid not null references auth.users (id) on delete cascade,
+  lesson_id     text not null,
+  completed     boolean not null default true,
+  completed_at  timestamptz not null default now(),
+  primary key (user_id, lesson_id)
+);
+
+create table if not exists public.user_achievements (
+  user_id         uuid not null references auth.users (id) on delete cascade,
+  achievement_id  text not null,
+  unlocked_at     timestamptz not null default now(),
+  primary key (user_id, achievement_id)
+);
+
+create table if not exists public.user_trades (
+  id          text primary key,
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  date        text not null,
+  symbol      text not null,
+  direction   text not null check (direction in ('BUY', 'SELL')),
+  lot         numeric not null default 0.01,
+  entry       numeric,
+  exit        numeric,
+  sl          numeric,
+  tp          numeric,
+  pl          numeric not null default 0,
+  pips        numeric,
+  setup       text,
+  emotion     text,
+  notes       text,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.user_lesson_progress enable row level security;
+alter table public.user_achievements    enable row level security;
+alter table public.user_trades          enable row level security;
+
+drop policy if exists "user_lesson_progress_own" on public.user_lesson_progress;
+create policy "user_lesson_progress_own" on public.user_lesson_progress
+  for all to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "user_achievements_own" on public.user_achievements;
+create policy "user_achievements_own" on public.user_achievements
+  for all to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "user_trades_own" on public.user_trades;
+create policy "user_trades_own" on public.user_trades
+  for all to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+grant all on public.user_lesson_progress to authenticated;
+grant all on public.user_achievements    to authenticated;
+grant all on public.user_trades          to authenticated;
+
+-- 11. Penugasan Role Akun Testing & Undangan VIP
+insert into public.invitations (code, email, full_name, role)
+values
+  ('PFX-ADMIN-VIP', 'dioraput@gmail.com', 'Diora Put (Admin)', 'admin'),
+  ('PFX-MEMBER-VIP', 'diorahmanputra@gmail.com', 'Diora Rahman (Member)', 'member')
+on conflict (code_norm) do update set
+  role = excluded.role,
+  email = excluded.email;
+
+update public.profiles
+   set role = 'admin'
+ where lower(email) = 'dioraput@gmail.com';
+
+update public.profiles
+   set role = 'member'
+ where lower(email) = 'diorahmanputra@gmail.com';
+
+
+

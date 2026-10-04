@@ -18,6 +18,7 @@ import { tap } from './src/components/motion';
 import { IconName } from './src/components/ui';
 import { StoreProvider, useStore } from './src/lib/store';
 import { NavProvider, Route, TabKey, useNav } from './src/nav';
+import { EduProvider } from './src/context/EduContext';
 import { AuthService } from './src/lib/authService';
 import { getSecureNickname } from './src/lib/nicknameStorage';
 import { EduScreen, LessonScreen, ModuleScreen } from './src/screens/EduScreens';
@@ -225,7 +226,7 @@ function Splash({ onFinish }: { onFinish: () => void }) {
 }
 
 function MainApp() {
-  const { ready, settings, updateSettings } = useStore();
+  const { ready, settings, updateSettings, syncFromCloud } = useStore();
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
@@ -261,17 +262,19 @@ function MainApp() {
         const savedNick = await getSecureNickname(userKey);
         updateSettings({
           isLoggedIn: true,
+          role: res.role || 'member',
           activeUser: userKey,
           name: savedNick || res.name || res.identifier,
         });
+        syncFromCloud();
       } else if (res.state === 'unauthenticated') {
         if (isLoggedIn) {
-          updateSettings({ isLoggedIn: false, name: undefined, activeUser: undefined });
+          updateSettings({ isLoggedIn: false, role: undefined, name: undefined, activeUser: undefined });
         }
       }
       setAuthChecked(true);
     });
-  }, [ready, isLoggedIn, updateSettings]);
+  }, [ready, isLoggedIn, updateSettings, syncFromCloud]);
 
   // Listener bila sesi berakhir di luar app (misal token revoke)
   useEffect(() => {
@@ -334,13 +337,15 @@ function MainApp() {
           setForgotIdentifier(id || '');
           setAuthView('forgot_password');
         }}
-        onSuccess={async ({ identifier, name }) => {
+        onSuccess={async ({ identifier, name, role }) => {
           const savedNick = await getSecureNickname(identifier);
           updateSettings({
             isLoggedIn: true,
+            role: role || 'member',
             activeUser: identifier,
             name: savedNick || name || identifier,
           });
+          syncFromCloud();
         }}
       />
     );
@@ -364,7 +369,9 @@ export default function App() {
     <SafeAreaProvider>
       <StoreProvider>
         <NavProvider>
-          <MainApp />
+          <EduProvider>
+            <MainApp />
+          </EduProvider>
         </NavProvider>
       </StoreProvider>
     </SafeAreaProvider>

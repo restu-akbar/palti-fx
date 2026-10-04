@@ -14,7 +14,9 @@
     "ios": "npm run ios --workspace=frontend",
     "web": "npm run web --workspace=frontend",
     "lint": "npm run lint --workspace=frontend",
+    "lint:frontend": "npm run lint --workspace=frontend",
     "test": "npm run test --workspace=frontend",
+    "test:frontend": "npm run test --workspace=frontend",
     "build:backend": "npm run build --workspace=backend"
   }
 }
