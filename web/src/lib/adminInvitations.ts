@@ -65,7 +65,7 @@ export class AdminInvitationsService {
         .insert({
           code_hash: codeHash,
           code_hint: input.hint ? input.hint.trim() : cleanCode,
-          role: input.role || 'member',
+          role: 'member',
           is_used: false,
         })
         .select()

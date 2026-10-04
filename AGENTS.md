@@ -37,11 +37,12 @@ cd web && npm run build       # Typecheck & build production workspace web
 ## 🔐 Arsitektur Autentikasi, Keamanan & RBAC
 
 1. **Sistem Tertutup Berbasis Undangan (*Zero Public Registration*)**:
-   - Pendaftaran mandiri ditiadakan. Pendaftaran akun baru wajib divalidasi via kode undangan di tabel `public.invitations`.
+   - Pendaftaran akun Member baru wajib divalidasi via kode undangan resmi di tabel `public.invitations`.
+   - **Admin Tanpa Kode Undangan**: Administrator login langsung menggunakan Email & Kata Sandi tanpa memerlukan kode undangan. Kode undangan hanya untuk calon Member biasa.
    - Mendukung **Dual Identifier**: Pengguna dapat masuk menggunakan **Email** atau **ID Member Unik** (`PFX-XXXXXXXX`).
 2. **Role-Based Access Control (RBAC)**:
    - `role === 'admin'`: Hak istimewa untuk mengelola kurikulum edukasi (CRUD Modul & Bab, sematkan video YouTube, ubah urutan materi `[⬆️]` `[⬇️]`).
-     - *Akun Testing Resmi Admin*: `dioraput@gmail.com` (Kode Undangan: `PFX-ADMIN-VIP`).
+     - *Akun Testing Resmi Admin*: `dioraput@gmail.com` (Login langsung via Email & Password, tanpa kode undangan).
    - `role === 'member'`: Hak akses belajar (*read-only*), pencatatan jurnal transaksi, kalkulator risiko, dan pencapaian medali.
      - *Akun Testing Resmi Member*: `diorahmanputra@gmail.com` (Kode Undangan: `PFX-MEMBER-VIP`).
    - Tombol-tombol aksi pengelolaan konten admin tidak boleh ditampilkan (*zero-render*) untuk akun member.
