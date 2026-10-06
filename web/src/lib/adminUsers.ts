@@ -35,6 +35,20 @@ export class AdminUsersService {
     }
   }
 
+  static async updateUserRole(userId: string, role: 'member' | 'admin'): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role })
+        .eq('id', userId);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Gagal memperbarui peran pengguna.' };
+    }
+  }
+
   static async getDashboardStats(): Promise<DashboardStats> {
     try {
       // Coba panggil RPC jika tersedia

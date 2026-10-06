@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { 
   Plus, 
   Trash2, 
@@ -71,6 +71,18 @@ export const AdminMateriView: React.FC = () => {
   };
 
   const selectedModule = modules.find((m) => m.id === selectedModId) || modules[0] || null;
+  const selectedModIdx = selectedModule ? modules.findIndex((m) => m.id === selectedModule.id) : 0;
+
+  // Overview metrics
+  const totalLessons = useMemo(() => {
+    return modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
+  }, [modules]);
+
+  const totalVideos = useMemo(() => {
+    return modules.reduce((acc, m) => {
+      return acc + (m.lessons?.reduce((lAcc, l) => lAcc + (l.youtube_urls?.length || 0), 0) || 0);
+    }, 0);
+  }, [modules]);
 
   /* ─── Handlers Modul ─── */
   const handleOpenAddModule = () => {
@@ -213,36 +225,61 @@ export const AdminMateriView: React.FC = () => {
   };
 
   return (
-    <div>
-      {/* Page Header */}
+    <div style={{ maxWidth: '1180px', margin: '0 auto', paddingBottom: '3.5rem' }}>
+      {/* ─── Editorial Header: Unboxed, Natural & Calm ─── */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '1.75rem',
-        paddingBottom: '1.15rem',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+        alignItems: 'flex-end',
+        marginBottom: '2.75rem',
+        paddingBottom: '1.5rem',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
       }}>
         <div>
-          <h1 style={{ fontSize: '1.45rem', fontWeight: 600 }}>
-            Kurikulum &amp; Materi Edukasi
+          {/* Section Marker */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.45rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.14em', color: 'var(--gold-accent)' }}>
+              01
+            </span>
+            <span style={{ width: '22px', height: '1px', background: 'var(--gold-border)' }} />
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
+              Kurikulum &amp; Materi Edukasi
+            </span>
+          </div>
+
+          <h1 style={{ fontSize: '1.65rem', fontWeight: 600, color: '#FFF', letterSpacing: '-0.02em' }}>
+            Silabus Pembelajaran Forex
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-            Susun modul pembelajaran, sematkan multi-video YouTube, dan kelola teks silabus trading.
-          </p>
+
+          {/* Natural Text Metrics Bar (Tanpa Card) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.55rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+            <span>
+              <strong style={{ color: '#FFF', fontWeight: 600 }}>{modules.length}</strong> Modul
+            </span>
+            <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>•</span>
+            <span>
+              <strong style={{ color: '#FFF', fontWeight: 600 }}>{totalLessons}</strong> Bab Materi
+            </span>
+            <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>•</span>
+            <span>
+              <strong style={{ color: 'var(--gold-accent)', fontWeight: 600 }}>{totalVideos}</strong> Video YouTube
+            </span>
+          </div>
         </div>
 
-        <button onClick={handleOpenAddModule} className="btn-primary">
-          <Plus size={15} />
-          <span>Tambah Modul</span>
-        </button>
+        <div>
+          <button onClick={handleOpenAddModule} className="btn-primary" style={{ padding: '0.5rem 1rem' }}>
+            <Plus size={15} />
+            <span>Tambah Modul</span>
+          </button>
+        </div>
       </div>
 
       {feedbackMsg && (
         <div style={{
           padding: '0.75rem 1rem',
           borderRadius: 'var(--radius-sm)',
-          marginBottom: '1.5rem',
+          marginBottom: '1.75rem',
           backgroundColor: feedbackMsg.error ? 'var(--danger-bg)' : 'var(--success-bg)',
           border: `1px solid ${feedbackMsg.error ? 'var(--danger-border)' : 'var(--success-border)'}`,
           color: feedbackMsg.error ? '#FDA4AF' : '#6EE7B7',
@@ -253,18 +290,22 @@ export const AdminMateriView: React.FC = () => {
       )}
 
       {loading ? (
-        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+        <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
           Memuat kurikulum edukasi...
         </div>
       ) : modules.length === 0 ? (
-        <div className="glass-panel" style={{
-          padding: '4rem 2rem',
+        <div style={{
+          padding: '4.5rem 2rem',
           textAlign: 'center',
+          borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
         }}>
           <BookOpen size={36} color="var(--gold-accent)" style={{ opacity: 0.8, marginBottom: '0.75rem' }} />
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.35rem' }}>Belum Ada Modul</h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-            Mulai susun kurikulum Anda dengan menambahkan modul pertama.
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.35rem', color: '#FFF' }}>
+            Belum Ada Modul Edukasi
+          </h2>
+          <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', maxWidth: '460px', margin: '0 auto 1.5rem' }}>
+            Kurikulum masih kosong. Mulai rancang materi trading Anda dengan menambahkan modul pembelajaran pertama.
           </p>
           <button onClick={handleOpenAddModule} className="btn-primary">
             <Plus size={15} />
@@ -272,32 +313,37 @@ export const AdminMateriView: React.FC = () => {
           </button>
         </div>
       ) : (
-        /* Transparent Glass Two-Pane Layout */
+        /* ─── Seamless Two-Column Workspace (Unboxed, Natural Flow) ─── */
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '320px 1fr',
-          gap: '1.75rem',
+          gridTemplateColumns: '290px 1fr',
+          gap: '2.5rem',
           alignItems: 'start',
         }}>
-          {/* ─── Left Pane: Module Navigation (Glass Panel) ─── */}
-          <div className="glass-panel" style={{ overflow: 'hidden' }}>
+          {/* ─── Sisi Kiri: Navigasi Indeks Modul (Frosted Glass Card) ─── */}
+          <div className="pfx-card" style={{
+            padding: '1.25rem',
+          }}>
             <div style={{
-              padding: '0.85rem 1.15rem',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: 'var(--text-secondary)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              marginBottom: '1rem',
+              paddingBottom: '0.65rem',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
             }}>
-              <span>Daftar Modul</span>
-              <span>{modules.length} Modul</span>
+              <span style={{
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--text-dim)',
+              }}>
+                Daftar Modul ({modules.length})
+              </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
               {modules.map((mod, modIdx) => {
                 const isSelected = selectedModId === mod.id;
                 const lessonCount = mod.lessons?.length || 0;
@@ -307,34 +353,44 @@ export const AdminMateriView: React.FC = () => {
                     key={mod.id}
                     onClick={() => setSelectedModId(mod.id)}
                     style={{
-                      padding: '0.95rem 1.15rem',
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                      backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.07)' : 'transparent',
-                      borderLeft: isSelected ? '3px solid var(--gold-accent)' : '3px solid transparent',
-                      boxShadow: isSelected ? 'inset 0 1px 0 rgba(255, 255, 255, 0.15)' : 'none',
+                      padding: '0.75rem 0.85rem',
+                      borderRadius: 'var(--radius-sm)',
+                      backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.045)' : 'transparent',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      gap: '0.5rem',
+                      gap: '0.65rem',
                       transition: 'all 0.15s ease',
+                      border: isSelected ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid transparent',
+                      boxShadow: isSelected ? 'inset 0 1px 0 rgba(255, 255, 255, 0.08)' : 'none',
                     }}
                   >
-                    <div style={{ overflow: 'hidden' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.2rem' }}>
-                        <span className={`pfx-badge ${
-                          mod.level === 'Pemula' ? 'pfx-badge-info' : mod.level === 'Menengah' ? 'pfx-badge-gold' : 'pfx-badge-success'
-                        }`} style={{ fontSize: '0.65rem', padding: '0.08rem 0.4rem' }}>
+                        <span style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 600,
+                          letterSpacing: '0.08em',
+                          color: isSelected ? 'var(--gold-accent)' : 'var(--text-dim)',
+                        }}>
+                          {String(modIdx + 1).padStart(2, '0')}
+                        </span>
+                        <span style={{ color: 'rgba(255, 255, 255, 0.15)', fontSize: '0.7rem' }}>•</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
                           {mod.level}
                         </span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
-                          • {lessonCount} Bab
+                        <span style={{ color: 'rgba(255, 255, 255, 0.15)', fontSize: '0.7rem' }}>•</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                          {lessonCount} Bab
                         </span>
                       </div>
+
                       <div style={{
                         fontSize: '0.88rem',
                         fontWeight: isSelected ? 600 : 500,
                         color: isSelected ? '#FFF' : 'var(--text-secondary)',
+                        lineHeight: 1.35,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -344,20 +400,21 @@ export const AdminMateriView: React.FC = () => {
                     </div>
 
                     {/* Order buttons */}
-                    <div style={{ display: 'flex', gap: '2px' }} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }} onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleMoveModule(modIdx, 'up')}
                         disabled={modIdx === 0}
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: modIdx === 0 ? 'rgba(255, 255, 255, 0.05)' : 'var(--text-dim)',
+                          color: modIdx === 0 ? 'rgba(255, 255, 255, 0.06)' : 'var(--text-dim)',
                           cursor: modIdx === 0 ? 'default' : 'pointer',
-                          padding: '2px',
+                          padding: '3px',
+                          display: 'inline-flex',
                         }}
                         title="Geser Naik"
                       >
-                        <ArrowUp size={13} />
+                        <ArrowUp size={12} />
                       </button>
                       <button
                         onClick={() => handleMoveModule(modIdx, 'down')}
@@ -365,13 +422,14 @@ export const AdminMateriView: React.FC = () => {
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: modIdx === modules.length - 1 ? 'rgba(255, 255, 255, 0.05)' : 'var(--text-dim)',
+                          color: modIdx === modules.length - 1 ? 'rgba(255, 255, 255, 0.06)' : 'var(--text-dim)',
                           cursor: modIdx === modules.length - 1 ? 'default' : 'pointer',
-                          padding: '2px',
+                          padding: '3px',
+                          display: 'inline-flex',
                         }}
                         title="Geser Turun"
                       >
-                        <ArrowDown size={13} />
+                        <ArrowDown size={12} />
                       </button>
                     </div>
                   </div>
@@ -380,201 +438,271 @@ export const AdminMateriView: React.FC = () => {
             </div>
           </div>
 
-          {/* ─── Right Pane: Selected Module Detail & Lessons Table (Glass Panel) ─── */}
+          {/* ─── Sisi Kanan: Detail Modul & Garis Silabus (Natural Syllabus Canvas) ─── */}
           {selectedModule && (
-            <div className="glass-panel" style={{ overflow: 'hidden' }}>
-              {/* Module Header Strip */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Header Modul Terpilih */}
               <div style={{
-                padding: '1.35rem 1.6rem',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                flexWrap: 'wrap',
-                gap: '1rem',
+                marginBottom: '2.5rem',
+                paddingBottom: '1.5rem',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
               }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
-                    <h2 style={{ fontSize: '1.2rem', fontWeight: 600 }}>{selectedModule.title}</h2>
-                    <span className={`pfx-badge ${
-                      selectedModule.level === 'Pemula' ? 'pfx-badge-info' : selectedModule.level === 'Menengah' ? 'pfx-badge-gold' : 'pfx-badge-success'
-                    }`}>
-                      {selectedModule.level}
-                    </span>
-                  </div>
-                  {selectedModule.subtitle && (
-                    <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
-                      {selectedModule.subtitle}
-                    </p>
-                  )}
-                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '280px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.45rem' }}>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        letterSpacing: '0.12em',
+                        textTransform: 'uppercase',
+                        color: 'var(--gold-accent)',
+                      }}>
+                        MODUL {String(selectedModIdx + 1).padStart(2, '0')} / {String(modules.length).padStart(2, '0')}
+                      </span>
+                      <span style={{ color: 'rgba(255, 255, 255, 0.2)' }}>•</span>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 500,
+                        color: 'var(--text-secondary)',
+                        letterSpacing: '0.04em',
+                      }}>
+                        Tingkat {selectedModule.level}
+                      </span>
+                      <span style={{ color: 'rgba(255, 255, 255, 0.2)' }}>•</span>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        color: 'var(--text-dim)',
+                      }}>
+                        Tersimpan di Cloud
+                      </span>
+                    </div>
 
-                <div style={{ display: 'flex', gap: '0.45rem' }}>
-                  <span className="pfx-badge pfx-badge-neutral" style={{ fontSize: '0.72rem', alignSelf: 'center' }}>
-                    Materi Permanen
-                  </span>
-                  <button
-                    onClick={() => setDeleteConfirm({ type: 'module', id: selectedModule.id, name: selectedModule.title })}
-                    className="btn-danger-ghost"
-                    style={{ fontSize: '0.78rem', padding: '0.4rem 0.8rem' }}
-                  >
-                    <Trash2 size={13} />
-                    <span>Hapus</span>
-                  </button>
+                    <h2 style={{
+                      fontSize: '1.45rem',
+                      fontWeight: 600,
+                      color: '#FFF',
+                      letterSpacing: '-0.015em',
+                      lineHeight: 1.3,
+                      marginBottom: '0.5rem',
+                    }}>
+                      {selectedModule.title}
+                    </h2>
+
+                    {selectedModule.subtitle && (
+                      <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: '700px' }}>
+                        {selectedModule.subtitle}
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                    <button
+                      onClick={handleOpenAddLesson}
+                      className="btn-primary"
+                      style={{ fontSize: '0.82rem', padding: '0.5rem 1rem' }}
+                    >
+                      <Plus size={14} />
+                      <span>Tambah Bab</span>
+                    </button>
+
+                    <button
+                      onClick={() => setDeleteConfirm({ type: 'module', id: selectedModule.id, name: selectedModule.title })}
+                      className="btn-danger-ghost"
+                      style={{ fontSize: '0.78rem', padding: '0.5rem 0.75rem' }}
+                      title="Hapus Modul Ini"
+                    >
+                      <Trash2 size={13} />
+                      <span>Hapus</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Lessons Toolbar */}
+              {/* Sub-Header Silabus */}
               <div style={{
-                padding: '0.9rem 1.6rem',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
+                marginBottom: '1rem',
               }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                <div style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-dim)',
+                }}>
                   Bab Pembelajaran ({selectedModule.lessons?.length || 0})
                 </div>
-                <button
-                  onClick={handleOpenAddLesson}
-                  className="btn-primary"
-                  style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem' }}
-                >
-                  <Plus size={14} />
-                  <span>Tambah Bab</span>
-                </button>
               </div>
 
-              {/* Lessons List Table */}
+              {/* Garis Silabus (Course Outline) — Frosted Glass Card Container */}
               {(!selectedModule.lessons || selectedModule.lessons.length === 0) ? (
-                <div style={{ padding: '3.5rem', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-                  Belum ada bab materi dalam modul ini. Tekan tombol Tambah Bab untuk membuat materi.
+                <div className="pfx-card" style={{
+                  padding: '4rem 1.5rem',
+                  textAlign: 'center',
+                }}>
+                  <BookOpen size={30} color="var(--gold-accent)" style={{ opacity: 0.7, marginBottom: '0.75rem' }} />
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.35rem', color: '#FFF' }}>
+                    Belum Ada Bab Materi
+                  </h3>
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '1.25rem', maxWidth: '420px', margin: '0 auto 1.25rem' }}>
+                    Modul ini belum memiliki bab pembelajaran. Mulai masukkan materi video dan naskah panduan silabus trading.
+                  </p>
+                  <button onClick={handleOpenAddLesson} className="btn-primary" style={{ fontSize: '0.8rem', padding: '0.45rem 0.95rem' }}>
+                    <Plus size={14} />
+                    <span>Tambah Bab Pertama</span>
+                  </button>
                 </div>
               ) : (
-                <table className="pfx-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '65px' }}>Urutan</th>
-                      <th>Judul Bab</th>
-                      <th style={{ width: '120px' }}>Durasi</th>
-                      <th style={{ width: '130px' }}>Video YouTube</th>
-                      <th style={{ textAlign: 'right', width: '180px' }}>Tindakan</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedModule.lessons.map((les, lesIdx) => {
-                      const videoCount = les.youtube_urls?.length || 0;
+                <div className="pfx-card" style={{ overflow: 'hidden' }}>
+                  {selectedModule.lessons.map((les, lesIdx) => {
+                    const videoCount = les.youtube_urls?.length || 0;
 
-                      return (
-                        <tr key={les.id}>
-                          {/* Order with subtle buttons */}
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span style={{ fontSize: '0.78rem', color: 'var(--text-dim)', width: '18px' }}>
-                                #{lesIdx + 1}
-                              </span>
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <button
-                                  onClick={() => handleMoveLesson(lesIdx, 'up')}
-                                  disabled={lesIdx === 0}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: lesIdx === 0 ? 'rgba(255, 255, 255, 0.05)' : 'var(--text-dim)',
-                                    cursor: lesIdx === 0 ? 'default' : 'pointer',
-                                    padding: '1px',
-                                  }}
-                                  title="Geser Naik"
-                                >
-                                  <ArrowUp size={11} />
-                                </button>
-                                <button
-                                  onClick={() => handleMoveLesson(lesIdx, 'down')}
-                                  disabled={lesIdx === selectedModule.lessons!.length - 1}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: lesIdx === selectedModule.lessons!.length - 1 ? 'rgba(255, 255, 255, 0.05)' : 'var(--text-dim)',
-                                    cursor: lesIdx === selectedModule.lessons!.length - 1 ? 'default' : 'pointer',
-                                    padding: '1px',
-                                  }}
-                                  title="Geser Turun"
-                                >
-                                  <ArrowDown size={11} />
-                                </button>
-                              </div>
+                    return (
+                      <div
+                        key={les.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '1.15rem 1.25rem',
+                          borderBottom: lesIdx === selectedModule.lessons!.length - 1 ? 'none' : '1px solid rgba(255, 255, 255, 0.05)',
+                          transition: 'background-color 0.15s ease',
+                        }}
+                      >
+                        {/* Sisi Kiri: Nomor + Judul + Metadata */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.25rem', flex: 1, minWidth: 0, paddingRight: '1rem' }}>
+                          <div style={{
+                            fontFamily: 'var(--font-display)',
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            color: 'var(--gold-accent)',
+                            opacity: 0.85,
+                            width: '28px',
+                            paddingTop: '2px',
+                            flexShrink: 0,
+                          }}>
+                            {String(lesIdx + 1).padStart(2, '0')}
+                          </div>
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              fontSize: '0.95rem',
+                              fontWeight: 500,
+                              color: '#FFF',
+                              lineHeight: 1.4,
+                              marginBottom: '0.35rem',
+                            }}>
+                              {les.title}
                             </div>
-                          </td>
 
-                          {/* Title */}
-                          <td>
-                            <div style={{ fontWeight: 500, fontSize: '0.88rem' }}>{les.title}</div>
-                          </td>
-
-                          {/* Duration */}
-                          <td>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                              <Clock size={12} /> {les.minutes} menit
-                            </span>
-                          </td>
-
-                          {/* YouTube Videos */}
-                          <td>
-                            {videoCount > 0 ? (
-                              <span className="pfx-badge pfx-badge-info" style={{ fontSize: '0.72rem' }}>
-                                <Video size={11} /> {videoCount} Video
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', fontSize: '0.78rem', color: 'var(--text-dim)' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <Clock size={12} color="var(--text-dim)" />
+                                <span>{les.minutes} menit baca</span>
                               </span>
-                            ) : (
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Teks Murni</span>
-                            )}
-                          </td>
 
-                          {/* Actions */}
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
-                              <button
-                                onClick={() => {
-                                  setPreviewLesson(les);
-                                  setPreviewVideoIdx(0);
-                                }}
-                                className="btn-secondary"
-                                style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
-                                title="Pratinjau Materi"
-                              >
-                                <Eye size={12} />
-                                <span>Preview</span>
-                              </button>
+                              <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>•</span>
 
-                              <button
-                                onClick={() => setDeleteConfirm({ type: 'lesson', id: les.id, name: les.title })}
-                                className="btn-danger-ghost"
-                                style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
-                                title="Hapus Bab"
-                              >
-                                <Trash2 size={12} />
-                              </button>
+                              {videoCount > 0 ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--info)' }}>
+                                  <Video size={12} />
+                                  <span>{videoCount} Video YouTube</span>
+                                </span>
+                              ) : (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-dim)' }}>
+                                  <BookOpen size={12} />
+                                  <span>Teks Silabus</span>
+                                </span>
+                              )}
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+                        </div>
+
+                        {/* Sisi Kanan: Aksi Cepat */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                          {/* Order arrow buttons */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginRight: '0.35rem' }}>
+                            <button
+                              onClick={() => handleMoveLesson(lesIdx, 'up')}
+                              disabled={lesIdx === 0}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: lesIdx === 0 ? 'rgba(255, 255, 255, 0.06)' : 'var(--text-dim)',
+                                cursor: lesIdx === 0 ? 'default' : 'pointer',
+                                padding: '3px',
+                                display: 'inline-flex',
+                              }}
+                              title="Geser Naik"
+                            >
+                              <ArrowUp size={12} />
+                            </button>
+                            <button
+                              onClick={() => handleMoveLesson(lesIdx, 'down')}
+                              disabled={lesIdx === selectedModule.lessons!.length - 1}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: lesIdx === selectedModule.lessons!.length - 1 ? 'rgba(255, 255, 255, 0.06)' : 'var(--text-dim)',
+                                cursor: lesIdx === selectedModule.lessons!.length - 1 ? 'default' : 'pointer',
+                                padding: '3px',
+                                display: 'inline-flex',
+                              }}
+                              title="Geser Turun"
+                            >
+                              <ArrowDown size={12} />
+                            </button>
+                          </div>
+
+                          {/* Preview Button */}
+                          <button
+                            onClick={() => {
+                              setPreviewLesson(les);
+                              setPreviewVideoIdx(0);
+                            }}
+                            className="btn-secondary"
+                            style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                            title="Buka Pratinjau Bab"
+                          >
+                            <Eye size={12} />
+                            <span>Pratinjau</span>
+                          </button>
+
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => setDeleteConfirm({ type: 'lesson', id: les.id, name: les.title })}
+                            className="btn-danger-ghost"
+                            style={{ padding: '0.35rem 0.55rem' }}
+                            title="Hapus Bab"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
         </div>
       )}
 
-      {/* ─── MODAL: Tambah / Edit Modul (Frosted Glass Panel) ─── */}
+      {/* ─── MODAL: Tambah Modul Baru (Bersih & Elegan) ─── */}
       {showModModal && (
         <div className="pfx-modal-backdrop" onClick={() => setShowModModal(false)}>
           <div className="pfx-modal-panel" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.15rem', fontWeight: 600 }}>
-                Tambah Modul Baru
-              </h2>
+              <div>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--gold-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Silabus Kurikulum
+                </span>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#FFF' }}>
+                  Tambah Modul Baru
+                </h2>
+              </div>
               <button onClick={() => setShowModModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
@@ -586,7 +714,7 @@ export const AdminMateriView: React.FC = () => {
                 <input
                   type="text"
                   className="pfx-input"
-                  placeholder="Contoh: Fondasi Pasar Forex & Karakter Pair"
+                  placeholder="Contoh: Fondasi Pasar Forex & Karakteristik Pair"
                   value={modTitle}
                   onChange={(e) => setModTitle(e.target.value)}
                   required
@@ -598,15 +726,15 @@ export const AdminMateriView: React.FC = () => {
                 <input
                   type="text"
                   className="pfx-input"
-                  placeholder="Contoh: Pengenalan struktur pasar, sesi trading Tokyo/London/NY"
+                  placeholder="Contoh: Pengenalan struktur pasar, likuiditas, dan sesi Tokyo/London/NY"
                   value={modSubtitle}
                   onChange={(e) => setModSubtitle(e.target.value)}
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.75rem' }}>
                 <div>
-                  <label className="pfx-label">Tingkat (Level)</label>
+                  <label className="pfx-label">Tingkat Kesulitan (Level)</label>
                   <select
                     className="pfx-select"
                     value={modLevel}
@@ -619,7 +747,7 @@ export const AdminMateriView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="pfx-label">Ikon (Ionicons)</label>
+                  <label className="pfx-label">Ikon Materi (Ionicons)</label>
                   <input
                     type="text"
                     className="pfx-input"
@@ -635,7 +763,7 @@ export const AdminMateriView: React.FC = () => {
                 </button>
                 <button type="submit" className="btn-primary" disabled={actionLoading}>
                   <Check size={14} />
-                  <span>{actionLoading ? 'Menyimpan...' : 'Simpan'}</span>
+                  <span>{actionLoading ? 'Menyimpan...' : 'Simpan Modul'}</span>
                 </button>
               </div>
             </form>
@@ -643,14 +771,19 @@ export const AdminMateriView: React.FC = () => {
         </div>
       )}
 
-      {/* ─── MODAL: Tambah / Edit Bab (Frosted Glass Panel) ─── */}
+      {/* ─── MODAL: Tambah Bab Materi (Bersih & Elegan) ─── */}
       {showLesModal && (
         <div className="pfx-modal-backdrop" onClick={() => setShowLesModal(false)}>
           <div className="pfx-modal-panel" style={{ maxWidth: '720px' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.15rem', fontWeight: 600 }}>
-                Tambah Bab Baru
-              </h2>
+              <div>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--gold-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Bab Pembelajaran • {selectedModule?.title}
+                </span>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#FFF' }}>
+                  Tambah Bab Baru
+                </h2>
+              </div>
               <button onClick={() => setShowLesModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
@@ -663,7 +796,7 @@ export const AdminMateriView: React.FC = () => {
                   <input
                     type="text"
                     className="pfx-input"
-                    placeholder="Contoh: Sesi London Breakout & Entry Rule"
+                    placeholder="Contoh: Sesi London Breakout & Validasi Entry"
                     value={lesTitle}
                     onChange={(e) => setLesTitle(e.target.value)}
                     required
@@ -687,7 +820,7 @@ export const AdminMateriView: React.FC = () => {
               <div style={{ marginBottom: '1.25rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                   <label className="pfx-label" style={{ marginBottom: 0 }}>Sematkan Video YouTube</label>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{lesUrls.length} Video Ditambahkan</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{lesUrls.length} Video Tersemat</span>
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.45rem', marginBottom: '0.65rem' }}>
@@ -705,7 +838,7 @@ export const AdminMateriView: React.FC = () => {
                     style={{ whiteSpace: 'nowrap' }}
                   >
                     <Plus size={14} />
-                    <span>Tambah</span>
+                    <span>Tambah Video</span>
                   </button>
                 </div>
 
@@ -730,13 +863,14 @@ export const AdminMateriView: React.FC = () => {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', overflow: 'hidden' }}>
                             <Film size={13} color="var(--info)" style={{ flexShrink: 0 }} />
                             <span style={{ color: 'var(--text-secondary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                              #{idx + 1}: {url} (ID: {ytid})
+                              Video #{idx + 1}: {url} (ID: {ytid})
                             </span>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveVideoUrl(idx)}
                             style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '2px' }}
+                            title="Hapus Video Ini"
                           >
                             <Trash2 size={13} />
                           </button>
@@ -749,11 +883,11 @@ export const AdminMateriView: React.FC = () => {
 
               {/* Lesson Text Content */}
               <div style={{ marginBottom: '1.5rem' }}>
-                <label className="pfx-label">Naskah Pembelajaran &amp; Panduan</label>
+                <label className="pfx-label">Naskah Materi &amp; Panduan Lengkap</label>
                 <textarea
                   className="pfx-textarea"
-                  style={{ minHeight: '160px', fontFamily: 'monospace', fontSize: '0.85rem' }}
-                  placeholder="Ketik materi pembelajaran lengkap di sini..."
+                  style={{ minHeight: '160px', fontSize: '0.86rem', lineHeight: 1.6 }}
+                  placeholder="Ketik silabus penjelasan materi trading di sini..."
                   value={lesContent}
                   onChange={(e) => setLesContent(e.target.value)}
                 />
@@ -773,33 +907,33 @@ export const AdminMateriView: React.FC = () => {
         </div>
       )}
 
-      {/* ─── MODAL: Pratinjau Bab (Frosted Glass Panel) ─── */}
+      {/* ─── MODAL: Pratinjau Bab (Sinematik & Editorial) ─── */}
       {previewLesson && (
         <div className="pfx-modal-backdrop" onClick={() => setPreviewLesson(null)}>
-          <div className="pfx-modal-panel" style={{ maxWidth: '800px' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div className="pfx-modal-panel" style={{ maxWidth: '820px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <div>
-                <span className="pfx-badge pfx-badge-gold" style={{ fontSize: '0.65rem', marginBottom: '0.25rem' }}>
-                  Pratinjau Siswa
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--gold-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Pratinjau Siswa Mobile
                 </span>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{previewLesson.title}</h2>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 600, color: '#FFF' }}>{previewLesson.title}</h2>
               </div>
               <button onClick={() => setPreviewLesson(null)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
             </div>
 
-            {/* Video Player */}
+            {/* Video Player Section */}
             {previewLesson.youtube_urls && previewLesson.youtube_urls.length > 0 && (
-              <div style={{ marginBottom: '1.25rem' }}>
+              <div style={{ marginBottom: '1.5rem' }}>
                 {previewLesson.youtube_urls.length > 1 && (
-                  <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.5rem', overflowX: 'auto' }}>
+                  <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.65rem', overflowX: 'auto' }}>
                     {previewLesson.youtube_urls.map((_, vIdx) => (
                       <button
                         key={vIdx}
                         onClick={() => setPreviewVideoIdx(vIdx)}
                         className={previewVideoIdx === vIdx ? 'btn-primary' : 'btn-secondary'}
-                        style={{ padding: '0.3rem 0.65rem', fontSize: '0.72rem' }}
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
                       >
                         <Play size={10} />
                         <span>Video #{vIdx + 1}</span>
@@ -823,7 +957,7 @@ export const AdminMateriView: React.FC = () => {
                       borderRadius: 'var(--radius-sm)',
                       backgroundColor: '#000',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
-                      boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
+                      boxShadow: '0 16px 36px rgba(0,0,0,0.5)',
                     }}>
                       <iframe
                         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
@@ -840,21 +974,24 @@ export const AdminMateriView: React.FC = () => {
 
             {/* Reading Content */}
             <div style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.02)',
-              padding: '1.35rem',
+              backgroundColor: 'rgba(255, 255, 255, 0.035)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              padding: '1.5rem',
               borderRadius: 'var(--radius-sm)',
-              border: '1px solid rgba(255, 255, 255, 0.07)',
-              lineHeight: 1.6,
-              fontSize: '0.875rem',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06)',
+              lineHeight: 1.7,
+              fontSize: '0.88rem',
               color: 'var(--text-primary)',
               whiteSpace: 'pre-wrap',
             }}>
               {previewLesson.content || 'Belum ada konten tertulis untuk bab ini.'}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
               <button onClick={() => setPreviewLesson(null)} className="btn-secondary">
-                Tutup
+                Tutup Pratinjau
               </button>
             </div>
           </div>
@@ -879,11 +1016,11 @@ export const AdminMateriView: React.FC = () => {
               <AlertTriangle size={20} color="var(--danger)" />
             </div>
 
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.35rem', color: '#FFF' }}>
               Hapus {deleteConfirm.type === 'module' ? 'Modul' : 'Bab'}?
             </h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-              Tindakan ini tidak dapat dibatalkan. "{deleteConfirm.name}" akan dihapus permanen.
+              Tindakan ini tidak dapat dibatalkan. "{deleteConfirm.name}" akan dihapus permanen dari Supabase.
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
