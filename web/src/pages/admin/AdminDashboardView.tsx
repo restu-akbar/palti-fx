@@ -80,12 +80,13 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
         </button>
       </div>
 
-      {/* ─── Seamless Natural Flow (Menjorok Bergantian, Nyatu Tanpa Card) ─── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '5.5rem' }}>
+      {/* ─── Seamless Natural Flow (Staggered Transparent Blur Cards) ─── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2.25rem' }}>
 
-        {/* ─── 1. ATAS KIRI: Kurikulum & Materi (Menjorok dari Kiri, Teks & Paragraf Start Kiri) ─── */}
-        <section style={{
-          maxWidth: '720px',
+        {/* ─── 1. ATAS KIRI: Kurikulum & Materi (Transparent Blur Card) ─── */}
+        <section className="pfx-card" style={{
+          padding: '2.25rem 2.5rem',
+          maxWidth: '820px',
           textAlign: 'left',
           position: 'relative',
         }}>
@@ -191,9 +192,10 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
           </button>
         </section>
 
-        {/* ─── 2. BAWAH DARI KANAN: Kode Undangan VIP (Menjorok dari Kanan, Teks & Paragraf Start Kanan) ─── */}
-        <section style={{
-          maxWidth: '720px',
+        {/* ─── 2. BAWAH DARI KANAN: Kode Undangan VIP (Transparent Blur Card) ─── */}
+        <section className="pfx-card" style={{
+          padding: '2.25rem 2.5rem',
+          maxWidth: '820px',
           marginLeft: 'auto',
           textAlign: 'right',
           position: 'relative',
@@ -315,9 +317,10 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
           </div>
         </section>
 
-        {/* ─── 3. TERUS BAWAH DARI KIRI: Member & Akses (Menjorok dari Kiri, Teks & Paragraf Start Kiri) ─── */}
-        <section style={{
-          maxWidth: '720px',
+        {/* ─── 3. TERUS BAWAH DARI KIRI: Member & Akses (Transparent Blur Card) ─── */}
+        <section className="pfx-card" style={{
+          padding: '2.25rem 2.5rem',
+          maxWidth: '820px',
           textAlign: 'left',
           position: 'relative',
         }}>
