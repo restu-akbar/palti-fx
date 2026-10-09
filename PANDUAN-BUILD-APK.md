@@ -1,154 +1,149 @@
-# Panduan Lengkap Build APK PALTI FX (Android Standalone)
+# Panduan Lengkap PALTI FX: Menjalankan (Run Dev) & Build APK
 
-Panduan ini menjelaskan cara membuat file installer **APK Android (`.apk`)** untuk aplikasi PALTI FX menggunakan layanan **EAS Build (Expo Application Services)** di cloud.
-
-> 💡 **Kelebihan EAS Build:**
-> Kompilasi kode dilakukan di server cloud Expo, sehingga laptop/PC Anda **tidak memerlukan Android Studio, Java SDK, ataupun spesifikasi komputer yang berat**.
-
----
-
-## 📋 Prasyarat (*Prerequisites*)
-
-1. **Node.js LTS** (Versi 20 ke atas disarankan): Unduh di [nodejs.org](https://nodejs.org).
-2. **Akun Expo Gratis**: Daftar di [expo.dev/signup](https://expo.dev/signup) jika belum memiliki akun.
-3. **Koneksi Internet Aktif**: Untuk mengunggah kode dan memantau status kompilasi di cloud.
+Satu monorepo untuk seluruh ekosistem **PALTI FX**:
+- **`mobile/`** : Aplikasi Mobile Trader (Expo / React Native untuk Android & iOS).
+- **`web/`** : Web Admin Portal (React + Vite untuk manajemen member, edukasi video, dan kode undangan).
 
 ---
 
-## 🚀 Langkah-Langkah Build APK
+## 0. Prasyarat & Persiapan Awal
 
-### 1. Buka Terminal di Folder Frontend
-
-Aplikasi mobile berada di dalam folder `frontend/` pada monorepo PALTI FX.
-
-1. Buka terminal (PowerShell / Command Prompt / Git Bash).
-2. Masuk ke direktori `frontend`:
+1. **Node.js LTS** (Disarankan Node.js v20 ke atas): Unduh di [nodejs.org](https://nodejs.org).
+2. **Akun Expo Gratis**: Daftar di [expo.dev/signup](https://expo.dev/signup) (hanya untuk build APK mobile).
+3. Buka terminal di folder root project (`c:\Work\palti-fx\palti-fx`).
+4. Install semua dependensi di monorepo:
    ```bash
-   cd c:\Work\palti-fx\palti-fx\frontend
+   npm install
    ```
 
 ---
 
-### 2. Pastikan Kredensial Supabase Terpasang
+## 1. Cara Menjalankan Aplikasi (Development / Run)
 
-Pastikan file `frontend/.env` sudah ada dan memuat kredensial Supabase proyek Anda:
+### 📋 Cheatsheet Perintah Cepat
 
-```env
-EXPO_PUBLIC_SUPABASE_URL=https://proyek-anda.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsIn...
-```
-
-> ⚠️ **Catatan Penting:** Variabel yang diawali dengan `EXPO_PUBLIC_` akan otomatis disematkan oleh EAS ke dalam bundle APK saat build berjalan, sehingga aplikasi APK dapat terhubung ke database Supabase secara langsung.
+| Target | Dari Folder Root | Atau dari Sub-folder | Akses / Keterangan |
+|---|---|---|---|
+| **Web Admin Portal** | `npm run start:web` | `cd web` lalu `npm run dev` | **`http://localhost:5173`** (Browser) |
+| **Mobile App (Metro)** | `npm run start:mobile` | `cd mobile` lalu `npm start` | Scan QR code di Expo Go |
+| **Mobile Android** | `npm run android` | `cd mobile` lalu `npm run android` | Emulator / USB Device |
+| **Mobile iOS** | `npm run ios` | `cd mobile` lalu `npm run ios` | iOS Simulator (macOS) |
 
 ---
 
-### 3. Validasi Kode Bebas Error (*Pre-flight Check*)
+### 🖥️ A. Menjalankan Web Admin Portal (Vite + React)
 
-Sebelum memulai antrean build di cloud, pastikan kode TypeScript dan linter bersih tanpa error:
+Web Admin digunakan oleh pengelola untuk mengelola member, kode undangan VIP, dan materi modul YouTube.
 
+#### Cara 1: Langsung dari Folder Root
 ```bash
-# 1. Typecheck TypeScript
-npx tsc --noEmit
-
-# 2. Linter ESLint
-npm run lint
+npm run start:web
 ```
-*Pastikan kedua perintah di atas selesai dengan 0 error.*
+
+#### Cara 2: Dari dalam Folder `web/`
+```bash
+cd web
+npm run dev
+```
+
+> ⚠️ **Penting**: Di dalam folder `web`, gunakan perintah **`npm run dev`** (bukan `npm start`), karena bundler yang digunakan adalah **Vite**.
+
+- Web Admin otomatis aktif di: **`http://localhost:5173`**
+- Buka browser Anda dan akses tautan tersebut.
+- Fitur Hot Reload aktif: setiap perubahan file di `web/src/` otomatis ter-update di layar browser.
+
+#### Build & Preview Hasil Produksi Web Admin:
+```bash
+cd web
+npm run build
+npm run preview
+```
 
 ---
 
-### 4. Login ke Akun Expo
+### 📱 B. Menjalankan Mobile App (Expo Go & Emulator)
 
-Jalankan perintah login EAS CLI:
+#### Opsi 1: Menggunakan Expo Go di HP (Paling Praktis, Tanpa Android Studio)
+1. Install aplikasi **Expo Go** dari Google Play Store (Android) atau App Store (iOS).
+2. Jalankan Metro Bundler:
+   ```bash
+   npm run start:mobile
+   ```
+   *(atau masuk ke `cd mobile` lalu `npm start`)*
+3. Pastikan HP dan laptop di **Wi-Fi yang sama**.
+   - **Android**: Buka aplikasi Expo Go -> tap **"Scan QR code"** -> scan QR di terminal.
+   - **iOS**: Buka aplikasi **Kamera bawaan** iPhone -> scan QR di terminal -> buka notifikasi Expo Go.
+4. Jika beda jaringan / terhalang firewall, tambahkan flag tunnel:
+   ```bash
+   cd mobile
+   npx expo start --tunnel
+   ```
 
+#### Opsi 2: Menggunakan Emulator Android di Laptop
+1. Nyalakan Emulator Android (AVD di Android Studio).
+2. Jalankan:
+   ```bash
+   npm run android
+   ```
+   *(atau saat Metro berjalan, tekan tombol `a` di keyboard).*
+
+#### Tombol Pintasan Interaktif di Terminal Mobile (`npm start`):
+- `a` : Buka di Android emulator/device
+- `i` : Buka di iOS simulator
+- `r` : Reload aplikasi
+- `m` : Tampilkan developer menu di perangkat
+- `c` : Tampilkan ulang QR code
+
+---
+
+## 2. Build APK Android Mandiri (EAS Cloud)
+
+Untuk membuat file installer `.apk` yang bisa dibagikan langsung ke pengguna tanpa perlu install Expo Go:
+
+### Langkah 1: Masuk ke Folder `mobile/`
+```bash
+cd c:\Work\palti-fx\palti-fx\mobile
+```
+
+### Langkah 2: Login ke Akun Expo
 ```bash
 npx eas-cli@latest login
 ```
-- Masukkan **Email / Username** dan **Password** akun Expo Anda.
+Masukkan username/email dan password akun Expo Anda.
 
----
-
-### 5. Jalankan Perintah Build APK
-
-Eksekusi perintah pembuatan APK dengan profil `preview`:
-
+### Langkah 3: Jalankan Build APK Preview
 ```bash
 npx eas-cli@latest build -p android --profile preview
 ```
 
-#### Pertanyaan Interaktif (Hanya Muncul Saat Build Pertama Kali):
-1. **"Would you like to automatically create an EAS project for @username/palti-fx?"**  
-   👉 Ketik **`Y`** lalu Enter.
-2. **"Generate a new Android Keystore?"**  
-   👉 Ketik **`Y`** lalu Enter *(Expo akan membuat dan menyimpan kunci sertifikat penandatanganan aplikasi Anda secara aman di cloud)*.
+#### Pertanyaan Interaktif (Build Pertama Kali):
+1. *"Would you like to automatically create an EAS project?"* 👉 Ketik **`Y`** lalu Enter.
+2. *"Generate a new Android Keystore?"* 👉 Ketik **`Y`** lalu Enter.
+
+### Langkah 4: Unduh & Install APK
+- Tunggu proses build selesai di server cloud Expo (~10–15 menit).
+- Terminal akan menampilkan link download file `.apk` dan QR code.
+- Download di ponsel Android, aktifkan izin *"Install unknown apps"*, dan install aplikasi.
 
 ---
 
-### 6. Proses Kompilasi di Cloud (~10–15 Menit)
+## 3. Rilis ke Google Play Store (Production)
 
-Setelah kode diunggah, server Expo akan memproses build:
-- Terminal akan menampilkan tautan live progress dashboard, misalnya:  
-  `https://expo.dev/accounts/username/projects/palti-fx/builds/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
-- Anda dapat menutup terminal jika diinginkan, karena proses berjalan independen di server Expo.
+Untuk merilis aplikasi resmi ke Google Play Store:
 
----
-
-### 7. Unduh & Instal File APK
-
-Ketika proses build selesai, terminal (dan dashboard web Expo) akan menampilkan:
-1. **Tautan Unduh File APK langsung (`.apk`)**.
-2. **Kode QR**: Pindai langsung menggunakan kamera HP Android Anda untuk mengunduh installer.
-
-#### Cara Instal di HP Android:
-1. Buka file `.apk` yang telah diunduh di ponsel Android.
-2. Jika muncul peringatan keamanan sistem:
-   - Pilih **Setelan / Settings** -> Aktifkan **"Izinkan dari sumber ini"** (*Install unknown apps*).
-3. Klik **Instal**.
-4. Aplikasi **PALTI FX** siap digunakan dan dapat dibagikan kepada seluruh member!
-
----
-
-## 🔄 Pembaruan Materi Tanpa Perlu Build Ulang APK!
-
-> 🎉 **Keunggulan Sistem Baru PALTI FX:**
-> Seluruh kurikulum edukasi (Modul, Bab, Teks Markdown, dan Embed Video YouTube) sekarang **tersimpan live di Database Cloud Supabase**.
-
-- **Admin mengedit/menambah materi?**  
-  Admin cukup membuka aplikasi di HP dengan akun `dioraput@gmail.com`, lalu menambah/mengedit modul dan bab secara langsung. Materi seketika diperbarui untuk seluruh member **tanpa perlu build APK baru**.
-- **Kapan perlu build APK ulang?**  
-  Build APK baru **HANYA** diperlukan jika ada:
-  1. Perubahan logika kodingan frontend lokal / penambahan library native baru.
-  2. Perubahan desain visual UI inti atau logo ikon aplikasi.
-  3. Pembaruan nomor versi rilis aplikasi.
-
----
-
-## 📦 Penomoran Versi Aplikasi Saat Rilis Baru
-
-Jika Anda melakukan perubahan kode aplikasi dan ingin membuat update APK baru:
-
-1. Buka file [`frontend/app.json`](file:///c:/Work/palti-fx/palti-fx/frontend/app.json).
-2. Naikkan versi aplikasi pada bagian:
-   ```json
-   "version": "1.0.1",
-   "android": {
-     "versionCode": 2
-   }
-   ```
-3. Jalankan kembali perintah:
+1. Jalankan build dengan profil `production`:
    ```bash
-   npx eas-cli@latest build -p android --profile preview
-   ```
-
----
-
-## 🌐 Rilis ke Google Play Store (*Production*)
-
-Jika nantinya aplikasi PALTI FX ingin dipublikasikan resmi ke Google Play Store:
-
-1. Butuh akun Google Play Developer ($25 sekali bayar).
-2. Jalankan perintah kompilasi bundel `.aab`:
-   ```bash
+   cd mobile
    npx eas-cli@latest build -p android --profile production
    ```
-3. Unduh file `.aab` yang dihasilkan dan unggah ke **Google Play Console**.
+2. Hasilnya berupa file Android App Bundle (`.aab`).
+3. Upload file `.aab` tersebut ke akun Google Play Console.
+4. **Setiap merilis update baru**: Naikkan `version` dan `android.versionCode` di [`mobile/app.json`](file:///c:/Work/palti-fx/palti-fx/mobile/app.json), lalu jalankan perintah build kembali.
+
+---
+
+## 4. Pembaruan Materi Edukasi Secara Live (Tanpa Re-build APK)
+
+Seluruh kurikulum edukasi (Modul, Bab, Teks Markdown, dan Embed Video YouTube) tersimpan secara real-time di Database Supabase.
+- Pengelola dapat mengedit, menambah, atau menghapus materi langsung melalui **Web Admin Portal (`http://localhost:5173`)** atau dari akun admin di aplikasi.
+- Perubahan materi akan langsung tampil ke seluruh member tanpa perlu kompilasi ulang APK!
