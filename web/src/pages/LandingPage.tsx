@@ -213,7 +213,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                 }}>
                   PALTI
                 </span>
-                <span className="gold-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '1.3rem' }}>
+                <span style={{
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 900,
+                  fontSize: '1.3rem',
+                  color: isOverLightSection ? '#A0781A' : 'var(--gold-accent)',
+                  transition: 'color 0.3s ease',
+                }}>
                   FX
                 </span>
               </div>
