@@ -7,7 +7,6 @@ import {
   Award, 
   KeyRound, 
   Smartphone, 
-  Sparkles,
   Globe
 } from 'lucide-react';
 
@@ -234,13 +233,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
         textAlign: 'center',
         position: 'relative',
       }}>
-        {/* VIP Badge */}
-        <div style={{ display: 'inline-flex', marginBottom: '1.5rem' }}>
-          <span className="badge badge-gold" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', gap: '0.5rem' }}>
-            <Sparkles size={14} /> Ekosistem Edukasi Privat Berbasis Undangan
-          </span>
-        </div>
-
         <h1 style={{
           fontSize: 'clamp(2.5rem, 5vw, 4.2rem)',
           lineHeight: 1.15,
