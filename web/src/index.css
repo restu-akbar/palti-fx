@@ -551,46 +551,38 @@ a {
   padding: 1.5rem 0;
 }
 
-.glass-card-horizontal {
-  flex: 0 0 420px;
-  background: rgba(13, 17, 24, 0.65);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-xl);
-  padding: 2.25rem 2rem;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+.feature-column-natural {
+  flex: 0 0 460px;
+  background: transparent;
   position: relative;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 410px;
-  transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+  min-height: 390px;
+  padding: 0.5rem 3.5rem 0.5rem 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s ease;
 }
 
-.glass-card-horizontal:hover {
-  border-color: rgba(207, 168, 94, 0.45);
-  transform: translateY(-4px);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65), 0 0 28px rgba(207, 168, 94, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+.feature-column-natural:last-child {
+  border-right: none;
+  padding-right: 0;
 }
 
-.card-number-ghost {
-  position: absolute;
-  top: 1.25rem;
-  right: 1.5rem;
+.feature-number-natural {
   font-family: var(--font-display);
-  font-size: 4rem;
-  font-weight: 900;
+  font-size: 2.8rem;
+  font-weight: 800;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.035);
-  pointer-events: none;
+  letter-spacing: -0.03em;
+  color: rgba(255, 255, 255, 0.18);
+  transition: color 0.3s ease, transform 0.3s ease;
   user-select: none;
-  transition: color 0.3s ease;
 }
 
-.glass-card-horizontal:hover .card-number-ghost {
-  color: rgba(207, 168, 94, 0.12);
+.feature-column-natural:hover .feature-number-natural {
+  color: var(--gold-accent);
+  transform: translateX(2px);
 }
 
 .horizontal-progress-bar {

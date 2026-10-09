@@ -401,80 +401,86 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
               }}
             >
               {FEATURE_CARDS.map((card, idx) => (
-                <div key={idx} className="glass-card-horizontal">
-                  <div className="card-number-ghost">{card.number}</div>
-
+                <div key={idx} className="feature-column-natural">
                   <div>
-                    {/* Header Card: Icon & Tag */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                      <div style={{
-                        width: '54px',
-                        height: '54px',
-                        borderRadius: '16px',
-                        background: card.iconBg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: `0 8px 20px -4px ${card.iconColor}33`,
-                        border: `1px solid ${card.iconColor}44`,
-                      }}>
-                        {card.icon}
-                      </div>
-
+                    {/* Header: Large Minimal Number & Tag */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                      <span className="feature-number-natural">{card.number}</span>
                       <span style={{
                         fontSize: '0.72rem',
                         fontWeight: 700,
-                        letterSpacing: '0.06em',
-                        color: card.iconColor,
-                        padding: '0.3rem 0.75rem',
-                        borderRadius: '9999px',
-                        backgroundColor: card.iconBg,
-                        border: `1px solid ${card.iconColor}33`,
+                        letterSpacing: '0.12em',
+                        color: 'var(--gold-accent)',
+                        textTransform: 'uppercase',
                       }}>
                         {card.tag}
                       </span>
                     </div>
 
+                    {/* Minimalist Floating Icon */}
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '12px',
+                      backgroundColor: card.iconBg,
+                      border: `1px solid ${card.iconColor}25`,
+                      marginBottom: '1.5rem',
+                    }}>
+                      {card.icon}
+                    </div>
+
+                    {/* Title */}
                     <h3 style={{
-                      fontSize: '1.45rem',
+                      fontSize: '1.65rem',
                       fontWeight: 700,
                       marginBottom: '0.85rem',
                       lineHeight: 1.25,
                       color: '#FFFFFF',
+                      letterSpacing: '-0.02em',
                     }}>
                       {card.title}
                     </h3>
 
+                    {/* Description */}
                     <p style={{
                       color: 'var(--text-secondary)',
-                      fontSize: '0.92rem',
-                      lineHeight: 1.65,
+                      fontSize: '0.96rem',
+                      lineHeight: 1.7,
                       margin: 0,
                     }}>
                       {card.description}
                     </p>
                   </div>
 
-                  {/* Highlights Bullet Badges */}
+                  {/* Natural Bullet Points */}
                   <div style={{
-                    marginTop: '1.75rem',
+                    marginTop: '2rem',
                     paddingTop: '1.25rem',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
                     display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '0.45rem',
+                    flexDirection: 'column',
+                    gap: '0.6rem',
                   }}>
                     {card.highlights.map((h, hIdx) => (
-                      <span key={hIdx} style={{
-                        fontSize: '0.74rem',
-                        color: 'var(--text-primary)',
-                        padding: '0.25rem 0.65rem',
-                        borderRadius: '6px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                        border: '1px solid rgba(255, 255, 255, 0.06)',
+                      <div key={hIdx} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.6rem',
+                        fontSize: '0.86rem',
                       }}>
-                        ✓ {h}
-                      </span>
+                        <span style={{
+                          width: '5px',
+                          height: '5px',
+                          borderRadius: '50%',
+                          backgroundColor: card.iconColor,
+                          boxShadow: `0 0 8px ${card.iconColor}88`,
+                          flexShrink: 0,
+                        }} />
+                        <span style={{ color: 'var(--text-secondary)' }}>{h}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
