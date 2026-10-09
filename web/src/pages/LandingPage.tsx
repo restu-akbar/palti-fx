@@ -204,13 +204,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
 
           {/* Quick Menu */}
           <nav style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-            <a href="#kurikulum" style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
+            <a 
+              href="#kurikulum" 
+              onClick={(e) => {
+                e.preventDefault();
+                if (featuresSectionRef.current) {
+                  const top = featuresSectionRef.current.offsetTop;
+                  window.scrollTo({ top, behavior: 'smooth' });
+                }
+              }}
+              style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', transition: 'color 0.2s', textDecoration: 'none' }}
+            >
               Kurikulum
             </a>
-            <a href="#fitur" style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
+            <a 
+              href="#fitur" 
+              onClick={(e) => {
+                e.preventDefault();
+                if (featuresSectionRef.current) {
+                  const sectionTop = featuresSectionRef.current.offsetTop;
+                  const scrollableRange = featuresSectionRef.current.offsetHeight - window.innerHeight;
+                  const target = sectionTop + (scrollableRange / (FEATURE_CARDS.length - 1)) * 1;
+                  window.scrollTo({ top: target, behavior: 'smooth' });
+                }
+              }}
+              style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', transition: 'color 0.2s', textDecoration: 'none' }}
+            >
               Fitur Aplikasi
             </a>
-            <a href="#aktivasi" style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', transition: 'color 0.2s' }}>
+            <a 
+              href="#aktivasi" 
+              onClick={(e) => {
+                e.preventDefault();
+                const el = document.getElementById('aktivasi');
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', transition: 'color 0.2s', textDecoration: 'none' }}
+            >
               Aktivasi VIP
             </a>
             <button 
@@ -321,6 +353,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
 
       {/* ─── Feature Pillars (Horizontal Scroll Hijacking from Left to Right) ─── */}
       <section id="fitur" ref={featuresSectionRef} className="horizontal-scroll-container">
+        <div id="kurikulum" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }} />
         <div className="horizontal-sticky-viewport">
           {/* Section Header with Dynamic Progress */}
           <div style={{
@@ -623,17 +656,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                 <span className="gold-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '1.1rem' }}>FX</span>
               </div>
             </div>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
               © 2026 PALTI FX. Seluruh hak cipta dilindungi undang-undang.
             </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            <a href="#fitur">Fitur Mobile</a>
-            <a href="#aktivasi">Aktivasi VIP</a>
-            <button onClick={onNavigateAdmin} style={{ background: 'none', border: 'none', color: 'var(--gold-500)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
-              Admin Portal
-            </button>
           </div>
         </div>
       </footer>
