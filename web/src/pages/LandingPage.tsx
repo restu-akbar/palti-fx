@@ -205,19 +205,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
           {/* Quick Menu */}
           <nav style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
             <a 
-              href="#kurikulum" 
-              onClick={(e) => {
-                e.preventDefault();
-                if (featuresSectionRef.current) {
-                  const top = featuresSectionRef.current.offsetTop;
-                  window.scrollTo({ top, behavior: 'smooth' });
-                }
-              }}
-              style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', transition: 'color 0.2s', textDecoration: 'none' }}
-            >
-              Kurikulum
-            </a>
-            <a 
               href="#fitur" 
               onClick={(e) => {
                 e.preventDefault();
