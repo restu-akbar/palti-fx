@@ -624,3 +624,33 @@ a {
   transition: width 0.08s ease-out;
 }
 
+/* ─── VIP Activation Journey Track ─── */
+.journey-track {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3rem;
+  margin-top: 3.5rem;
+}
+
+.journey-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-top: 1.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.3s ease;
+}
+
+.journey-step:hover {
+  border-top-color: var(--gold-accent);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 900px) {
+  .journey-track {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+}
+
