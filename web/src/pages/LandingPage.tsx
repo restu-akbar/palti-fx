@@ -156,15 +156,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
 
   return (
     <div style={{ minHeight: '100vh', display: 'block', position: 'relative' }}>
-      {/* ─── Navigation Header (Transparent Blur) ─── */}
+      {/* ─── Navigation Header (Borderless Pure Transparent Blur) ─── */}
       <header style={{
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        backgroundColor: 'rgba(7, 9, 14, 0.45)',
-        backdropFilter: 'blur(20px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+        backgroundColor: 'rgba(7, 9, 14, 0.22)',
+        backdropFilter: 'blur(28px) saturate(200%)',
+        WebkitBackdropFilter: 'blur(28px) saturate(200%)',
+        border: 'none',
+        borderBottom: 'none',
+        boxShadow: 'none',
         padding: '0.9rem 2rem',
         transition: 'all 0.3s ease',
       }}>
