@@ -246,7 +246,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
 
       {/* ─── Hero Section ─── */}
       <section style={{
-        padding: '5rem 2rem 4rem',
+        padding: '8.5rem 2rem 5rem',
         maxWidth: '1200px',
         margin: '0 auto',
         textAlign: 'center',
