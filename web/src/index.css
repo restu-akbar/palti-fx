@@ -332,6 +332,19 @@ a {
   background: rgba(212, 175, 55, 0.14);
 }
 
+.btn-header-admin.btn-header-admin-light {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0F172A;
+  border-color: rgba(15, 23, 42, 0.16);
+}
+
+.btn-header-admin.btn-header-admin-light:hover {
+  background: rgba(184, 134, 11, 0.1);
+  border-color: rgba(184, 134, 11, 0.45);
+  color: #0F172A;
+  box-shadow: 0 0 16px rgba(184, 134, 11, 0.15);
+}
+
 /* ─── Editorial Action Links (Unboxed, Natural, Calm) ─── */
 .editorial-link {
   background: transparent;

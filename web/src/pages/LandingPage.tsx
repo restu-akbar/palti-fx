@@ -95,6 +95,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
   const counterRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [maxTranslate, setMaxTranslate] = useState(0);
+  const [isOverLightSection, setIsOverLightSection] = useState(false);
 
   useEffect(() => {
     const calculateLayout = () => {
@@ -118,6 +119,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
           setMaxTranslate(maxScroll);
         }
       }
+
+      if (featuresSectionRef.current) {
+        const rect = featuresSectionRef.current.getBoundingClientRect();
+        setIsOverLightSection(rect.top <= 65 && rect.bottom >= 65);
+      }
     };
 
     let ticking = false;
@@ -135,6 +141,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
               const progress = Math.min(Math.max(scrolled / scrollableRange, 0), 1);
               setScrollProgress(progress);
             }
+
+            // Header height is approx 65px. Detect when header overlaps features section:
+            const inLight = rect.top <= 65 && rect.bottom >= 65;
+            setIsOverLightSection(inLight);
           }
           ticking = false;
         });
@@ -156,19 +166,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
 
   return (
     <div style={{ minHeight: '100vh', display: 'block', position: 'relative' }}>
-      {/* ─── Navigation Header (Borderless Pure Transparent Blur) ─── */}
+      {/* ─── Navigation Header (Adaptive Transparent Blur) ─── */}
       <header style={{
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        backgroundColor: 'rgba(7, 9, 14, 0.22)',
+        backgroundColor: isOverLightSection ? 'rgba(248, 250, 252, 0.75)' : 'rgba(7, 9, 14, 0.22)',
         backdropFilter: 'blur(28px) saturate(200%)',
         WebkitBackdropFilter: 'blur(28px) saturate(200%)',
         border: 'none',
         borderBottom: 'none',
         boxShadow: 'none',
         padding: '0.9rem 2rem',
-        transition: 'all 0.3s ease',
+        transition: 'background-color 0.3s ease',
       }}>
         <div style={{
           maxWidth: '1200px',
@@ -193,14 +203,28 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
             />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.3rem', letterSpacing: '0.05em' }}>
+                <span style={{
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 800,
+                  fontSize: '1.3rem',
+                  letterSpacing: '0.05em',
+                  color: isOverLightSection ? '#0F172A' : '#FFFFFF',
+                  transition: 'color 0.3s ease',
+                }}>
                   PALTI
                 </span>
                 <span className="gold-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '1.3rem' }}>
                   FX
                 </span>
               </div>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              <p style={{
+                fontSize: '0.7rem',
+                color: isOverLightSection ? '#64748B' : 'var(--text-muted)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                transition: 'color 0.3s ease',
+                margin: 0,
+              }}>
                 Private Trading Ecosystem
               </p>
             </div>
@@ -219,7 +243,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                   window.scrollTo({ top: target, behavior: 'smooth' });
                 }
               }}
-              style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', transition: 'color 0.2s', textDecoration: 'none' }}
+              style={{
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                color: isOverLightSection ? '#0F172A' : '#FFFFFF',
+                transition: 'color 0.3s ease',
+                textDecoration: 'none',
+              }}
             >
               Fitur Aplikasi
             </a>
@@ -232,13 +262,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                   el.scrollIntoView({ behavior: 'smooth' });
                 }
               }}
-              style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', transition: 'color 0.2s', textDecoration: 'none' }}
+              style={{
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                color: isOverLightSection ? '#0F172A' : '#FFFFFF',
+                transition: 'color 0.3s ease',
+                textDecoration: 'none',
+              }}
             >
               Aktivasi VIP
             </a>
             <button 
               onClick={onNavigateAdmin} 
-              className="btn-header-admin"
+              className={`btn-header-admin ${isOverLightSection ? 'btn-header-admin-light' : ''}`}
               type="button"
             >
               <KeyRound size={13} color="var(--gold-accent)" />
