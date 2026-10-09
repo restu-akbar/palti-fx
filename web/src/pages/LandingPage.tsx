@@ -7,7 +7,6 @@ import {
   Award, 
   KeyRound, 
   Smartphone, 
-  CheckCircle2, 
   Sparkles,
   Globe
 } from 'lucide-react';
@@ -497,219 +496,104 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
       </section>
 
       {/* ─── VIP Activation Section ─── */}
-      {/* ─── VIP Activation Section (Connected Step Journey) ─── */}
+      {/* ─── VIP Activation Section (Ultra Clean & Minimal) ─── */}
       <section id="aktivasi" style={{
-        padding: '6.5rem 2rem 5rem 2rem',
-        maxWidth: '1200px',
+        padding: '5.5rem 2rem 4.5rem 2rem',
+        maxWidth: '1100px',
         margin: '0 auto',
       }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', maxWidth: '720px', margin: '0 auto 1.5rem auto' }}>
-          <div style={{ marginBottom: '0.6rem' }}>
-            <span className="gold-text" style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-              PROSES AKTIVASI EKSKLUSIF
+        <div style={{ textAlign: 'center', maxWidth: '640px', margin: '0 auto 3.5rem auto' }}>
+          <div style={{ marginBottom: '0.4rem' }}>
+            <span style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--gold-accent)',
+            }}>
+              AKSES ANGGOTA
             </span>
           </div>
-          <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.7rem)', margin: '0 0 1rem 0', lineHeight: 1.2 }}>
+          <h2 style={{ fontSize: 'clamp(1.85rem, 3.5vw, 2.4rem)', margin: '0 0 0.75rem 0', lineHeight: 1.25, color: '#FFFFFF' }}>
             Cara Bergabung ke <span className="gold-text">Komunitas PALTI FX</span>
           </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.98rem', lineHeight: 1.7, margin: 0 }}>
-            Demi menjaga rasio mentoring dan kualitas edukasi, pendaftaran akun mobile tidak dibuka bebas untuk umum. Setiap member baru membutuhkan <strong>Kode Undangan Resmi</strong> yang diterbitkan langsung oleh Administrator.
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.94rem', lineHeight: 1.65, margin: 0 }}>
+            Pendaftaran aplikasi mobile bersifat privat dan memerlukan kode undangan resmi dari Administrator demi menjaga kualitas mentoring.
           </p>
         </div>
 
-        {/* 3-Step Journey Grid */}
-        <div className="journey-track">
-          {/* Step 1 */}
-          <div className="journey-step">
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-                <span style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.85rem',
-                  fontWeight: 800,
-                  color: 'var(--gold-accent)',
-                  letterSpacing: '0.1em',
-                }}>
-                  01 / TAHAP PERTAMA
-                </span>
-                <div style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '10px',
-                  background: 'rgba(212, 175, 55, 0.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--gold-accent)',
-                }}>
-                  <KeyRound size={20} />
-                </div>
-              </div>
-
-              <h3 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '0.75rem', lineHeight: 1.3 }}>
-                Dapatkan Kode VIP
-              </h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.65, margin: 0 }}>
-                Hubungi Administrator resmi PALTI FX untuk registrasi eksklusif dan menerima tiket kode aktivasi unik.
-              </p>
+        {/* 3 Steps Clean Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '3rem',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          paddingTop: '2.5rem',
+        }}>
+          <div>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              color: 'var(--text-dim)',
+              letterSpacing: '0.08em',
+              marginBottom: '1rem',
+            }}>
+              01
             </div>
-
-            <div style={{ marginTop: '1.75rem' }}>
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                padding: '0.45rem 0.9rem',
-                borderRadius: '8px',
-                background: 'rgba(212, 175, 55, 0.08)',
-                border: '1px solid rgba(212, 175, 55, 0.22)',
-                fontFamily: 'monospace',
-                fontSize: '0.82rem',
-                color: 'var(--gold-accent)',
-                letterSpacing: '0.08em',
-              }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--gold-accent)' }} />
-                <span>PFX-VIP-•••••</span>
-              </div>
-            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#FFFFFF', marginBottom: '0.6rem', lineHeight: 1.35 }}>
+              Dapatkan Kode Undangan
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.7, margin: 0 }}>
+              Hubungi Administrator resmi PALTI FX untuk registrasi dan menerima tiket kode aktivasi unik Anda.
+            </p>
           </div>
 
-          {/* Step 2 */}
-          <div className="journey-step">
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-                <span style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.85rem',
-                  fontWeight: 800,
-                  color: '#38BDF8',
-                  letterSpacing: '0.1em',
-                }}>
-                  02 / TAHAP KEDUA
-                </span>
-                <div style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '10px',
-                  background: 'rgba(56, 189, 248, 0.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#38BDF8',
-                }}>
-                  <Smartphone size={20} />
-                </div>
-              </div>
-
-              <h3 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '0.75rem', lineHeight: 1.3 }}>
-                Input di Aplikasi Mobile
-              </h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.65, margin: 0 }}>
-                Buka aplikasi PALTI FX di perangkat Anda, pilih menu "Aktivasi Akun Baru", lalu masukkan kode undangan dan email Anda.
-              </p>
+          <div>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              color: 'var(--text-dim)',
+              letterSpacing: '0.08em',
+              marginBottom: '1rem',
+            }}>
+              02
             </div>
-
-            <div style={{ marginTop: '1.75rem' }}>
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                padding: '0.45rem 0.9rem',
-                borderRadius: '8px',
-                background: 'rgba(56, 189, 248, 0.08)',
-                border: '1px solid rgba(56, 189, 248, 0.22)',
-                fontSize: '0.82rem',
-                color: '#38BDF8',
-              }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#38BDF8' }} />
-                <span>Verifikasi Instan &lt; 10 Detik</span>
-              </div>
-            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#FFFFFF', marginBottom: '0.6rem', lineHeight: 1.35 }}>
+              Input di Aplikasi Mobile
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.7, margin: 0 }}>
+              Buka aplikasi PALTI FX, pilih menu "Aktivasi Akun Baru", lalu masukkan kode undangan serta alamat email Anda.
+            </p>
           </div>
 
-          {/* Step 3 */}
-          <div className="journey-step">
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-                <span style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: '0.85rem',
-                  fontWeight: 800,
-                  color: '#10B981',
-                  letterSpacing: '0.1em',
-                }}>
-                  03 / TAHAP KETIGA
-                </span>
-                <div style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '10px',
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#10B981',
-                }}>
-                  <ShieldCheck size={20} />
-                </div>
-              </div>
-
-              <h3 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '0.75rem', lineHeight: 1.3 }}>
-                Akses Penuh &amp; Siap Belajar
-              </h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.65, margin: 0 }}>
-                Akun aktif seketika dengan ID Member permanen. Seluruh materi video bertingkat, tools kalkulator, dan jurnal cloud langsung terbuka.
-              </p>
+          <div>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              color: 'var(--text-dim)',
+              letterSpacing: '0.08em',
+              marginBottom: '1rem',
+            }}>
+              03
             </div>
-
-            <div style={{ marginTop: '1.75rem' }}>
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.65rem',
-                padding: '0.45rem 0.9rem',
-                borderRadius: '8px',
-                background: 'rgba(16, 185, 129, 0.08)',
-                border: '1px solid rgba(16, 185, 129, 0.22)',
-                fontSize: '0.82rem',
-                color: '#10B981',
-              }}>
-                <CheckCircle2 size={14} />
-                <span>ID Member Aktif Permanen</span>
-              </div>
-            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#FFFFFF', marginBottom: '0.6rem', lineHeight: 1.35 }}>
+              Akses Penuh Terbuka
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.7, margin: 0 }}>
+              Akun langsung aktif dengan ID Member permanen. Seluruh materi edukasi, kalkulator lot, dan jurnal otomatis dapat diakses.
+            </p>
           </div>
         </div>
 
-        {/* Footnote Bar */}
-        <div style={{
-          marginTop: '4rem',
-          padding: '1.25rem 1.75rem',
-          borderRadius: 'var(--radius-lg)',
-          background: 'rgba(255, 255, 255, 0.02)',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '1rem',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Sparkles size={18} color="var(--gold-accent)" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-              Tidak ada biaya tersembunyi. Kode aktivasi resmi diterbitkan eksklusif oleh Administrator PALTI FX.
-            </span>
-          </div>
-          <div style={{
-            fontSize: '0.78rem',
-            color: 'var(--gold-accent)',
-            fontWeight: 700,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-          }}>
-            Akses Privat &amp; Terverifikasi
-          </div>
+        {/* Quiet Minimal Footnote */}
+        <div style={{ textAlign: 'center', marginTop: '3.5rem' }}>
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-dim)', letterSpacing: '0.02em' }}>
+            Aktivasi resmi hanya diterbitkan secara privat melalui Administrator PALTI FX.
+          </span>
         </div>
       </section>
 
