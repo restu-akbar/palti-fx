@@ -298,6 +298,40 @@ a {
   transform: translateY(0);
 }
 
+/* ─── Header Admin Portal Button (Clean Minimal Pill) ─── */
+.btn-header-admin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.45rem 1rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.btn-header-admin:hover {
+  background: rgba(212, 175, 55, 0.08);
+  border-color: rgba(212, 175, 55, 0.4);
+  color: #FFFFFF;
+  box-shadow: 0 0 16px rgba(212, 175, 55, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-header-admin:active {
+  transform: translateY(0);
+  background: rgba(212, 175, 55, 0.14);
+}
+
 /* ─── Editorial Action Links (Unboxed, Natural, Calm) ─── */
 .editorial-link {
   background: transparent;

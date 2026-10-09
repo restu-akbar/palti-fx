@@ -215,10 +215,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
             </a>
             <button 
               onClick={onNavigateAdmin} 
-              className="btn-outline" 
-              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+              className="btn-header-admin"
+              type="button"
             >
-              <KeyRound size={15} color="#D4AF37" />
+              <KeyRound size={13} color="var(--gold-accent)" />
               <span>Portal Admin</span>
             </button>
           </nav>
