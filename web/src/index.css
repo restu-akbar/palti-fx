@@ -530,6 +530,8 @@ a {
 .horizontal-scroll-container {
   position: relative;
   height: 380vh;
+  background: #F8FAFC;
+  box-shadow: 0 0 100px rgba(0, 0, 0, 0.6);
 }
 
 .horizontal-sticky-viewport {
@@ -541,7 +543,8 @@ a {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  background: radial-gradient(ellipse at 50% 50%, rgba(207, 168, 94, 0.04) 0%, transparent 70%);
+  background: linear-gradient(180deg, #F1F5F9 0%, #F8FAFC 8%, #F8FAFC 92%, #F1F5F9 100%);
+  box-shadow: inset 0 20px 40px -20px rgba(0, 0, 0, 0.08), inset 0 -20px 40px -20px rgba(0, 0, 0, 0.08);
 }
 
 .horizontal-feature-track {
@@ -560,7 +563,7 @@ a {
   justify-content: space-between;
   min-height: 390px;
   padding: 0.5rem 3.5rem 0.5rem 0;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid #E2E8F0;
   transition: all 0.3s ease;
 }
 
@@ -571,34 +574,53 @@ a {
 
 .feature-number-natural {
   font-family: var(--font-display);
-  font-size: 2.8rem;
+  font-size: 3rem;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -0.03em;
-  color: rgba(255, 255, 255, 0.18);
+  color: #CBD5E1;
   transition: color 0.3s ease, transform 0.3s ease;
   user-select: none;
 }
 
 .feature-column-natural:hover .feature-number-natural {
-  color: var(--gold-accent);
+  color: #B8860B;
   transform: translateX(2px);
+}
+
+.feature-icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  margin-bottom: 1.5rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.feature-column-natural:hover .feature-icon-badge {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 .horizontal-progress-bar {
   width: 100%;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.08);
+  height: 4px;
+  background: #E2E8F0;
   border-radius: 9999px;
   overflow: hidden;
-  margin-top: 1rem;
+  margin-top: 1.25rem;
 }
 
 .horizontal-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #D4AF37, #FFE885);
+  background: linear-gradient(90deg, #B8860B, #D4AF37);
   border-radius: 9999px;
-  box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+  box-shadow: 0 0 10px rgba(184, 134, 11, 0.3);
   transition: width 0.08s ease-out;
 }
 

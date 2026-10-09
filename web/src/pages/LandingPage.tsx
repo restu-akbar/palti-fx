@@ -29,9 +29,9 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'VIP CURRICULUM',
     title: 'Kurikulum Bertingkat',
     description: 'Dari modul Pemula, Menengah hingga Lanjutan. Lengkap dengan video YouTube tersemat, ringkasan materi, estimasi waktu belajar, dan pelacakan bab selesai otomatis.',
-    icon: <BookOpen size={28} color="#D4AF37" />,
-    iconColor: '#D4AF37',
-    iconBg: 'rgba(212, 175, 55, 0.15)',
+    icon: <BookOpen size={24} color="#B8860B" />,
+    iconColor: '#B8860B',
+    iconBg: 'rgba(184, 134, 11, 0.1)',
     highlights: ['Video Embed YouTube', 'Tracking Bab Selesai', 'Materi Terstruktur'],
   },
   {
@@ -39,9 +39,9 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'RISK ENGINE',
     title: 'Kalkulator Risiko & Lot',
     description: 'Kalkulasi ukuran lot otomatis sesuai toleransi persentase risiko modal (1%-2%), nilai pips, leverage, dan instrumen (Forex Major, Gold/XAUUSD, Crypto, Index).',
-    icon: <Calculator size={28} color="#10B981" />,
-    iconColor: '#10B981',
-    iconBg: 'rgba(16, 185, 129, 0.15)',
+    icon: <Calculator size={24} color="#059669" />,
+    iconColor: '#059669',
+    iconBg: 'rgba(5, 150, 105, 0.1)',
     highlights: ['Lot Calculation Presisi', 'Proteksi Risiko Modal', 'Multi-Asset Support'],
   },
   {
@@ -49,9 +49,9 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'CLOUD LOG & EMOTION',
     title: 'Jurnal Transaksi Cloud',
     description: 'Catat setiap posisi BUY/SELL, rasio Risk/Reward, evaluasi emosi psikologis (Disiplin, FOMO, Balas Dendam), dan analisis setup. Tersinkronisasi aman ke database.',
-    icon: <TrendingUp size={28} color="#38BDF8" />,
-    iconColor: '#38BDF8',
-    iconBg: 'rgba(56, 189, 248, 0.15)',
+    icon: <TrendingUp size={24} color="#0284C7" />,
+    iconColor: '#0284C7',
+    iconBg: 'rgba(2, 132, 199, 0.1)',
     highlights: ['Evaluasi Emosi FOMO', 'Hitung Winrate & R:R', 'Cloud Sync Otomatis'],
   },
   {
@@ -59,9 +59,9 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'DISCIPLINE TRACKER',
     title: 'Gamifikasi & Medali',
     description: 'Bangun kedisiplinan trading melalui streak belajar harian, buka badge pencapaian (Langkah Pertama, Master Risiko, Jurnal Rutin), dan pantau perkembangan diri secara konsisten.',
-    icon: <Award size={28} color="#D4AF37" />,
-    iconColor: '#D4AF37',
-    iconBg: 'rgba(212, 175, 55, 0.15)',
+    icon: <Award size={24} color="#D97706" />,
+    iconColor: '#D97706',
+    iconBg: 'rgba(217, 119, 6, 0.1)',
     highlights: ['Daily Streak Counter', 'Medali & Badge Prestasi', 'Peringkat Trader'],
   },
   {
@@ -69,9 +69,9 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'WASALAAM RULE',
     title: 'Anti-Hilang Data (Immutability)',
     description: 'Ganti HP atau instal ulang aplikasi tanpa takut kehilangan riwayat trading. Begitu login kembali dengan Email atau Member ID, seluruh data pulih seketika.',
-    icon: <ShieldCheck size={28} color="#10B981" />,
-    iconColor: '#10B981',
-    iconBg: 'rgba(16, 185, 129, 0.15)',
+    icon: <ShieldCheck size={24} color="#059669" />,
+    iconColor: '#059669',
+    iconBg: 'rgba(5, 150, 105, 0.1)',
     highlights: ['Zero Data Loss', 'Dual ID Login', 'Cadangan Cloud Otomatis'],
   },
   {
@@ -79,9 +79,9 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'GLOBAL SESSIONS',
     title: 'Jam Sesi Pasar Forex Global',
     description: 'Pantau jam aktif dan overlap bursa dunia secara real-time (Sydney, Tokyo, London, New York) langsung di dalam aplikasi untuk menemukan volatilitas terbaik.',
-    icon: <Globe size={28} color="#A78BFA" />,
-    iconColor: '#A78BFA',
-    iconBg: 'rgba(167, 139, 250, 0.15)',
+    icon: <Globe size={24} color="#7C3AED" />,
+    iconColor: '#7C3AED',
+    iconBg: 'rgba(124, 58, 237, 0.1)',
     highlights: ['Live Session Overlap', 'Zona Waktu Otomatis', 'Peluang Volatilitas'],
   },
 ];
@@ -349,14 +349,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
             }}>
               <div>
                 <div style={{ marginBottom: '0.35rem' }}>
-                  <span className="gold-text" style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  <span style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: '#A0781A',
+                  }}>
                     FITUR UTAMA APLIKASI
                   </span>
                 </div>
-                <h2 style={{ fontSize: 'clamp(1.9rem, 3.8vw, 2.7rem)', margin: '0 0 0.35rem 0', lineHeight: 1.15 }}>
-                  Inovasi Trading <span className="gold-text">PALTI FX Mobile</span>
+                <h2 style={{
+                  fontSize: 'clamp(1.9rem, 3.8vw, 2.7rem)',
+                  margin: '0 0 0.35rem 0',
+                  lineHeight: 1.15,
+                  color: '#0F172A',
+                }}>
+                  Inovasi Trading <span style={{ color: '#B8860B' }}>PALTI FX Mobile</span>
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: 0, maxWidth: '680px', lineHeight: 1.6 }}>
+                <p style={{
+                  color: '#475569',
+                  fontSize: '0.98rem',
+                  margin: 0,
+                  maxWidth: '680px',
+                  lineHeight: 1.65,
+                }}>
                   Ekosistem trading komprehensif yang memadukan kurikulum kurasi video terstruktur, kalkulator risiko modal presisi, dan sistem jurnal psikologi berbasis cloud untuk membangun profitabilitas yang konsisten.
                 </p>
               </div>
@@ -367,14 +384,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                   fontFamily: 'var(--font-display)',
                   fontSize: '1.4rem',
                   fontWeight: 800,
-                  color: 'var(--gold-accent)',
+                  color: '#0F172A',
                   letterSpacing: '0.05em',
                   lineHeight: 1,
                 }}>
                   {String(Math.min(Math.floor(scrollProgress * FEATURE_CARDS.length) + 1, FEATURE_CARDS.length)).padStart(2, '0')}
-                  <span style={{ color: 'var(--text-dim)', fontSize: '0.95rem', fontWeight: 500 }}> / 0{FEATURE_CARDS.length}</span>
+                  <span style={{ color: '#94A3B8', fontSize: '0.95rem', fontWeight: 500 }}> / 0{FEATURE_CARDS.length}</span>
                 </div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <span style={{ fontSize: '0.72rem', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Indeks Fitur
                 </span>
               </div>
@@ -410,25 +427,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                         fontSize: '0.72rem',
                         fontWeight: 700,
                         letterSpacing: '0.12em',
-                        color: 'var(--gold-accent)',
+                        color: '#A0781A',
                         textTransform: 'uppercase',
                       }}>
                         {card.tag}
                       </span>
                     </div>
 
-                    {/* Minimalist Floating Icon */}
-                    <div style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '46px',
-                      height: '46px',
-                      borderRadius: '12px',
-                      backgroundColor: card.iconBg,
-                      border: `1px solid ${card.iconColor}25`,
-                      marginBottom: '1.5rem',
-                    }}>
+                    {/* Minimalist Clean Icon Badge */}
+                    <div className="feature-icon-badge" style={{ backgroundColor: card.iconBg }}>
                       {card.icon}
                     </div>
 
@@ -438,7 +445,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                       fontWeight: 700,
                       marginBottom: '0.85rem',
                       lineHeight: 1.25,
-                      color: '#FFFFFF',
+                      color: '#0F172A',
                       letterSpacing: '-0.02em',
                     }}>
                       {card.title}
@@ -446,7 +453,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
 
                     {/* Description */}
                     <p style={{
-                      color: 'var(--text-secondary)',
+                      color: '#475569',
                       fontSize: '0.96rem',
                       lineHeight: 1.7,
                       margin: 0,
@@ -459,27 +466,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                   <div style={{
                     marginTop: '2rem',
                     paddingTop: '1.25rem',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                    borderTop: '1px solid #E2E8F0',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '0.6rem',
+                    gap: '0.65rem',
                   }}>
                     {card.highlights.map((h, hIdx) => (
                       <div key={hIdx} style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.6rem',
-                        fontSize: '0.86rem',
+                        gap: '0.65rem',
+                        fontSize: '0.88rem',
                       }}>
                         <span style={{
-                          width: '5px',
-                          height: '5px',
+                          width: '6px',
+                          height: '6px',
                           borderRadius: '50%',
                           backgroundColor: card.iconColor,
-                          boxShadow: `0 0 8px ${card.iconColor}88`,
                           flexShrink: 0,
                         }} />
-                        <span style={{ color: 'var(--text-secondary)' }}>{h}</span>
+                        <span style={{ color: '#334155', fontWeight: 500 }}>{h}</span>
                       </div>
                     ))}
                   </div>
