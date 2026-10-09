@@ -203,7 +203,7 @@ a {
   letter-spacing: 0.02em;
 }
 
-/* ─── Urgent High-Impact CTA Button ─── */
+/* ─── High-Impact CTA Button (Static, No Idle Animation) ─── */
 .btn-cta-urgent {
   position: relative;
   display: inline-flex;
@@ -219,31 +219,21 @@ a {
   padding: 1.2rem 3rem;
   border-radius: 9999px;
   border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 0 35px rgba(212, 175, 55, 0.45), 0 14px 35px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4), 0 0 20px rgba(212, 175, 55, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   cursor: pointer;
   text-decoration: none;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  animation: urgentPulseGlow 2.4s infinite ease-in-out;
   user-select: none;
 }
 
 .btn-cta-urgent:hover {
-  transform: translateY(-2px) scale(1.025);
+  transform: translateY(-2px);
   background: linear-gradient(135deg, #FFF099 0%, #DFBC77 45%, #C2900E 100%);
-  box-shadow: 0 0 55px rgba(212, 175, 55, 0.7), 0 18px 45px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 30px rgba(212, 175, 55, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .btn-cta-urgent:active {
-  transform: translateY(1px) scale(0.99);
-}
-
-@keyframes urgentPulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 25px rgba(212, 175, 55, 0.35), 0 12px 30px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  }
-  50% {
-    box-shadow: 0 0 50px rgba(212, 175, 55, 0.65), 0 16px 40px rgba(212, 175, 55, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  }
+  transform: translateY(1px);
 }
 
 /* ─── Refined Glass Buttons (Calm, No Jumping Animations) ─── */
