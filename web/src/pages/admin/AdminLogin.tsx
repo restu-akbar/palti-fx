@@ -54,20 +54,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* ─── Background Ambient Light ─── */}
-      <div style={{
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: '1600px',
-        height: '1600px',
-        background: 'radial-gradient(circle, rgba(207, 168, 94, 0.09) 0%, rgba(207, 168, 94, 0.03) 50%, transparent 70%)',
-        pointerEvents: 'none',
-        zIndex: 0,
-      }} />
-
-      {/* ─── Colossal Background Logo (Lebih Gede Lagi Banget) ─── */}
+      {/* ─── Colossal Background Logo (Nyaru dengan Background, Tanpa Efek Backlight) ─── */}
       <div style={{
         position: 'absolute',
         top: '50%',
@@ -80,12 +67,12 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
         mixBlendMode: 'screen',
-        opacity: 0.16,
-        filter: 'drop-shadow(0 0 100px rgba(207, 168, 94, 0.35))',
+        opacity: 0.14,
+        maskImage: 'radial-gradient(circle at center, black 48%, transparent 70%)',
+        WebkitMaskImage: 'radial-gradient(circle at center, black 48%, transparent 70%)',
         pointerEvents: 'none',
         zIndex: 1,
       }} />
-
 
       {/* ─── Horizontal Landscape Rectangular Card (Persegi Panjang ke Samping) ─── */}
       <div className="admin-login-landscape" style={{
@@ -96,7 +83,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
         WebkitBackdropFilter: 'blur(32px) saturate(180%)',
         border: '1px solid rgba(255, 255, 255, 0.14)',
         borderRadius: 'var(--radius-xl)',
-        boxShadow: '0 30px 80px rgba(0, 0, 0, 0.45), 0 0 50px rgba(207, 168, 94, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.22)',
+        boxShadow: '0 30px 80px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.22)',
       }}>
         {/* ─── Left Side: Brand Identity & Atmospheric Narrative ─── */}
         <div style={{
@@ -204,7 +191,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
                 id="admin-email"
                 type="email"
                 className="pfx-input"
-                placeholder="admin@paltifx.com"
+                placeholder="input email disini"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -218,7 +205,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
                 id="admin-password"
                 type="password"
                 className="pfx-input"
-                placeholder="••••••••••••"
+                placeholder="input password disini"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -287,7 +274,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
               onMouseOver={(e) => (e.currentTarget.style.color = 'var(--gold-accent)')}
               onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
             >
-              <span>Gunakan Akun Uji Admin (dioraput@gmail.com)</span>
+              <span>Gunakan Akun Uji Admin</span>
             </button>
           </div>
         </div>

@@ -1,10 +1,16 @@
+import React, { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, Image, Linking, TouchableOpacity, RefreshControl } from 'react-native';
+import {
+  extractYtId,
+  ImageZoomModal,
+  YouTubeOptionModal,
+  YouTubePlayerModal,
+} from '../components/MediaModals';
 import { AnimatedBar, FadeIn, ProgressRing, tap } from '../components/motion';
 import { Card, Chip, GoldButton, IconBadge, Screen } from '../components/ui';
-import { ALL_LESSONS, findModule, Module, MODULES } from '../data/modules';
+import type { Module } from '../data/modules';
 import { useStore } from '../lib/store';
 import { useNav } from '../nav';
 import { colors, fonts } from '../theme';
@@ -14,11 +20,24 @@ const levelColor = (l: Module['level']) =>
 
 export function EduScreen() {
   const nav = useNav();
-  const { completed } = useStore();
-  const done = ALL_LESSONS.filter((l) => completed[l.id]).length;
-  const total = ALL_LESSONS.length;
+  const { modules, allLessons, completed, refreshModules, isSyncingModules } = useStore();
+  const done = allLessons.filter((l) => completed[l.id]).length;
+  const total = allLessons.length;
+
   return (
-    <Screen title="Edukasi" eyebrow="AKADEMI PALTI FX" subtitle="Belajar bertahap dari dasar sampai mahir">
+    <Screen
+      title="Edukasi"
+      eyebrow="AKADEMI PALTI FX"
+      subtitle="Belajar bertahap dari dasar sampai mahir"
+      refreshControl={
+        <RefreshControl
+          refreshing={isSyncingModules}
+          onRefresh={refreshModules}
+          tintColor={colors.gold}
+          colors={[colors.gold]}
+        />
+      }
+    >
       <FadeIn delay={60}>
         <Card gold style={{ flexDirection: 'row', alignItems: 'center' }}>
           <ProgressRing value={total ? done / total : 0} size={64} stroke={7} track="rgba(255,255,255,0.08)">
@@ -34,13 +53,13 @@ export function EduScreen() {
       </FadeIn>
 
       <View style={{ gap: 12, marginTop: 18 }}>
-        {MODULES.map((m, i) => {
+        {modules.map((m, i) => {
           const d = m.lessons.filter((l) => completed[l.id]).length;
           return (
             <FadeIn key={m.id} delay={120 + i * 90}>
               <Card onPress={() => nav.push({ name: 'module', params: { moduleId: m.id } })}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <IconBadge name={m.icon} box={52} size={24} solid={d === m.lessons.length} />
+                  <IconBadge name={m.icon as any} box={52} size={24} solid={d === m.lessons.length} />
                   <View style={{ flex: 1, marginLeft: 14 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                       <Chip label={m.level} color={levelColor(m.level)} />
@@ -52,7 +71,7 @@ export function EduScreen() {
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
                   <View style={{ flex: 1 }}>
-                    <AnimatedBar value={d / m.lessons.length} delay={300 + i * 90} />
+                    <AnimatedBar value={m.lessons.length ? d / m.lessons.length : 0} delay={300 + i * 90} />
                   </View>
                   <Text style={st.progressText}>
                     {d}/{m.lessons.length}
@@ -69,12 +88,25 @@ export function EduScreen() {
 
 export function ModuleScreen({ moduleId }: { moduleId: string }) {
   const nav = useNav();
-  const { completed } = useStore();
+  const { findModule, completed, refreshModules, isSyncingModules } = useStore();
   const m = findModule(moduleId);
   if (!m) return <Screen title="Modul tidak ditemukan"><View /></Screen>;
   const nextIdx = m.lessons.findIndex((l) => !completed[l.id]);
+
   return (
-    <Screen title={m.title} eyebrow={m.level.toUpperCase()} subtitle={m.subtitle}>
+    <Screen
+      title={m.title}
+      eyebrow={m.level.toUpperCase()}
+      subtitle={m.subtitle}
+      refreshControl={
+        <RefreshControl
+          refreshing={isSyncingModules}
+          onRefresh={refreshModules}
+          tintColor={colors.gold}
+          colors={[colors.gold]}
+        />
+      }
+    >
       <View>
         {m.lessons.map((l, i) => {
           const done = !!completed[l.id];
@@ -123,13 +155,25 @@ export function ModuleScreen({ moduleId }: { moduleId: string }) {
 
 export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonId: string }) {
   const nav = useNav();
-  const { completed, toggleLesson } = useStore();
+  const { findModule, completed, toggleLesson } = useStore();
   const m = findModule(moduleId);
   const idx = m?.lessons.findIndex((l) => l.id === lessonId) ?? -1;
   const lesson = m && idx >= 0 ? m.lessons[idx] : undefined;
+
+  // State untuk Modal Video YouTube dan Zoom Foto
+  const [selectedYtUrl, setSelectedYtUrl] = useState<string | null>(null);
+  const [playingInAppYtUrl, setPlayingInAppYtUrl] = useState<string | null>(null);
+  const [zoomImage, setZoomImage] = useState<{ uri: string; caption?: string } | null>(null);
+
   if (!m || !lesson) return <Screen title="Materi tidak ditemukan"><View /></Screen>;
   const next = m.lessons[idx + 1];
   const done = !!completed[lesson.id];
+
+  // Video tambahan terdaftar yang belum disisipkan di dalam teks naskah
+  const unplacedVideos = (lesson.youtube_urls || []).filter((u) => {
+    const ytid = extractYtId(u);
+    return ytid ? !lesson.content.includes(ytid) : !lesson.content.includes(u);
+  });
 
   return (
     <Screen title={lesson.title} eyebrow={`${m.title.toUpperCase()} · BAB ${idx + 1}/${m.lessons.length}`}>
@@ -142,8 +186,62 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
           <AnimatedBar value={(idx + (done ? 1 : 0)) / m.lessons.length} height={4} />
         </View>
       </FadeIn>
+
+      {/* Jika ada video YouTube terdaftar yang tidak disisipkan di tengah naskah, tampilkan di atas */}
+      {unplacedVideos.length > 0 && (
+        <FadeIn delay={120}>
+          <View style={{ marginBottom: 16 }}>
+            {unplacedVideos.map((vidUrl, vidIdx) => {
+              const ytid = extractYtId(vidUrl);
+              const thumb = ytid ? `https://img.youtube.com/vi/${ytid}/hqdefault.jpg` : null;
+              return (
+                <TouchableOpacity
+                  key={vidIdx}
+                  activeOpacity={0.88}
+                  onPress={() => {
+                    tap('light');
+                    setSelectedYtUrl(vidUrl);
+                  }}
+                  style={{
+                    borderRadius: 14,
+                    overflow: 'hidden',
+                    backgroundColor: '#000',
+                    borderWidth: 1,
+                    borderColor: 'rgba(227,182,79,0.3)',
+                    marginBottom: 10,
+                  }}
+                >
+                  <View style={{ width: '100%', height: 180, justifyContent: 'center', alignItems: 'center' }}>
+                    {thumb && (
+                      <Image source={{ uri: thumb }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} resizeMode="cover" />
+                    )}
+                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(227,182,79,0.92)', justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="play" size={24} color="#16110A" style={{ marginLeft: 2 }} />
+                    </View>
+                  </View>
+                  <View style={{ padding: 10, backgroundColor: 'rgba(18, 22, 32, 0.95)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="logo-youtube" size={16} color="#FF4D4D" />
+                      <Text style={{ color: colors.gold, fontSize: 12, fontFamily: fonts.semi }}>Tonton Video Utama Pembelajaran</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ color: colors.textDim, fontSize: 10, fontFamily: fonts.medium }}>Pilih Pemutar</Text>
+                      <Ionicons name="chevron-forward" size={12} color={colors.textDim} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </FadeIn>
+      )}
+
       <FadeIn delay={160}>
-        <RichText content={lesson.content} />
+        <RichText
+          content={lesson.content}
+          onPressVideo={(url) => setSelectedYtUrl(url)}
+          onPressImage={(uri, caption) => setZoomImage({ uri, caption })}
+        />
       </FadeIn>
       <View style={{ marginTop: 28, gap: 10 }}>
         {next ? (
@@ -172,12 +270,47 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
         )}
         {done ? <GoldButton title="Tandai belum selesai" variant="outline" onPress={() => toggleLesson(lesson.id, false)} /> : null}
       </View>
+
+      {/* 1. Modal Opsi Pemutar YouTube (Nonton di Aplikasi vs Buka di YouTube) */}
+      <YouTubeOptionModal
+        visible={!!selectedYtUrl}
+        videoUrl={selectedYtUrl || ''}
+        onClose={() => setSelectedYtUrl(null)}
+        onPlayInApp={() => {
+          const u = selectedYtUrl;
+          setSelectedYtUrl(null);
+          setPlayingInAppYtUrl(u);
+        }}
+      />
+
+      {/* 2. Modal Pemutar Video YouTube In-App (Preview Video di Dalam Aplikasi) */}
+      <YouTubePlayerModal
+        visible={!!playingInAppYtUrl}
+        videoUrl={playingInAppYtUrl || ''}
+        onClose={() => setPlayingInAppYtUrl(null)}
+      />
+
+      {/* 3. Modal Zoom In & Zoom Out Foto Interaktif */}
+      <ImageZoomModal
+        visible={!!zoomImage}
+        imageUri={zoomImage?.uri || ''}
+        caption={zoomImage?.caption}
+        onClose={() => setZoomImage(null)}
+      />
     </Screen>
   );
 }
 
-/** Render format sederhana: ## judul, - poin, > catatan, paragraf. */
-export function RichText({ content }: { content: string }) {
+/** Render format: ## judul, - poin, > catatan, foto/gambar, video youtube, paragraf. */
+export function RichText({
+  content,
+  onPressVideo,
+  onPressImage,
+}: {
+  content: string;
+  onPressVideo?: (url: string) => void;
+  onPressImage?: (uri: string, caption?: string) => void;
+}) {
   const blocks: React.ReactNode[] = [];
   let para: string[] = [];
   const flush = (key: string) => {
@@ -193,6 +326,113 @@ export function RichText({ content }: { content: string }) {
   content.split('\n').forEach((raw, i) => {
     const line = raw.trim();
     if (!line) return flush('p' + i);
+
+    // Cek foto / gambar inline (semua format: png, jpg, jpeg, webp, gif, svg, avif, base64)
+    const imgMatch = line.match(/^!\[(.*?)\]\((.*?)\)$/) || line.match(/^\[(?:foto|gambar|image):\s*(.*?)\]$/i);
+    const directImg = !imgMatch && (/^(https?:\/\/.*?\.(?:png|jpg|jpeg|webp|gif|svg|avif|bmp)(?:\?.*)?)$/i.test(line) || line.startsWith('data:image/'));
+    if (imgMatch || directImg) {
+      flush('p' + i);
+      const caption = imgMatch ? (imgMatch[1] || '').trim() : '';
+      const uri = imgMatch ? (imgMatch[2] || imgMatch[1]).trim() : line;
+      blocks.push(
+        <TouchableOpacity
+          key={'img-' + i}
+          activeOpacity={0.88}
+          onPress={() => {
+            tap('light');
+            if (onPressImage) onPressImage(uri, caption);
+          }}
+          style={{
+            marginVertical: 14,
+            borderRadius: 14,
+            overflow: 'hidden',
+            backgroundColor: 'rgba(255,255,255,0.03)',
+            borderWidth: 1,
+            borderColor: colors.border,
+            position: 'relative',
+          }}
+        >
+          <Image source={{ uri }} style={{ width: '100%', height: 210 }} resizeMode="contain" />
+          <View
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              borderRadius: 8,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              borderWidth: 1,
+              borderColor: 'rgba(227,182,79,0.35)',
+            }}
+          >
+            <Ionicons name="scan-outline" size={13} color={colors.gold} />
+            <Text style={{ color: colors.text, fontSize: 11, fontFamily: fonts.semi }}>Zoom</Text>
+          </View>
+          {caption ? (
+            <View style={{ padding: 8, backgroundColor: 'rgba(0,0,0,0.5)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 12, color: colors.muted, fontStyle: 'italic', textAlign: 'center' }}>
+                📸 {caption}
+              </Text>
+            </View>
+          ) : null}
+        </TouchableOpacity>
+      );
+      return;
+    }
+
+    // Cek video YouTube inline
+    const ytTagMatch = line.match(/^\[video(?::|\s+)(.*?)\]$/i) || line.match(/^!?\[(?:video|youtube)\]\((.*?)\)$/i);
+    const potentialYt = ytTagMatch ? ytTagMatch[1].trim() : line;
+    const ytid = extractYtId(potentialYt);
+    if (ytid) {
+      flush('p' + i);
+      const thumbUrl = `https://img.youtube.com/vi/${ytid}/hqdefault.jpg`;
+      blocks.push(
+        <TouchableOpacity
+          key={'yt-' + i}
+          activeOpacity={0.88}
+          onPress={() => {
+            tap('light');
+            if (onPressVideo) {
+              onPressVideo(potentialYt);
+            } else {
+              Linking.openURL(potentialYt.startsWith('http') ? potentialYt : `https://${potentialYt}`);
+            }
+          }}
+          style={{
+            marginVertical: 14,
+            borderRadius: 14,
+            overflow: 'hidden',
+            backgroundColor: '#000',
+            borderWidth: 1,
+            borderColor: 'rgba(227,182,79,0.3)',
+          }}
+        >
+          <View style={{ position: 'relative', width: '100%', height: 180, justifyContent: 'center', alignItems: 'center' }}>
+            <Image source={{ uri: thumbUrl }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} resizeMode="cover" />
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(227,182,79,0.9)', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="play" size={24} color="#16110A" style={{ marginLeft: 2 }} />
+            </View>
+          </View>
+          <View style={{ padding: 10, backgroundColor: 'rgba(18, 22, 32, 0.95)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="logo-youtube" size={16} color="#FF4D4D" />
+              <Text style={{ color: colors.gold, fontSize: 12, fontFamily: fonts.semi }}>Tonton Video YouTube</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+              <Text style={{ color: colors.textDim, fontSize: 10, fontFamily: fonts.medium }}>Pilih Pemutar</Text>
+              <Ionicons name="chevron-forward" size={12} color={colors.textDim} />
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+      return;
+    }
+
     if (line.startsWith('## ')) {
       flush('p' + i);
       blocks.push(

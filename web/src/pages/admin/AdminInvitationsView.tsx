@@ -4,9 +4,6 @@ import {
   Copy, 
   Check, 
   Trash2, 
-  RefreshCw, 
-  Sparkles,
-  X,
   KeyRound,
   ShieldCheck,
   Search,
@@ -53,6 +50,9 @@ export const AdminInvitationsView: React.FC = () => {
 
   useEffect(() => {
     fetchInvitations();
+    const handleFocus = () => fetchInvitations();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const notify = (text: string, error?: boolean) => {
@@ -167,7 +167,6 @@ export const AdminInvitationsView: React.FC = () => {
             <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.14em', color: 'var(--gold-accent)' }}>
               02
             </span>
-            <span style={{ width: '22px', height: '1px', background: 'var(--gold-border)' }} />
             <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
               Akses Privat &amp; Keanggotaan
             </span>
@@ -193,18 +192,7 @@ export const AdminInvitationsView: React.FC = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <button 
-            onClick={fetchInvitations} 
-            className="btn-secondary" 
-            style={{ fontSize: '0.78rem', padding: '0.45rem 0.8rem' }}
-            disabled={loading}
-            title="Segarkan daftar kode"
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            <span>Segarkan</span>
-          </button>
-          
+        <div>
           <button 
             onClick={handleOpenCreate} 
             className="btn-primary"
@@ -484,18 +472,15 @@ export const AdminInvitationsView: React.FC = () => {
       {showCreateModal && (
         <div className="pfx-modal-backdrop" onClick={() => setShowCreateModal(false)}>
           <div className="pfx-modal-panel" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <div style={{ marginBottom: '1.25rem' }}>
               <div>
                 <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--gold-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                   Akses Registrasi
                 </span>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#FFF' }}>
+                <h2 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#FFF', margin: '0.2rem 0 0' }}>
                   Terbitkan Kode Undangan VIP
                 </h2>
               </div>
-              <button onClick={() => setShowCreateModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
             </div>
 
             <form onSubmit={handleCreateInvitation}>
@@ -515,10 +500,9 @@ export const AdminInvitationsView: React.FC = () => {
                     type="button"
                     onClick={() => setCode(AdminInvitationsService.generateRandomCode())}
                     className="btn-secondary"
-                    style={{ whiteSpace: 'nowrap', gap: '0.35rem' }}
+                    style={{ whiteSpace: 'nowrap' }}
                     title="Buat kode acak"
                   >
-                    <Sparkles size={13} color="var(--gold-accent)" />
                     <span>Acak</span>
                   </button>
                 </div>
@@ -562,7 +546,6 @@ export const AdminInvitationsView: React.FC = () => {
                   Batal
                 </button>
                 <button type="submit" className="btn-primary" disabled={actionLoading}>
-                  <Check size={14} />
                   <span>{actionLoading ? 'Menerbitkan...' : 'Terbitkan Kunci Akses'}</span>
                 </button>
               </div>
@@ -601,9 +584,11 @@ export const AdminInvitationsView: React.FC = () => {
             <div style={{
               padding: '1.25rem',
               borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(207, 168, 94, 0.06)',
-              border: '1px solid var(--gold-border)',
-              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+              backgroundColor: 'rgba(207, 168, 94, 0.08)',
+              backdropFilter: 'blur(24px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+              border: '1px solid rgba(207, 168, 94, 0.32)',
+              boxShadow: '0 12px 35px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',

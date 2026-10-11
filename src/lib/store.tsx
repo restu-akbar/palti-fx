@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { DEFAULT_MODULES, setGlobalModules, Module, Lesson } from '../data/modules';
+import { fetchEduModulesFromSupabase, subscribeToEduRealtime } from './supabase';
 
 export type Trade = {
   id: string;
@@ -26,7 +28,7 @@ export type Settings = {
   lastSymbol?: string;
 };
 
-type StoreValue = {
+export type StoreValue = {
   ready: boolean;
   trades: Trade[];
   saveTrade: (t: Omit<Trade, 'id' | 'createdAt'> & { id?: string; createdAt?: number }) => void;
@@ -35,9 +37,20 @@ type StoreValue = {
   toggleLesson: (lessonId: string, done?: boolean) => void;
   settings: Settings;
   updateSettings: (patch: Partial<Settings>) => void;
+  // Silabus & Edukasi dinamis dari Supabase
+  modules: Module[];
+  allLessons: Array<Lesson & { moduleId: string }>;
+  findModule: (id: string) => Module | undefined;
+  refreshModules: () => Promise<void>;
+  isSyncingModules: boolean;
 };
 
-const KEYS = { trades: 'pfx.trades.v1', completed: 'pfx.completed.v1', settings: 'pfx.settings.v1' };
+const KEYS = {
+  trades: 'pfx.trades.v1',
+  completed: 'pfx.completed.v1',
+  settings: 'pfx.settings.v1',
+  modules: 'pfx.modules.cache.v1',
+};
 
 const Ctx = createContext<StoreValue | null>(null);
 
@@ -61,20 +74,54 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [completed, setCompleted] = useState<Record<string, boolean>>({});
   const [settings, setSettings] = useState<Settings>({});
+  const [modules, setModules] = useState<Module[]>(DEFAULT_MODULES);
+  const [isSyncingModules, setIsSyncingModules] = useState(false);
+
+  const refreshModules = useCallback(async () => {
+    setIsSyncingModules(true);
+    try {
+      const remote = await fetchEduModulesFromSupabase();
+      if (remote && remote.length > 0) {
+        setModules(remote);
+        setGlobalModules(remote);
+      }
+    } catch (e) {
+      console.warn('[refreshModules] error syncing:', e);
+    } finally {
+      setIsSyncingModules(false);
+    }
+  }, []);
 
   useEffect(() => {
     (async () => {
-      const [t, c, s] = await Promise.all([
+      const [t, c, s, cachedMods] = await Promise.all([
         load<Trade[]>(KEYS.trades, []),
         load<Record<string, boolean>>(KEYS.completed, {}),
         load<Settings>(KEYS.settings, {}),
+        load<Module[]>(KEYS.modules, DEFAULT_MODULES),
       ]);
       setTrades(t);
       setCompleted(c);
       setSettings(s);
+      if (cachedMods && cachedMods.length > 0) {
+        setModules(cachedMods);
+        setGlobalModules(cachedMods);
+      }
       setReady(true);
+
+      // Ambil data terbaru dari Supabase backend
+      refreshModules();
     })();
-  }, []);
+
+    // Berlangganan Realtime Supabase jika ada bab/modul baru yang ditambahkan admin
+    const unsub = subscribeToEduRealtime(() => {
+      refreshModules();
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [refreshModules]);
 
   const saveTrade = useCallback<StoreValue['saveTrade']>((t) => {
     setTrades((prev) => {
@@ -111,9 +158,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const allLessons = useMemo(
+    () => modules.flatMap((m) => m.lessons.map((l) => ({ ...l, moduleId: m.id }))),
+    [modules]
+  );
+
+  const findModule = useCallback(
+    (id: string) => modules.find((m) => m.id === id),
+    [modules]
+  );
+
   const value = useMemo(
-    () => ({ ready, trades, saveTrade, deleteTrade, completed, toggleLesson, settings, updateSettings }),
-    [ready, trades, saveTrade, deleteTrade, completed, toggleLesson, settings, updateSettings],
+    () => ({
+      ready,
+      trades,
+      saveTrade,
+      deleteTrade,
+      completed,
+      toggleLesson,
+      settings,
+      updateSettings,
+      modules,
+      allLessons,
+      findModule,
+      refreshModules,
+      isSyncingModules,
+    }),
+    [
+      ready,
+      trades,
+      saveTrade,
+      deleteTrade,
+      completed,
+      toggleLesson,
+      settings,
+      updateSettings,
+      modules,
+      allLessons,
+      findModule,
+      refreshModules,
+      isSyncingModules,
+    ],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

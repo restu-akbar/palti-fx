@@ -7,6 +7,7 @@ interface FeatureCardItem {
   title: string;
   description: string;
   highlights: string[];
+  iconColor?: string;
 }
 
 const FEATURE_CARDS: FeatureCardItem[] = [
@@ -504,7 +505,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                           width: '6px',
                           height: '6px',
                           borderRadius: '50%',
-                          backgroundColor: card.iconColor,
+                          backgroundColor: card.iconColor || '#A0781A',
                           flexShrink: 0,
                         }} />
                         <span style={{ color: '#334155', fontWeight: 500 }}>{h}</span>

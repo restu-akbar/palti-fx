@@ -1,16 +1,16 @@
 import { useEffect, useState, useMemo } from 'react';
-import { 
-  Search, 
-  RefreshCw, 
-  UserX, 
-  UserCheck, 
-  Copy, 
-  Check, 
-  ShieldCheck, 
-  AlertTriangle, 
+import {
+  Search,
+  UserX,
+  UserCheck,
+  Copy,
+  Check,
+  ShieldCheck,
+  AlertTriangle,
   X,
   Users,
   ChevronRight,
+  ChevronLeft,
   BookOpen,
   LineChart,
   Calculator,
@@ -49,6 +49,29 @@ export const AdminUsersView: React.FC = () => {
   // Slide-over Drawer for Member Details
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
 
+  // Pagination State (5, 10, atau 'all') — default 5, tersimpan jika diubah admin
+  const [pageSize, setPageSize] = useState<5 | 10 | 'all'>(() => {
+    try {
+      const saved = localStorage.getItem('pfx_admin_users_pagesize');
+      if (saved === '10') return 10;
+      if (saved === 'all') return 'all';
+      if (saved === '5') return 5;
+    } catch (e) {
+      // ignore
+    }
+    return 5;
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const handleSelectPageSize = (size: 5 | 10 | 'all') => {
+    setPageSize(size);
+    try {
+      localStorage.setItem('pfx_admin_users_pagesize', String(size));
+    } catch (e) {
+      // ignore
+    }
+  };
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
@@ -63,7 +86,15 @@ export const AdminUsersView: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
+    const handleFocus = () => fetchUsers();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
+
+  // Reset page saat filter/search/pageSize berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, searchQuery, pageSize]);
 
   const notify = (text: string, error?: boolean) => {
     setFeedbackMsg({ text, error });
@@ -72,7 +103,7 @@ export const AdminUsersView: React.FC = () => {
 
   // Metrics
   const activeCount = useMemo(() => {
-    return users.filter((u) => u.status === 'active' && u.role === 'member').length;
+    return users.filter((u) => u.role !== 'admin' && u.status !== 'suspended').length;
   }, [users]);
 
   const suspendedCount = useMemo(() => {
@@ -152,7 +183,7 @@ export const AdminUsersView: React.FC = () => {
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
       // Status & Role tab filter
-      if (statusFilter === 'active' && (u.status !== 'active' || u.role !== 'member')) return false;
+      if (statusFilter === 'active' && (u.status === 'suspended' || u.role === 'admin')) return false;
       if (statusFilter === 'suspended' && u.status !== 'suspended') return false;
       if (statusFilter === 'admin' && u.role !== 'admin') return false;
 
@@ -168,6 +199,15 @@ export const AdminUsersView: React.FC = () => {
       return true;
     });
   }, [users, statusFilter, searchQuery]);
+
+  // Paginated users
+  const totalPages = pageSize === 'all' ? 1 : Math.ceil(filteredUsers.length / pageSize) || 1;
+
+  const paginatedUsers = useMemo(() => {
+    if (pageSize === 'all') return filteredUsers;
+    const start = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, currentPage, pageSize]);
 
   return (
     <div style={{ maxWidth: '1080px', margin: '0 auto', paddingBottom: '4rem' }}>
@@ -186,7 +226,6 @@ export const AdminUsersView: React.FC = () => {
             <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.14em', color: 'var(--gold-accent)' }}>
               03
             </span>
-            <span style={{ width: '22px', height: '1px', background: 'var(--gold-border)' }} />
             <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-dim)' }}>
               Komunitas &amp; Manajemen Akses
             </span>
@@ -198,7 +237,7 @@ export const AdminUsersView: React.FC = () => {
 
           {/* Natural Text Metrics Bar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.55rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            <span 
+            <span
               onClick={() => setStatusFilter('all')}
               style={{ cursor: 'pointer', transition: 'color 0.15s ease' }}
               title="Filter semua akun"
@@ -206,7 +245,7 @@ export const AdminUsersView: React.FC = () => {
               <strong style={{ color: statusFilter === 'all' ? 'var(--gold-accent)' : '#FFF', fontWeight: 600 }}>{users.length}</strong> Akun Terdaftar
             </span>
             <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>•</span>
-            <span 
+            <span
               onClick={() => setStatusFilter('active')}
               style={{ cursor: 'pointer', transition: 'color 0.15s ease' }}
               title="Filter member aktif"
@@ -214,7 +253,7 @@ export const AdminUsersView: React.FC = () => {
               <strong style={{ color: statusFilter === 'active' ? 'var(--gold-accent)' : 'var(--success)', fontWeight: 600 }}>{activeCount}</strong> Member Aktif
             </span>
             <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>•</span>
-            <span 
+            <span
               onClick={() => setStatusFilter('suspended')}
               style={{ cursor: 'pointer', transition: 'color 0.15s ease' }}
               title="Filter ditangguhkan"
@@ -222,7 +261,7 @@ export const AdminUsersView: React.FC = () => {
               <strong style={{ color: statusFilter === 'suspended' ? 'var(--gold-accent)' : 'var(--text-dim)', fontWeight: 600 }}>{suspendedCount}</strong> Ditangguhkan
             </span>
             <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>•</span>
-            <span 
+            <span
               onClick={() => setStatusFilter('admin')}
               style={{ cursor: 'pointer', transition: 'color 0.15s ease' }}
               title="Filter admin"
@@ -230,19 +269,6 @@ export const AdminUsersView: React.FC = () => {
               <strong style={{ color: statusFilter === 'admin' ? '#FFF' : 'var(--gold-accent)', fontWeight: 600 }}>{adminCount}</strong> Administrator
             </span>
           </div>
-        </div>
-
-        <div>
-          <button 
-            onClick={fetchUsers} 
-            className="btn-secondary" 
-            style={{ fontSize: '0.78rem', padding: '0.45rem 0.8rem' }}
-            disabled={loading}
-            title="Segarkan data pengguna"
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            <span>Segarkan</span>
-          </button>
         </div>
       </div>
 
@@ -310,10 +336,10 @@ export const AdminUsersView: React.FC = () => {
           minWidth: '260px',
         }}>
           <div style={{ position: 'relative', width: '100%' }}>
-            <Search 
-              size={13} 
-              color="var(--text-dim)" 
-              style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }} 
+            <Search
+              size={13}
+              color="var(--text-dim)"
+              style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }}
             />
             <input
               type="text"
@@ -321,10 +347,10 @@ export const AdminUsersView: React.FC = () => {
               placeholder="Cari nama, email, ID member..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ 
-                paddingLeft: '2.1rem', 
-                fontSize: '0.82rem', 
-                paddingRight: searchQuery ? '2rem' : '0.75rem' 
+              style={{
+                paddingLeft: '2.1rem',
+                fontSize: '0.82rem',
+                paddingRight: searchQuery ? '2rem' : '0.75rem'
               }}
             />
             {searchQuery && (
@@ -357,11 +383,9 @@ export const AdminUsersView: React.FC = () => {
           Memuat tabel anggota komunitas...
         </div>
       ) : filteredUsers.length === 0 ? (
-        <div style={{
+        <div className="pfx-card" style={{
           padding: '4.5rem 2rem',
           textAlign: 'center',
-          borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
         }}>
           <div style={{
             width: '42px',
@@ -387,227 +411,318 @@ export const AdminUsersView: React.FC = () => {
           </p>
         </div>
       ) : (
-        <div style={{
+        <div className="pfx-card" style={{
           width: '100%',
-          overflowX: 'auto',
-          borderTop: '1px solid rgba(255, 255, 255, 0.07)',
+          overflow: 'hidden',
         }}>
-          <table style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            textAlign: 'left',
-            fontSize: '0.84rem',
-          }}>
-            <thead>
-              <tr style={{
-                borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
-                color: 'var(--text-dim)',
-                fontSize: '0.72rem',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-              }}>
-                <th style={{ padding: '0.9rem 0.5rem', width: '38px', fontWeight: 600 }}>#</th>
-                <th style={{ padding: '0.9rem 0.75rem', fontWeight: 600 }}>Anggota</th>
-                <th style={{ padding: '0.9rem 0.75rem', fontWeight: 600 }}>ID Keanggotaan</th>
-                <th style={{ padding: '0.9rem 0.75rem', fontWeight: 600 }}>Peran</th>
-                <th style={{ padding: '0.9rem 0.75rem', fontWeight: 600 }}>Status</th>
-                <th style={{ padding: '0.9rem 0.75rem', fontWeight: 600 }}>Terdaftar</th>
-                <th style={{ padding: '0.9rem 0.5rem 0.9rem 0.75rem', fontWeight: 600, textAlign: 'right' }}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((user, userIdx) => {
-                const isSuspended = user.status === 'suspended';
-                const isAdmin = user.role === 'admin';
-                const isCopied = copiedKey === `id-${user.member_id}`;
-                const initials = getInitials(user.full_name, user.email);
+          {/* Scrollable container agar tabel tidak terpotong pada layar kecil */}
+          <div style={{ width: '100%', overflowX: 'auto' }}>
+            <table style={{
+              width: '100%',
+              minWidth: '940px',
+              borderCollapse: 'collapse',
+              textAlign: 'left',
+              fontSize: '0.84rem',
+            }}>
+              <thead>
+                <tr style={{
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  color: 'var(--text-dim)',
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                }}>
+                  <th style={{ padding: '0.85rem 1rem 0.85rem 1.5rem', width: '60px', fontWeight: 600, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>#</th>
+                  <th style={{ padding: '0.85rem 1rem', minWidth: '250px', fontWeight: 600, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>Anggota</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '180px', fontWeight: 600, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>ID Keanggotaan</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '150px', fontWeight: 600, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>Peran</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '135px', fontWeight: 600, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>Status</th>
+                  <th style={{ padding: '0.85rem 1rem', width: '135px', fontWeight: 600, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>Terdaftar</th>
+                  <th style={{ padding: '0.85rem 1.5rem 0.85rem 1rem', width: '105px', fontWeight: 600, textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedUsers.map((user, idx) => {
+                  const itemNumber = pageSize === 'all' ? idx + 1 : (currentPage - 1) * pageSize + idx + 1;
+                  const isSuspended = user.status === 'suspended';
+                  const isAdmin = user.role === 'admin';
+                  const isCopied = copiedKey === `id-${user.member_id}`;
+                  const initials = getInitials(user.full_name, user.email);
 
-                return (
-                  <tr
-                    key={user.id}
-                    style={{
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.045)',
-                      transition: 'background-color 0.15s ease',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => setSelectedUser(user)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.02)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    {/* Col 1: Nomor Urut */}
-                    <td style={{
-                      padding: '1.1rem 0.5rem',
-                      fontFamily: 'var(--font-display)',
-                      fontSize: '0.92rem',
-                      fontWeight: 600,
-                      color: isAdmin ? 'var(--gold-accent)' : isSuspended ? 'var(--text-dim)' : 'var(--gold-accent)',
-                      opacity: isSuspended ? 0.35 : 0.85,
-                    }}>
-                      {String(userIdx + 1).padStart(2, '0')}
-                    </td>
-
-                    {/* Col 2: Identitas Anggota (Avatar + Nama + Email) */}
-                    <td style={{ padding: '1.1rem 0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                        <div style={{
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '50%',
-                          backgroundColor: isAdmin ? 'rgba(207, 168, 94, 0.12)' : isSuspended ? 'rgba(251, 113, 133, 0.08)' : 'rgba(255, 255, 255, 0.035)',
-                          border: `1px solid ${isAdmin ? 'rgba(207, 168, 94, 0.28)' : isSuspended ? 'rgba(251, 113, 133, 0.2)' : 'rgba(255, 255, 255, 0.08)'}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontFamily: 'var(--font-display)',
-                          fontWeight: 600,
-                          fontSize: '0.82rem',
-                          color: isAdmin ? 'var(--gold-accent)' : isSuspended ? '#FDA4AF' : '#E2E8F0',
-                          flexShrink: 0,
-                        }}>
-                          {initials}
-                        </div>
-
-                        <div>
-                          <div style={{
-                            fontSize: '0.92rem',
-                            fontWeight: 600,
-                            color: isSuspended ? 'var(--text-secondary)' : '#FFF',
-                            lineHeight: 1.25,
-                          }}>
-                            {user.full_name || 'Member Anonim'}
-                          </div>
-                          <div style={{
-                            fontSize: '0.76rem',
-                            color: 'var(--text-dim)',
-                            marginTop: '2px',
-                          }}>
-                            {user.email}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Col 3: ID Keanggotaan Monospace */}
-                    <td style={{ padding: '1.1rem 0.75rem' }}>
-                      <div 
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span style={{
-                          fontFamily: 'monospace',
-                          fontSize: '0.78rem',
-                          fontWeight: 600,
-                          color: isAdmin ? 'var(--gold-hover)' : 'var(--text-secondary)',
-                          backgroundColor: 'rgba(255, 255, 255, 0.035)',
-                          padding: '0.15rem 0.45rem',
-                          borderRadius: '4px',
-                          border: '1px solid rgba(255, 255, 255, 0.06)',
-                        }}>
-                          {user.member_id}
-                        </span>
-
-                        <button
-                          onClick={(e) => handleCopy(user.member_id, `id-${user.member_id}`, e)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: isCopied ? 'var(--success)' : 'var(--text-dim)',
-                            cursor: 'pointer',
-                            padding: '2px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                          }}
-                          title="Salin ID Member"
-                        >
-                          {isCopied ? <Check size={11} color="var(--success)" /> : <Copy size={11} />}
-                        </button>
-                      </div>
-                    </td>
-
-                    {/* Col 4: Peran */}
-                    <td style={{ padding: '1.1rem 0.75rem' }}>
-                      <span style={{
-                        fontSize: '0.66rem',
+                  return (
+                    <tr
+                      key={user.id}
+                      style={{
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.045)',
+                        transition: 'background-color 0.15s ease',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => setSelectedUser(user)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.025)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      {/* Col 1: Nomor Urut */}
+                      <td style={{
+                        padding: '0.95rem 1rem 0.95rem 1.5rem',
+                        fontFamily: 'var(--font-display)',
+                        fontSize: '0.9rem',
                         fontWeight: 600,
-                        letterSpacing: '0.04em',
-                        color: isAdmin ? 'var(--gold-accent)' : 'var(--text-dim)',
-                        backgroundColor: isAdmin ? 'rgba(207, 168, 94, 0.08)' : 'rgba(255, 255, 255, 0.025)',
-                        padding: '0.12rem 0.45rem',
-                        borderRadius: '4px',
-                        border: `1px solid ${isAdmin ? 'rgba(207, 168, 94, 0.22)' : 'rgba(255, 255, 255, 0.06)'}`,
+                        color: isAdmin ? 'var(--gold-accent)' : isSuspended ? 'var(--text-dim)' : 'var(--gold-accent)',
+                        opacity: isSuspended ? 0.35 : 0.85,
+                        verticalAlign: 'middle',
+                        whiteSpace: 'nowrap',
                       }}>
-                        {isAdmin ? 'ADMINISTRATOR' : 'MEMBER VIP'}
-                      </span>
-                    </td>
+                        {String(itemNumber).padStart(2, '0')}
+                      </td>
 
-                    {/* Col 5: Status */}
-                    <td style={{ padding: '1.1rem 0.75rem' }}>
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        fontSize: '0.74rem',
-                        fontWeight: 500,
-                        color: isSuspended ? 'var(--danger)' : 'var(--success)',
-                      }}>
+                      {/* Col 2: Identitas Anggota (Avatar + Nama + Email) */}
+                      <td style={{ padding: '0.95rem 1rem', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                          <div style={{
+                            width: '34px',
+                            height: '34px',
+                            borderRadius: '50%',
+                            backgroundColor: isAdmin ? 'rgba(207, 168, 94, 0.12)' : isSuspended ? 'rgba(251, 113, 133, 0.08)' : 'rgba(255, 255, 255, 0.035)',
+                            border: `1px solid ${isAdmin ? 'rgba(207, 168, 94, 0.28)' : isSuspended ? 'rgba(251, 113, 133, 0.2)' : 'rgba(255, 255, 255, 0.08)'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontFamily: 'var(--font-display)',
+                            fontWeight: 600,
+                            fontSize: '0.8rem',
+                            color: isAdmin ? 'var(--gold-accent)' : isSuspended ? '#FDA4AF' : '#E2E8F0',
+                            flexShrink: 0,
+                          }}>
+                            {initials}
+                          </div>
+
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{
+                              fontSize: '0.9rem',
+                              fontWeight: 600,
+                              color: isSuspended ? 'var(--text-secondary)' : '#FFF',
+                              lineHeight: 1.3,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}>
+                              {user.full_name || 'Member Anonim'}
+                            </div>
+                            <div style={{
+                              fontSize: '0.75rem',
+                              color: 'var(--text-dim)',
+                              marginTop: '2px',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}>
+                              {user.email}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Col 3: ID Keanggotaan Monospace */}
+                      <td style={{ padding: '0.95rem 1rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        <div
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span style={{
+                            fontFamily: 'monospace',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            letterSpacing: '0.04em',
+                            color: isAdmin ? 'var(--gold-hover)' : 'var(--text-secondary)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.035)',
+                            padding: '0.18rem 0.45rem',
+                            borderRadius: '4px',
+                            border: '1px solid rgba(255, 255, 255, 0.06)',
+                          }}>
+                            {user.member_id}
+                          </span>
+
+                          <button
+                            onClick={(e) => handleCopy(user.member_id, `id-${user.member_id}`, e)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: isCopied ? 'var(--success)' : 'var(--text-dim)',
+                              cursor: 'pointer',
+                              padding: '3px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              borderRadius: '4px',
+                              transition: 'color 0.15s ease',
+                            }}
+                            title="Salin ID Member"
+                          >
+                            {isCopied ? <Check size={12} color="var(--success)" /> : <Copy size={12} />}
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Col 4: Peran */}
+                      <td style={{ padding: '0.95rem 1rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                         <span style={{
-                          width: '6px',
-                          height: '6px',
-                          borderRadius: '50%',
-                          backgroundColor: isSuspended ? 'var(--danger)' : 'var(--success)',
-                          boxShadow: isSuspended ? 'none' : '0 0 6px rgba(52, 211, 153, 0.45)',
-                        }} />
-                        <span>{isSuspended ? 'Ditangguhkan' : 'Aktif'}</span>
-                      </span>
-                    </td>
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          fontSize: '0.66rem',
+                          fontWeight: 600,
+                          letterSpacing: '0.04em',
+                          color: isAdmin ? 'var(--gold-accent)' : 'var(--text-dim)',
+                          backgroundColor: isAdmin ? 'rgba(207, 168, 94, 0.09)' : 'rgba(255, 255, 255, 0.025)',
+                          padding: '0.15rem 0.48rem',
+                          borderRadius: '4px',
+                          border: `1px solid ${isAdmin ? 'rgba(207, 168, 94, 0.24)' : 'rgba(255, 255, 255, 0.06)'}`,
+                        }}>
+                          {isAdmin ? 'ADMINISTRATOR' : 'MEMBER VIP'}
+                        </span>
+                      </td>
 
-                    {/* Col 6: Terdaftar */}
-                    <td style={{ padding: '1.1rem 0.75rem', fontSize: '0.78rem', color: 'var(--text-dim)' }}>
-                      {new Date(user.created_at).toLocaleDateString('id-ID', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </td>
+                      {/* Col 5: Status */}
+                      <td style={{ padding: '0.95rem 1rem', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          fontSize: '0.74rem',
+                          fontWeight: 500,
+                          color: isSuspended ? 'var(--danger)' : 'var(--success)',
+                        }}>
+                          <span style={{
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '50%',
+                            backgroundColor: isSuspended ? 'var(--danger)' : 'var(--success)',
+                            boxShadow: isSuspended ? 'none' : '0 0 6px rgba(52, 211, 153, 0.5)',
+                          }} />
+                          <span>{isSuspended ? 'Ditangguhkan' : 'Aktif'}</span>
+                        </span>
+                      </td>
 
-                    {/* Col 7: Button Detail (Aksi Utama) */}
-                    <td style={{ padding: '1.1rem 0.5rem 1.1rem 0.75rem', textAlign: 'right' }}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedUser(user);
-                        }}
-                        className="btn-secondary"
-                        style={{
-                          fontSize: '0.75rem',
-                          padding: '0.35rem 0.75rem',
-                          gap: '0.3rem',
-                        }}
-                        title="Lihat rincian berkas anggota"
-                      >
-                        <span>Detail</span>
-                        <ChevronRight size={12} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      {/* Col 6: Terdaftar */}
+                      <td style={{ padding: '0.95rem 1rem', fontSize: '0.78rem', color: 'var(--text-dim)', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        {new Date(user.created_at).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </td>
+
+                      {/* Col 7: Button Detail (Aksi Utama) */}
+                      <td style={{ padding: '0.95rem 1.5rem 0.95rem 1rem', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedUser(user);
+                          }}
+                          className="btn-secondary"
+                          style={{
+                            fontSize: '0.75rem',
+                            padding: '0.35rem 0.75rem',
+                            gap: '0.35rem',
+                          }}
+                          title="Lihat rincian berkas anggota"
+                        >
+                          <span>Detail</span>
+                          <ChevronRight size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ─── Pagination Footer di Bawah Kanan (Masuk ke dalam Layout Tabel) ─── */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.85rem 1.5rem',
+            borderTop: '1px solid rgba(255, 255, 255, 0.07)',
+            backgroundColor: 'rgba(0, 0, 0, 0.16)',
+            flexWrap: 'wrap',
+            gap: '1rem',
+          }}>
+            {/* Info data */}
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
+              Menampilkan <strong style={{ color: '#FFF' }}>{filteredUsers.length === 0 ? 0 : (pageSize === 'all' ? 1 : (currentPage - 1) * pageSize + 1)}</strong> – <strong style={{ color: '#FFF' }}>{pageSize === 'all' ? filteredUsers.length : Math.min(currentPage * pageSize, filteredUsers.length)}</strong> dari <strong style={{ color: '#FFF' }}>{filteredUsers.length}</strong> akun
+            </div>
+
+            {/* Controls di Bawah Kanan */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+              {/* Selector 5, 10, Semua */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>Tampilkan:</span>
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  {([5, 10, 'all'] as const).map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => handleSelectPageSize(size)}
+                      style={{
+                        padding: '0.22rem 0.55rem',
+                        fontSize: '0.74rem',
+                        fontWeight: pageSize === size ? 600 : 500,
+                        borderRadius: '4px',
+                        border: pageSize === size ? '1px solid var(--gold-accent)' : '1px solid rgba(255, 255, 255, 0.08)',
+                        background: pageSize === size ? 'rgba(207, 168, 94, 0.15)' : 'transparent',
+                        color: pageSize === size ? 'var(--gold-accent)' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {size === 'all' ? 'Semua' : `${size}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Prev / Next buttons */}
+              {pageSize !== 'all' && totalPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="btn-secondary"
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.74rem', opacity: currentPage === 1 ? 0.35 : 1 }}
+                    title="Halaman sebelumnya"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text-dim)', padding: '0 0.25rem' }}>
+                    <strong style={{ color: '#FFF' }}>{currentPage}</strong> / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="btn-secondary"
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.74rem', opacity: currentPage === totalPages ? 0.35 : 1 }}
+                    title="Halaman berikutnya"
+                  >
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
       {/* ─── MODAL POP-UP: Berkas Profil Anggota (Dipicu oleh Button Detail) ─── */}
       {selectedUser && (
-        <div 
-          className="pfx-modal-backdrop" 
+        <div
+          className="pfx-modal-backdrop"
           onClick={() => setSelectedUser(null)}
         >
-          <div 
+          <div
             className="pfx-modal-panel"
             style={{
               maxWidth: '520px',
@@ -947,22 +1062,7 @@ export const AdminUsersView: React.FC = () => {
       {/* ─── MODAL 1: Safeguard Konfirmasi Status Akun ─── */}
       {statusConfirm && (
         <div className="pfx-modal-backdrop" onClick={() => setStatusConfirm(null)}>
-          <div className="pfx-modal-panel" style={{ maxWidth: '440px', textAlign: 'center', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setStatusConfirm(null)}
-              style={{
-                position: 'absolute',
-                top: '1.25rem',
-                right: '1.25rem',
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-dim)',
-                cursor: 'pointer',
-              }}
-              title="Tutup"
-            >
-              <X size={18} />
-            </button>
+          <div className="pfx-modal-panel" style={{ maxWidth: '440px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
             <div style={{
               width: '46px',
               height: '46px',
@@ -999,16 +1099,16 @@ export const AdminUsersView: React.FC = () => {
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-              <button 
-                onClick={() => setStatusConfirm(null)} 
+              <button
+                onClick={() => setStatusConfirm(null)}
                 className="btn-secondary"
                 disabled={actionLoadingId === statusConfirm.user.id}
               >
                 Batal
               </button>
-              
-              <button 
-                onClick={executeToggleStatus} 
+
+              <button
+                onClick={executeToggleStatus}
                 className={statusConfirm.targetStatus === 'suspended' ? 'btn-danger-ghost' : 'btn-primary'}
                 style={{ fontSize: '0.82rem', padding: '0.45rem 1rem' }}
                 disabled={actionLoadingId === statusConfirm.user.id}
@@ -1033,22 +1133,7 @@ export const AdminUsersView: React.FC = () => {
       {/* ─── MODAL 2: Safeguard Konfirmasi Perubahan Peran (Role) ─── */}
       {roleConfirm && (
         <div className="pfx-modal-backdrop" onClick={() => setRoleConfirm(null)}>
-          <div className="pfx-modal-panel" style={{ maxWidth: '440px', textAlign: 'center', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setRoleConfirm(null)}
-              style={{
-                position: 'absolute',
-                top: '1.25rem',
-                right: '1.25rem',
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-dim)',
-                cursor: 'pointer',
-              }}
-              title="Tutup"
-            >
-              <X size={18} />
-            </button>
+          <div className="pfx-modal-panel" style={{ maxWidth: '440px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
             <div style={{
               width: '46px',
               height: '46px',
@@ -1085,16 +1170,16 @@ export const AdminUsersView: React.FC = () => {
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-              <button 
-                onClick={() => setRoleConfirm(null)} 
+              <button
+                onClick={() => setRoleConfirm(null)}
                 className="btn-secondary"
                 disabled={actionLoadingId === roleConfirm.user.id}
               >
                 Batal
               </button>
-              
-              <button 
-                onClick={executeToggleRole} 
+
+              <button
+                onClick={executeToggleRole}
                 className="btn-primary"
                 style={{ fontSize: '0.82rem', padding: '0.45rem 1rem' }}
                 disabled={actionLoadingId === roleConfirm.user.id}

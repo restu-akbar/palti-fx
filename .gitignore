@@ -60,3 +60,6 @@ mobile/android
 ~$*
 *.tmp
 *.bak
+*.docx
+*.docx.bak
+User-Story_PALTI-FX*

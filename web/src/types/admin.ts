@@ -49,8 +49,11 @@ export interface EduLesson {
 export interface DashboardStats {
   total_users: number;
   active_users: number;
+  total_admins?: number;
   total_modules: number;
+  total_chapters?: number;
   total_lessons: number;
+  total_videos?: number;
   active_invites: number;
   used_invites: number;
 }

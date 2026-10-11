@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react';
-import { 
-  ArrowRight, 
-  RefreshCw
-} from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import type { DashboardStats, Profile } from '../../types/admin';
 import { AdminUsersService } from '../../lib/adminUsers';
 
@@ -36,56 +33,63 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
 
   useEffect(() => {
     fetchStats();
+
+    // Auto-refresh saat kembali fokus ke tab/halaman
+    const handleFocus = () => fetchStats();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   return (
     <div style={{ maxWidth: '1040px', margin: '0 auto', paddingBottom: '4rem' }}>
-      {/* ─── Header: Calm & Minimalist ─── */}
+      {/* ─── Header: Highlighted & Grand Executive Typography ─── */}
       <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-end',
         marginBottom: '4.5rem',
-        paddingBottom: '1.5rem',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+        paddingBottom: '2rem',
       }}>
-        <div>
-          <div style={{
-            fontSize: '0.72rem',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.12em',
-            color: 'var(--text-dim)',
-            marginBottom: '0.35rem',
-          }}>
-            Executive Overview
-          </div>
-          <h1 style={{ fontSize: '1.65rem', fontWeight: 600, color: '#FFF', letterSpacing: '-0.02em' }}>
-            Ringkasan Ekosistem
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-            Selamat datang kembali, {currentAdmin.full_name || 'Admin'}.
-          </p>
+        <div style={{
+          fontSize: '0.92rem',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.22em',
+          color: 'var(--gold-accent)',
+          marginBottom: '0.75rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.6rem',
+        }}>
+          <span>Executive Overview</span>
         </div>
-
-        <button 
-          onClick={fetchStats} 
-          className="btn-secondary" 
-          style={{ fontSize: '0.78rem', padding: '0.45rem 0.85rem' }}
-          disabled={loading}
-          title="Segarkan data statistik"
-        >
-          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          <span>Segarkan</span>
-        </button>
+        <h1 style={{
+          fontSize: '3.6rem',
+          fontWeight: 700,
+          fontFamily: 'var(--font-display)',
+          letterSpacing: '-0.03em',
+          lineHeight: 1.08,
+          marginBottom: '1rem',
+          background: 'linear-gradient(135deg, #FFFFFF 0%, #F5E6BE 45%, #CFB066 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+        }}>
+          Ringkasan Ekosistem
+        </h1>
+        <p style={{
+          color: 'var(--text-secondary)',
+          fontSize: '1.3rem',
+          fontWeight: 400,
+          lineHeight: 1.6,
+          maxWidth: '780px',
+          marginTop: '0.5rem',
+        }}>
+          Selamat datang kembali, <strong style={{ color: '#FFF', fontWeight: 600 }}>{currentAdmin.full_name || 'Admin'}</strong>. Seluruh metrik operasional dan performa platform dalam kendali terpusat Anda.
+        </p>
       </div>
 
-      {/* ─── Seamless Natural Flow (Staggered Transparent Blur Cards) ─── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2.25rem' }}>
+      {/* ─── Seamless Natural Flow (Tanpa Card, Bersatu Dengan Background) ─── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4.5rem' }}>
 
-        {/* ─── 1. ATAS KIRI: Kurikulum & Materi (Transparent Blur Card) ─── */}
-        <section className="pfx-card" style={{
-          padding: '2.25rem 2.5rem',
+        {/* ─── 1. Kurikulum & Materi ─── */}
+        <section style={{
           maxWidth: '820px',
           textAlign: 'left',
           position: 'relative',
@@ -100,7 +104,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             }}>
               01
             </span>
-            <span style={{ width: '22px', height: '1px', background: 'var(--gold-border)' }} />
             <span style={{
               fontSize: '0.72rem',
               fontWeight: 600,
@@ -122,8 +125,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             Silabus &amp; Multi-Video Pembelajaran
           </h2>
 
-          {/* Typographic Metrics: Left-Aligned */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '2rem', marginBottom: '1.25rem' }}>
+          {/* Typographic Metrics: Left-Aligned (Modul Silabus, Bab, Subbab, Video YouTube) */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '2.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
             <div>
               <span style={{
                 fontSize: '2.5rem',
@@ -147,7 +150,28 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
               </span>
             </div>
 
-            <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.12)' }} />
+            <div>
+              <span style={{
+                fontSize: '2.5rem',
+                fontWeight: 600,
+                fontFamily: 'var(--font-display)',
+                color: '#FFF',
+                letterSpacing: '-0.02em',
+                lineHeight: 1,
+              }}>
+                {loading ? '—' : (stats.total_chapters ?? stats.total_modules)}
+              </span>
+              <span style={{
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                color: 'var(--text-dim)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginLeft: '0.6rem',
+              }}>
+                Bab
+              </span>
+            </div>
 
             <div>
               <span style={{
@@ -168,7 +192,30 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
                 letterSpacing: '0.06em',
                 marginLeft: '0.6rem',
               }}>
-                Bab &amp; Video YouTube
+                Subbab
+              </span>
+            </div>
+
+            <div>
+              <span style={{
+                fontSize: '2.5rem',
+                fontWeight: 600,
+                fontFamily: 'var(--font-display)',
+                color: 'var(--gold-hover)',
+                letterSpacing: '-0.02em',
+                lineHeight: 1,
+              }}>
+                {loading ? '—' : (stats.total_videos ?? 0)}
+              </span>
+              <span style={{
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                color: 'var(--text-dim)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginLeft: '0.6rem',
+              }}>
+                Video YouTube
               </span>
             </div>
           </div>
@@ -178,7 +225,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             color: 'var(--text-secondary)',
             lineHeight: 1.7,
             marginBottom: '1.35rem',
-            maxWidth: '620px',
+            maxWidth: '640px',
           }}>
             Kurikulum edukasi trading terstruktur dari tingkat Pemula, Menengah hingga Lanjutan. Lengkap dengan sematan multi-video YouTube, durasi estimasi baca, dan teks panduan silabus yang langsung tersinkronisasi ke aplikasi mobile member.
           </p>
@@ -186,21 +233,29 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
           <button
             onClick={() => onNavigateTab('materi')}
             className="editorial-link"
+            style={{
+              fontSize: '1.08rem',
+              fontWeight: 600,
+              gap: '0.65rem',
+              transformOrigin: 'left center',
+              transition: 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease',
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
+            onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
           >
             <span>Kelola Kurikulum &amp; Bab</span>
-            <ArrowRight size={14} />
+            <ArrowRight size={17} />
           </button>
         </section>
 
-        {/* ─── 2. BAWAH DARI KANAN: Kode Undangan VIP (Transparent Blur Card) ─── */}
-        <section className="pfx-card" style={{
-          padding: '2.25rem 2.5rem',
+        {/* ─── 2. Kode Undangan VIP (Kanan) ─── */}
+        <section style={{
           maxWidth: '820px',
           marginLeft: 'auto',
           textAlign: 'right',
           position: 'relative',
         }}>
-          {/* Section Marker (Right Aligned) */}
+          {/* Section Marker */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -217,7 +272,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             }}>
               Akses Privat Komunitas
             </span>
-            <span style={{ width: '22px', height: '1px', background: 'var(--gold-border)' }} />
             <span style={{
               fontSize: '0.72rem',
               fontWeight: 600,
@@ -243,7 +297,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             display: 'flex',
             alignItems: 'baseline',
             justifyContent: 'flex-end',
-            gap: '2rem',
+            gap: '2.5rem',
             marginBottom: '1.25rem',
           }}>
             <div>
@@ -268,8 +322,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
                 Kode Siap Pakai
               </span>
             </div>
-
-            <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.12)' }} />
 
             <div>
               <span style={{
@@ -300,7 +352,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             color: 'var(--text-secondary)',
             lineHeight: 1.7,
             marginBottom: '1.35rem',
-            maxWidth: '620px',
+            maxWidth: '640px',
             marginLeft: 'auto',
           }}>
             Pintu gerbang akses privat komunitas PALTI FX. Terbitkan kode unik secara acak 1-klik (contoh: PFX-VIP-XXXXX) atau buat kode kustom untuk batch tertentu. Pantau masa berlaku dan identitas member yang mengaktivasinya secara transparan.
@@ -310,16 +362,24 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             <button
               onClick={() => onNavigateTab('invitations')}
               className="editorial-link"
+              style={{
+                fontSize: '1.08rem',
+                fontWeight: 600,
+                gap: '0.65rem',
+                transformOrigin: 'right center',
+                transition: 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
+              onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
             >
               <span>Kelola Kode Undangan VIP</span>
-              <ArrowRight size={14} />
+              <ArrowRight size={17} />
             </button>
           </div>
         </section>
 
-        {/* ─── 3. TERUS BAWAH DARI KIRI: Member & Akses (Transparent Blur Card) ─── */}
-        <section className="pfx-card" style={{
-          padding: '2.25rem 2.5rem',
+        {/* ─── 3. Member & Akses ─── */}
+        <section style={{
           maxWidth: '820px',
           textAlign: 'left',
           position: 'relative',
@@ -334,7 +394,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             }}>
               03
             </span>
-            <span style={{ width: '22px', height: '1px', background: 'var(--gold-border)' }} />
             <span style={{
               fontSize: '0.72rem',
               fontWeight: 600,
@@ -356,8 +415,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             Manajemen Member &amp; Hak Akses
           </h2>
 
-          {/* Typographic Metrics: Left-Aligned */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '2rem', marginBottom: '1.25rem' }}>
+          {/* Typographic Metrics: Left-Aligned (Member Aktif, Admin Terdaftar, Total Akun) */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '2.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
             <div>
               <span style={{
                 fontSize: '2.5rem',
@@ -381,7 +440,28 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
               </span>
             </div>
 
-            <div style={{ width: '1px', height: '18px', background: 'rgba(255, 255, 255, 0.12)' }} />
+            <div>
+              <span style={{
+                fontSize: '2.5rem',
+                fontWeight: 600,
+                fontFamily: 'var(--font-display)',
+                color: 'var(--gold-accent)',
+                letterSpacing: '-0.02em',
+                lineHeight: 1,
+              }}>
+                {loading ? '—' : (stats.total_admins ?? 0)}
+              </span>
+              <span style={{
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                color: 'var(--text-dim)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginLeft: '0.6rem',
+              }}>
+                Admin Terdaftar
+              </span>
+            </div>
 
             <div>
               <span style={{
@@ -412,7 +492,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             color: 'var(--text-secondary)',
             lineHeight: 1.7,
             marginBottom: '1.35rem',
-            maxWidth: '620px',
+            maxWidth: '640px',
           }}>
             Daftar seluruh akun trader anggota terverifikasi yang dilengkapi format unik ID Member (PFX-XXXXXXXX). Akses kendali langsung untuk meninjau status profil, tanggal bergabung, serta opsi penangguhan akun secara instan.
           </p>
@@ -420,9 +500,18 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
           <button
             onClick={() => onNavigateTab('users')}
             className="editorial-link"
+            style={{
+              fontSize: '1.08rem',
+              fontWeight: 600,
+              gap: '0.65rem',
+              transformOrigin: 'left center',
+              transition: 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease',
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
+            onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
           >
             <span>Buka Manajemen Member</span>
-            <ArrowRight size={14} />
+            <ArrowRight size={17} />
           </button>
         </section>
 

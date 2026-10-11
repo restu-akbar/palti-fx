@@ -8,6 +8,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControlProps,
   ScrollView,
   StyleProp,
   StyleSheet,
@@ -37,12 +38,14 @@ export function Screen({
   children,
   right,
   eyebrow,
+  refreshControl,
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   right?: React.ReactNode;
   eyebrow?: string;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }) {
   const nav = useNav();
   const insets = useSafeAreaInsets();
@@ -59,6 +62,7 @@ export function Screen({
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], { useNativeDriver: native })}
       >
         <Animated.View style={{ opacity: titleFade, transform: [{ translateY: titleShift }], marginBottom: 18 }}>

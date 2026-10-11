@@ -91,7 +91,11 @@ export function App() {
 
   const handleLogout = () => {
     setCurrentAdmin(null);
-    navigateTo('landing');
+    navigateTo('admin-login');
+  };
+
+  const handleUpdateAdminProfile = (updatedProfile: Profile) => {
+    setCurrentAdmin(updatedProfile);
   };
 
   if (checkingAuth) {
@@ -146,6 +150,7 @@ export function App() {
         onSelectTab={(tab) => navigateTo('admin-panel', tab)}
         onLogout={handleLogout}
         onViewLanding={() => navigateTo('landing')}
+        onUpdateAdminProfile={handleUpdateAdminProfile}
       >
         {activeAdminTab === 'dashboard' && (
           <AdminDashboardView
