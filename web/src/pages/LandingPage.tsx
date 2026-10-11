@@ -1,23 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { 
-  ShieldCheck, 
-  TrendingUp, 
-  BookOpen, 
-  Calculator, 
-  Award, 
-  KeyRound, 
-  Smartphone, 
-  Globe
-} from 'lucide-react';
+import { KeyRound, Smartphone } from 'lucide-react';
 
 interface FeatureCardItem {
   number: string;
   tag: string;
   title: string;
   description: string;
-  icon: React.ReactNode;
-  iconColor: string;
-  iconBg: string;
   highlights: string[];
 }
 
@@ -27,9 +15,6 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'VIP CURRICULUM',
     title: 'Kurikulum Bertingkat',
     description: 'Dari modul Pemula, Menengah hingga Lanjutan. Lengkap dengan video YouTube tersemat, ringkasan materi, estimasi waktu belajar, dan pelacakan bab selesai otomatis.',
-    icon: <BookOpen size={24} color="#B8860B" />,
-    iconColor: '#B8860B',
-    iconBg: 'rgba(184, 134, 11, 0.1)',
     highlights: ['Video Embed YouTube', 'Tracking Bab Selesai', 'Materi Terstruktur'],
   },
   {
@@ -37,9 +22,6 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'RISK ENGINE',
     title: 'Kalkulator Risiko & Lot',
     description: 'Kalkulasi ukuran lot otomatis sesuai toleransi persentase risiko modal (1%-2%), nilai pips, leverage, dan instrumen (Forex Major, Gold/XAUUSD, Crypto, Index).',
-    icon: <Calculator size={24} color="#059669" />,
-    iconColor: '#059669',
-    iconBg: 'rgba(5, 150, 105, 0.1)',
     highlights: ['Lot Calculation Presisi', 'Proteksi Risiko Modal', 'Multi-Asset Support'],
   },
   {
@@ -47,9 +29,6 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'CLOUD LOG & EMOTION',
     title: 'Jurnal Transaksi Cloud',
     description: 'Catat setiap posisi BUY/SELL, rasio Risk/Reward, evaluasi emosi psikologis (Disiplin, FOMO, Balas Dendam), dan analisis setup. Tersinkronisasi aman ke database.',
-    icon: <TrendingUp size={24} color="#0284C7" />,
-    iconColor: '#0284C7',
-    iconBg: 'rgba(2, 132, 199, 0.1)',
     highlights: ['Evaluasi Emosi FOMO', 'Hitung Winrate & R:R', 'Cloud Sync Otomatis'],
   },
   {
@@ -57,9 +36,6 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'DISCIPLINE TRACKER',
     title: 'Gamifikasi & Medali',
     description: 'Bangun kedisiplinan trading melalui streak belajar harian, buka badge pencapaian (Langkah Pertama, Master Risiko, Jurnal Rutin), dan pantau perkembangan diri secara konsisten.',
-    icon: <Award size={24} color="#D97706" />,
-    iconColor: '#D97706',
-    iconBg: 'rgba(217, 119, 6, 0.1)',
     highlights: ['Daily Streak Counter', 'Medali & Badge Prestasi', 'Peringkat Trader'],
   },
   {
@@ -67,9 +43,6 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'WASALAAM RULE',
     title: 'Anti-Hilang Data (Immutability)',
     description: 'Ganti HP atau instal ulang aplikasi tanpa takut kehilangan riwayat trading. Begitu login kembali dengan Email atau Member ID, seluruh data pulih seketika.',
-    icon: <ShieldCheck size={24} color="#059669" />,
-    iconColor: '#059669',
-    iconBg: 'rgba(5, 150, 105, 0.1)',
     highlights: ['Zero Data Loss', 'Dual ID Login', 'Cadangan Cloud Otomatis'],
   },
   {
@@ -77,9 +50,6 @@ const FEATURE_CARDS: FeatureCardItem[] = [
     tag: 'GLOBAL SESSIONS',
     title: 'Jam Sesi Pasar Forex Global',
     description: 'Pantau jam aktif dan overlap bursa dunia secara real-time (Sydney, Tokyo, London, New York) langsung di dalam aplikasi untuk menemukan volatilitas terbaik.',
-    icon: <Globe size={24} color="#7C3AED" />,
-    iconColor: '#7C3AED',
-    iconBg: 'rgba(124, 58, 237, 0.1)',
     highlights: ['Live Session Overlap', 'Zona Waktu Otomatis', 'Peluang Volatilitas'],
   },
 ];
@@ -478,7 +448,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                 <div key={idx} className="feature-column-natural">
                   <div>
                     {/* Header: Large Minimal Number & Tag */}
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                       <span className="feature-number-natural">{card.number}</span>
                       <span style={{
                         fontSize: '0.72rem',
@@ -489,11 +459,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
                       }}>
                         {card.tag}
                       </span>
-                    </div>
-
-                    {/* Minimalist Clean Icon Badge */}
-                    <div className="feature-icon-badge" style={{ backgroundColor: card.iconBg }}>
-                      {card.icon}
                     </div>
 
                     {/* Title */}

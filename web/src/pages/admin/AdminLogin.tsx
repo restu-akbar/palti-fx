@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, ShieldAlert, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ShieldAlert, Loader2 } from 'lucide-react';
 import { AdminAuthService } from '../../lib/adminAuth';
 import type { Profile } from '../../types/admin';
 
@@ -57,37 +57,46 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
       {/* ─── Background Ambient Light ─── */}
       <div style={{
         position: 'absolute',
-        top: '30%',
+        top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        width: '800px',
-        height: '520px',
-        background: 'radial-gradient(circle, rgba(207, 168, 94, 0.04) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 70%)',
+        width: '1600px',
+        height: '1600px',
+        background: 'radial-gradient(circle, rgba(207, 168, 94, 0.09) 0%, rgba(207, 168, 94, 0.03) 50%, transparent 70%)',
         pointerEvents: 'none',
         zIndex: 0,
       }} />
 
-      {/* Return to Landing Button */}
-      <button 
-        onClick={onBackToLanding}
-        className="btn-secondary"
-        style={{
-          position: 'absolute',
-          top: '2rem',
-          left: '2.5rem',
-          fontSize: '0.8rem',
-          padding: '0.45rem 0.85rem',
-          zIndex: 20,
-        }}
-      >
-        <ArrowLeft size={14} />
-        <span>Kunjungi Website</span>
-      </button>
+      {/* ─── Colossal Background Logo (Lebih Gede Lagi Banget) ─── */}
+      <div style={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 'min(1800px, 140vh, 130vw)',
+        height: 'min(1800px, 140vh, 130vw)',
+        backgroundImage: 'url(/palti-logo.png)',
+        backgroundSize: 'contain',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        mixBlendMode: 'screen',
+        opacity: 0.16,
+        filter: 'drop-shadow(0 0 100px rgba(207, 168, 94, 0.35))',
+        pointerEvents: 'none',
+        zIndex: 1,
+      }} />
+
 
       {/* ─── Horizontal Landscape Rectangular Card (Persegi Panjang ke Samping) ─── */}
-      <div className="glass-panel-elevated admin-login-landscape" style={{
+      <div className="admin-login-landscape" style={{
         position: 'relative',
         zIndex: 10,
+        backgroundColor: 'rgba(12, 16, 26, 0.32)',
+        backdropFilter: 'blur(32px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+        border: '1px solid rgba(255, 255, 255, 0.14)',
+        borderRadius: 'var(--radius-xl)',
+        boxShadow: '0 30px 80px rgba(0, 0, 0, 0.45), 0 0 50px rgba(207, 168, 94, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.22)',
       }}>
         {/* ─── Left Side: Brand Identity & Atmospheric Narrative ─── */}
         <div style={{
@@ -96,53 +105,24 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
           flexDirection: 'column',
           justifyContent: 'space-between',
           borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-          backgroundColor: 'rgba(0, 0, 0, 0.22)',
+          backgroundColor: 'rgba(255, 255, 255, 0.02)',
           position: 'relative',
           overflow: 'hidden',
         }}>
-          {/* Subtle Circular Watermark Logo */}
-          <div style={{
-            position: 'absolute',
-            bottom: '-45px',
-            right: '-45px',
-            width: '290px',
-            height: '290px',
-            backgroundImage: 'url(/palti-logo.png)',
-            backgroundSize: 'contain',
-            backgroundRepeat: 'no-repeat',
-            opacity: 0.065,
-            pointerEvents: 'none',
-            zIndex: 0,
-          }} />
-
           {/* Top Brand Header */}
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '2.25rem' }}>
-              <img
-                src="/palti-logo.png"
-                alt="PALTI FX Logo"
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '10px',
-                  border: '1px solid rgba(255, 255, 255, 0.16)',
-                  boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-                  objectFit: 'cover',
-                }}
-              />
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <span style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '0.04em', color: '#FFF' }}>
-                    PALTI FX
-                  </span>
-                  <span className="pfx-badge pfx-badge-gold" style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem' }}>
-                    ADMIN
-                  </span>
-                </div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginTop: '1px' }}>
-                  Management Console
+            <div style={{ marginBottom: '2.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span style={{ fontWeight: 700, fontSize: '1.05rem', letterSpacing: '0.04em', color: '#FFF' }}>
+                  PALTI FX
+                </span>
+                <span className="pfx-badge pfx-badge-gold" style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem' }}>
+                  ADMIN
                 </span>
               </div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', display: 'block', marginTop: '3px' }}>
+                Management Console
+              </span>
             </div>
 
             {/* Narrative & Purpose */}
@@ -178,7 +158,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
             fontSize: '0.74rem',
             color: 'var(--text-dim)',
           }}>
-            <CheckCircle2 size={14} color="var(--gold-accent)" />
             <span>Enkripsi Supabase RLS &amp; Hak Akses Terverifikasi</span>
           </div>
         </div>
@@ -189,6 +168,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
+          backgroundColor: 'rgba(0, 0, 0, 0.12)',
         }}>
           <div style={{ marginBottom: '1.75rem' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#FFF', marginBottom: '0.35rem' }}>
@@ -263,13 +243,33 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
             </button>
           </form>
 
-          {/* Quick test shortcut */}
+          {/* Divider & Return to Landing Page Button */}
           <div style={{
-            marginTop: '1.65rem',
-            paddingTop: '1.15rem',
-            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-            textAlign: 'center',
+            marginTop: '1.5rem',
+            paddingTop: '1.25rem',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.85rem',
+            alignItems: 'center',
           }}>
+            <button
+              type="button"
+              onClick={onBackToLanding}
+              className="btn-secondary"
+              style={{
+                width: '100%',
+                padding: '0.65rem',
+                fontSize: '0.84rem',
+                justifyContent: 'center',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <span>Masuk ke Landing Page</span>
+            </button>
+
+            {/* Quick test shortcut */}
             <button
               type="button"
               onClick={handleFillTestAdmin}
@@ -287,7 +287,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
               onMouseOver={(e) => (e.currentTarget.style.color = 'var(--gold-accent)')}
               onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
             >
-              <Sparkles size={12} />
               <span>Gunakan Akun Uji Admin (dioraput@gmail.com)</span>
             </button>
           </div>

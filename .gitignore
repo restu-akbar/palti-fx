@@ -55,3 +55,8 @@ mobile/android
 
 # Editor / Tooling
 .opencode/
+
+# Office & Temporary
+~$*
+*.tmp
+*.bak
