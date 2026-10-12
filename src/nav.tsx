@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { BackHandler } from 'react-native';
+import { BackHandler, Platform } from 'react-native';
 
 export type TabKey = 'home' | 'edu' | 'tools' | 'journal';
 
@@ -11,7 +11,8 @@ export type Route =
   | { name: 'tools' }
   | { name: 'tool'; params: { toolId: ToolId } }
   | { name: 'journal' }
-  | { name: 'tradeForm'; params: { tradeId?: string } };
+  | { name: 'tradeForm'; params: { tradeId?: string } }
+  | { name: 'achievements' };
 
 export type ToolId = 'lot' | 'pip' | 'rr' | 'margin' | 'pl' | 'compound';
 
@@ -72,6 +73,7 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (stack.length > 1) {
         pop();

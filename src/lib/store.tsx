@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { DEFAULT_MODULES, setGlobalModules, Module, Lesson } from '../data/modules';
-import { fetchEduModulesFromSupabase, subscribeToEduRealtime, supabase } from './supabase';
+import { supabase } from './supabase';
+import { getSecureNickname, setSecureNickname } from './nicknameStorage';
+import { getLocalAchievementsForUser, saveLocalAchievementsForUser } from './achievementStorage';
+import { UserSyncService } from './userSyncService';
 
 export type Trade = {
   id: string;
@@ -26,9 +28,23 @@ export type Settings = {
   riskPercent?: string;
   leverage?: string;
   lastSymbol?: string;
+  /** Sudah melihat layar sambutan */
+  welcomed?: boolean;
+  /** Status autentikasi login pengguna */
+  isLoggedIn?: boolean;
+  /** Role akun: member atau admin */
+  role?: 'member' | 'admin';
+  /** Nama panggilan member (untuk sapaan) */
+  name?: string;
+  /** Identifier / Email akun yang sedang aktif */
+  activeUser?: string;
+  /** Pencapaian yang sudah terbuka: id → waktu terbuka (ms) */
+  unlocked?: Record<string, number>;
+  /** Berapa kali kalkulator Lot Size dibuka */
+  lotCalcCount?: number;
 };
 
-export type StoreValue = {
+type StoreValue = {
   ready: boolean;
   trades: Trade[];
   saveTrade: (t: Omit<Trade, 'id' | 'createdAt'> & { id?: string; createdAt?: number }) => void;
@@ -37,23 +53,22 @@ export type StoreValue = {
   toggleLesson: (lessonId: string, done?: boolean) => void;
   settings: Settings;
   updateSettings: (patch: Partial<Settings>) => void;
-  // Silabus & Edukasi dinamis dari Supabase
-  modules: Module[];
-  allLessons: Array<Lesson & { moduleId: string }>;
-  findModule: (id: string) => Module | undefined;
-  refreshModules: () => Promise<void>;
-  isSyncingModules: boolean;
-  logoutAndResetSession: () => Promise<void>;
+  logout: () => void;
+  syncFromCloud: (userId?: string) => Promise<void>;
 };
 
-const KEYS = {
-  trades: 'pfx.trades.v1',
-  completed: 'pfx.completed.v1',
-  settings: 'pfx.settings.v1',
-  modules: 'pfx.modules.cache.v1',
-};
+const KEYS = { trades: 'pfx.trades.v1', completed: 'pfx.completed.v1', settings: 'pfx.settings.v1' };
 
 const Ctx = createContext<StoreValue | null>(null);
+
+async function getCurrentUserId(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data?.user?.id || null;
+  } catch {
+    return null;
+  }
+}
 
 async function load<T>(key: string, fallback: T): Promise<T> {
   try {
@@ -75,54 +90,67 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [completed, setCompleted] = useState<Record<string, boolean>>({});
   const [settings, setSettings] = useState<Settings>({});
-  const [modules, setModules] = useState<Module[]>(DEFAULT_MODULES);
-  const [isSyncingModules, setIsSyncingModules] = useState(false);
 
-  const refreshModules = useCallback(async () => {
-    setIsSyncingModules(true);
+  const syncFromCloud = useCallback(async (userId?: string) => {
+    const uid = userId || (await getCurrentUserId());
+    if (!uid) return;
     try {
-      const remote = await fetchEduModulesFromSupabase();
-      if (remote && remote.length > 0) {
-        setModules(remote);
-        setGlobalModules(remote);
-      }
-    } catch (e) {
-      console.warn('[refreshModules] error syncing:', e);
-    } finally {
-      setIsSyncingModules(false);
+      const cloud = await UserSyncService.fetchUserData(uid);
+
+      setCompleted((prev) => {
+        // Unggah progres lokal yang belum tercatat di cloud
+        Object.entries(prev).forEach(([lId, done]) => {
+          if (done && !cloud.completed[lId]) {
+            UserSyncService.saveLessonProgress(uid, lId, true);
+          }
+        });
+        const merged = { ...cloud.completed, ...prev };
+        persist(KEYS.completed, merged);
+        return merged;
+      });
+
+      setTrades((prev) => {
+        const idMap = new Map<string, Trade>();
+        // Masukkan data transaksi dari cloud
+        cloud.trades.forEach((t) => idMap.set(t.id, t));
+        // Unggah transaksi lokal yang belum tercatat di cloud
+        prev.forEach((t) => {
+          if (!idMap.has(t.id)) {
+            UserSyncService.saveTrade(uid, t);
+          }
+          idMap.set(t.id, t);
+        });
+        const merged = Array.from(idMap.values());
+        merged.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt));
+        persist(KEYS.trades, merged);
+        return merged;
+      });
+    } catch (err) {
+      console.warn('[store.syncFromCloud] Error syncing from cloud:', err);
     }
   }, []);
 
   useEffect(() => {
     (async () => {
-      const [t, c, s, cachedMods] = await Promise.all([
+      const [t, c, s] = await Promise.all([
         load<Trade[]>(KEYS.trades, []),
         load<Record<string, boolean>>(KEYS.completed, {}),
         load<Settings>(KEYS.settings, {}),
-        load<Module[]>(KEYS.modules, DEFAULT_MODULES),
+      ]);
+      const [secureName, localAchievements] = await Promise.all([
+        s.activeUser ? getSecureNickname(s.activeUser) : null,
+        getLocalAchievementsForUser(s.activeUser),
       ]);
       setTrades(t);
       setCompleted(c);
-      setSettings(s);
-      if (cachedMods && cachedMods.length > 0) {
-        setModules(cachedMods);
-        setGlobalModules(cachedMods);
-      }
+      setSettings({ ...s, name: secureName || s.name, unlocked: localAchievements });
       setReady(true);
 
-      // Ambil data terbaru dari Supabase backend
-      refreshModules();
+      if (s.isLoggedIn) {
+        syncFromCloud();
+      }
     })();
-
-    // Berlangganan Realtime Supabase jika ada bab/modul baru yang ditambahkan admin
-    const unsub = subscribeToEduRealtime(() => {
-      refreshModules();
-    });
-
-    return () => {
-      unsub();
-    };
-  }, [refreshModules]);
+  }, [syncFromCloud]);
 
   const saveTrade = useCallback<StoreValue['saveTrade']>((t) => {
     setTrades((prev) => {
@@ -131,6 +159,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const next = exists ? prev.map((p) => (p.id === item.id ? item : p)) : [item, ...prev];
       next.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt));
       persist(KEYS.trades, next);
+      getCurrentUserId().then((uid) => {
+        if (uid) UserSyncService.saveTrade(uid, item);
+      });
       return next;
     });
   }, []);
@@ -139,14 +170,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setTrades((prev) => {
       const next = prev.filter((p) => p.id !== id);
       persist(KEYS.trades, next);
+      getCurrentUserId().then((uid) => {
+        if (uid) UserSyncService.deleteTrade(uid, id);
+      });
       return next;
     });
   }, []);
 
   const toggleLesson = useCallback((lessonId: string, done?: boolean) => {
     setCompleted((prev) => {
-      const next = { ...prev, [lessonId]: done ?? !prev[lessonId] };
+      const isDone = done ?? !prev[lessonId];
+      const next = { ...prev, [lessonId]: isDone };
       persist(KEYS.completed, next);
+      getCurrentUserId().then((uid) => {
+        if (uid) UserSyncService.saveLessonProgress(uid, lessonId, isDone);
+      });
       return next;
     });
   }, []);
@@ -154,46 +192,50 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
+      // Simpan nama panggilan spesifik untuk user yang sedang aktif
+      if (patch.name !== undefined) {
+        const targetUser = next.activeUser || prev.activeUser;
+        setSecureNickname(targetUser, patch.name);
+        getCurrentUserId().then((uid) => {
+          if (uid) UserSyncService.updateProfileName(uid, patch.name || null);
+        });
+      }
+      // Jika terjadi pergantian akun aktif, muat medali pencapaian milik akun tersebut
+      if (patch.activeUser !== undefined && patch.activeUser !== prev.activeUser) {
+        getLocalAchievementsForUser(patch.activeUser).then((ach) => {
+          setSettings((cur) => ({ ...cur, unlocked: ach }));
+        });
+      }
+      // Simpan medali pencapaian secara lokal ke partisi storage akun terkait (tidak ke Supabase)
+      if (patch.unlocked !== undefined) {
+        const targetUser = next.activeUser || prev.activeUser;
+        saveLocalAchievementsForUser(targetUser, patch.unlocked);
+      }
       persist(KEYS.settings, next);
       return next;
     });
   }, []);
 
-  const allLessons = useMemo(
-    () => modules.flatMap((m) => m.lessons.map((l) => ({ ...l, moduleId: m.id }))),
-    [modules]
-  );
-
-  const findModule = useCallback(
-    (id: string) => modules.find((m) => m.id === id),
-    [modules]
-  );
-
-  const logoutAndResetSession = useCallback(async () => {
-    try {
-      // 1. Sign out dari Supabase Auth
-      try {
-        await supabase.auth.signOut();
-      } catch (e) {
-        console.warn('[logoutAndResetSession] Supabase signOut warning:', e);
-      }
-
-      // 2. Bersihkan seluruh penyimpanan lokal AsyncStorage
-      await AsyncStorage.clear();
-
-      // 3. Reset seluruh state di memori aplikasi
-      setTrades([]);
-      setCompleted({});
-      setSettings({});
-      setModules(DEFAULT_MODULES);
-      setGlobalModules(DEFAULT_MODULES);
-
-      // 4. Sinkronisasi ulang materi segar dari Supabase
-      await refreshModules();
-    } catch (err) {
-      console.error('[logoutAndResetSession] Error resetting session:', err);
-    }
-  }, [refreshModules]);
+  const logout = useCallback(() => {
+    supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    setTrades([]);
+    setCompleted({});
+    AsyncStorage.removeItem(KEYS.trades).catch(() => {});
+    AsyncStorage.removeItem(KEYS.completed).catch(() => {});
+    setSettings((prev) => {
+      // Hapus status login, nama, dan user aktif agar tidak bocor ke akun berikutnya
+      const next = {
+        ...prev,
+        isLoggedIn: false,
+        role: undefined,
+        name: undefined,
+        activeUser: undefined,
+        unlocked: {},
+      };
+      persist(KEYS.settings, next);
+      return next;
+    });
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -205,12 +247,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       toggleLesson,
       settings,
       updateSettings,
-      modules,
-      allLessons,
-      findModule,
-      refreshModules,
-      isSyncingModules,
-      logoutAndResetSession,
+      logout,
+      syncFromCloud,
     }),
     [
       ready,
@@ -221,12 +259,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       toggleLesson,
       settings,
       updateSettings,
-      modules,
-      allLessons,
-      findModule,
-      refreshModules,
-      isSyncingModules,
-      logoutAndResetSession,
+      logout,
+      syncFromCloud,
     ],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

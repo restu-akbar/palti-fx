@@ -1,27 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Line, Rect } from 'react-native-svg';
 import { EquityChart } from '../components/EquityChart';
 import { LogoMark } from '../components/Logo';
 import { MarketSessions } from '../components/MarketSessions';
 import { AnimatedBar, CountUp, FadeIn, Float, PressScale, ProgressRing, Shimmer, tap } from '../components/motion';
-import { Card, Chip, GoldButton, IconBadge, IconName, SectionTitle } from '../components/ui';
+import { Card, Chip, GoldButton, IconBadge, IconName, SectionTitle, Sheet } from '../components/ui';
+import { Medal, useAchievements } from '../components/Medal';
+import { StreakChip } from '../components/Streak';
+import { ALL_LESSONS, MODULES } from '../data/modules';
 import { pct, signedUsd } from '../lib/format';
 import { greeting } from '../lib/sessions';
 import { computeStats, useStore } from '../lib/store';
 import { ToolId, useNav } from '../nav';
-import { colors, fonts, heroGradient } from '../theme';
+import { colors, fonts, goldGradient, heroGradient } from '../theme';
 
 const TIPS = [
   'Lindungi modal dulu, profit akan mengikuti.',
@@ -48,83 +43,85 @@ const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 export function HomeScreen() {
   const nav = useNav();
   const insets = useSafeAreaInsets();
-  const { trades, completed, modules, allLessons, logoutAndResetSession } = useStore();
+  const { trades, completed, settings, updateSettings, logout } = useStore();
+  const { list: achList, unlockedCount, streak } = useAchievements();
+  const [nameOpen, setNameOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const memberName = settings.name?.trim() || 'Member';
+  const medalsPreview = [...achList]
+    .sort((x, y) => (x.unlocked !== y.unlocked ? (x.unlocked ? -1 : 1) : (y.at ?? 0) - (x.at ?? 0)))
+    .slice(0, 5);
   const stats = useMemo(() => computeStats(trades), [trades]);
-  const doneCount = allLessons.filter((l) => completed[l.id]).length;
-  const progress = allLessons.length ? doneCount / allLessons.length : 0;
-  const nextLesson = allLessons.find((l) => !completed[l.id]);
+  const doneCount = ALL_LESSONS.filter((l) => completed[l.id]).length;
+  const progress = ALL_LESSONS.length ? doneCount / ALL_LESSONS.length : 0;
+  const nextLesson = ALL_LESSONS.find((l) => !completed[l.id]);
   const now = new Date();
   const [heroW, setHeroW] = useState(360);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
-  const [resetSuccessMsg, setResetSuccessMsg] = useState('');
   const tip = TIPS[now.getDate() % TIPS.length];
 
-  const handleConfirmLogout = async () => {
-    setIsResetting(true);
-    try {
-      tap('select');
-      await logoutAndResetSession();
-      tap('success');
-      setShowLogoutModal(false);
-      setResetSuccessMsg('Sesi & data lokal berhasil direset. Aplikasi kembali ke kondisi awal.');
-      setTimeout(() => setResetSuccessMsg(''), 4500);
-    } catch (e) {
-      console.error(e);
-      setShowLogoutModal(false);
-    } finally {
-      setIsResetting(false);
-    }
+  const handleLogout = () => {
+    tap('select');
+    setShowLogoutModal(true);
   };
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: 120 }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* top bar */}
-      <FadeIn from="none" duration={600}>
-        <View style={st.top}>
-          <LogoMark size={40} />
-          <View style={{ marginLeft: 10, flex: 1 }}>
-            <Text style={st.brand}>PALTI FX</Text>
-            <Text style={st.brandSub}>Trading Academy</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={st.datePill}>
-              <Ionicons name="calendar-clear-outline" size={13} color={colors.gold} />
-              <Text style={st.dateText}>
-                {now.getDate()} {BULAN[now.getMonth()].slice(0, 3)}
-              </Text>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.bg }}
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* top bar */}
+        <FadeIn from="none" duration={600}>
+          <View style={st.top}>
+            <LogoMark size={42} />
+            <View style={{ flex: 1 }} />
+            <View style={st.topRight}>
+              <View style={st.datePill}>
+                <Ionicons name="calendar-clear-outline" size={13} color={colors.gold} />
+                <Text style={st.dateText}>
+                  {now.getDate()} {BULAN[now.getMonth()].slice(0, 3)}
+                </Text>
+              </View>
+              <PressScale
+                onPress={handleLogout}
+                scaleTo={0.93}
+                style={st.logoutPill}
+                accessibilityLabel="Logout dan kembali ke login"
+              >
+                <Ionicons name="log-out-outline" size={14} color={colors.red} />
+                <Text style={st.logoutText}>Logout</Text>
+              </PressScale>
             </View>
-            <PressScale
-              onPress={() => setShowLogoutModal(true)}
-              style={st.logoutPill}
-              accessibilityLabel="Logout & Reset Sesi"
-            >
-              <Ionicons name="log-out-outline" size={17} color={colors.red} />
-            </PressScale>
-          </View>
-        </View>
-      </FadeIn>
-
-      {/* notifikasi sukses reset jika ada */}
-      {resetSuccessMsg ? (
-        <FadeIn from="up" distance={8} duration={300}>
-          <View style={st.toast}>
-            <Ionicons name="checkmark-circle" size={18} color={colors.green} />
-            <Text style={st.toastText}>{resetSuccessMsg}</Text>
           </View>
         </FadeIn>
-      ) : null}
 
       <FadeIn delay={80}>
         <Text style={st.hello}>{greeting(now)},</Text>
-        <Text style={st.helloBig}>Trader PALTI FX</Text>
-        <Text style={st.day}>
-          {HARI[now.getDay()]}, {now.getDate()} {BULAN[now.getMonth()]} {now.getFullYear()}
-        </Text>
+        <PressScale
+          scaleTo={0.98}
+          haptic={false}
+          onPress={() => {
+            setNameDraft(settings.name ?? '');
+            setNameOpen(true);
+          }}
+          style={st.nameRow}
+          accessibilityLabel="Ubah nama panggilan"
+        >
+          <Text style={st.helloBig} numberOfLines={1}>
+            {memberName}
+          </Text>
+          <VipBadge />
+        </PressScale>
+        <View style={st.dayRow}>
+          <Text style={st.day}>
+            {HARI[now.getDay()]}, {now.getDate()} {BULAN[now.getMonth()]} {now.getFullYear()}
+          </Text>
+          <PressScale onPress={() => nav.go('journal')} haptic={false}>
+            <StreakChip streak={streak} />
+          </PressScale>
+        </View>
       </FadeIn>
 
       {/* hero progres belajar */}
@@ -146,20 +143,7 @@ export function HomeScreen() {
           >
             <View style={st.heroDeco} pointerEvents="none">
               <Float amount={5}>
-                <Svg width={150} height={130} viewBox="0 0 150 130">
-                  {[
-                    [18, 70, 30, 95, 60],
-                    [48, 52, 22, 86, 44],
-                    [78, 60, 26, 100, 50],
-                    [108, 30, 30, 70, 20],
-                    [138, 12, 26, 50, 4],
-                  ].map(([cx, y, h, wick2, wick1], i) => (
-                    <React.Fragment key={i}>
-                      <Line x1={cx} x2={cx} y1={wick1} y2={wick2} stroke="rgba(22,17,10,0.12)" strokeWidth={2} />
-                      <Rect x={cx - 7} y={y} width={14} height={h} rx={3} fill="rgba(22,17,10,0.09)" />
-                    </React.Fragment>
-                  ))}
-                </Svg>
+                <LogoMark size={190} variant="ink" opacity={0.09} />
               </Float>
             </View>
             <Shimmer width={heroW} />
@@ -174,7 +158,7 @@ export function HomeScreen() {
                   {nextLesson ? nextLesson.title : 'Ulangi materi kapan saja'}
                 </Text>
                 <Text style={st.heroMeta}>
-                  {doneCount}/{allLessons.length} materi · {modules.length} modul
+                  {doneCount}/{ALL_LESSONS.length} materi · {MODULES.length} modul
                 </Text>
               </View>
             </View>
@@ -184,6 +168,27 @@ export function HomeScreen() {
             </View>
           </LinearGradient>
         </PressScale>
+      </FadeIn>
+
+      {/* pencapaian */}
+      <FadeIn delay={220}>
+        <SectionTitle action="Lihat" onAction={() => nav.push({ name: 'achievements' })}>
+          Pencapaian
+        </SectionTitle>
+        <Card onPress={() => nav.push({ name: 'achievements' })}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            {medalsPreview.map((x) => (
+              <Medal key={x.a.id} a={x.a} unlocked={x.unlocked} size={48} />
+            ))}
+          </View>
+          <View style={st.achRow}>
+            <Text style={st.achText}>
+              <Text style={{ color: colors.goldLight, fontFamily: fonts.display }}>{unlockedCount}</Text> dari{' '}
+              {achList.length} medali terbuka
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.gold} />
+          </View>
+        </Card>
       </FadeIn>
 
       {/* tools */}
@@ -269,13 +274,13 @@ export function HomeScreen() {
         snapToInterval={232}
         decelerationRate="fast"
       >
-        {modules.map((m, i) => {
+        {MODULES.map((m, i) => {
           const d = m.lessons.filter((l) => completed[l.id]).length;
           return (
             <FadeIn key={m.id} delay={520 + i * 80} from="right">
               <PressScale onPress={() => nav.go('edu', { name: 'module', params: { moduleId: m.id } })} style={st.module}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <IconBadge name={m.icon as any} size={20} box={42} />
+                  <IconBadge name={m.icon} size={20} box={42} />
                   <Chip label={m.level} color={m.level === 'Pemula' ? colors.green : colors.gold} />
                 </View>
                 <Text style={st.moduleTitle} numberOfLines={2}>
@@ -300,96 +305,115 @@ export function HomeScreen() {
             <Text style={st.tipText}>{tip}</Text>
           </View>
         </View>
+        <Text style={st.disclaimer}>
+          Materi & alat di aplikasi ini untuk edukasi, bukan saran investasi. Trading forex berisiko tinggi.
+        </Text>
       </FadeIn>
+      <Sheet visible={nameOpen} onClose={() => setNameOpen(false)} title="Nama panggilan">
+        <Text style={st.sheetHint}>Nama ini dipakai untuk menyapamu di Beranda.</Text>
+        <TextInput
+          value={nameDraft}
+          onChangeText={setNameDraft}
+          placeholder="mis. Budi"
+          placeholderTextColor={colors.muted}
+          maxLength={20}
+          autoCapitalize="words"
+          selectionColor={colors.gold}
+          style={st.nameInput}
+        />
+        <GoldButton
+          title="Simpan"
+          icon="checkmark"
+          onPress={() => {
+            updateSettings({ name: nameDraft.trim() || undefined });
+            setNameOpen(false);
+          }}
+          style={{ marginTop: 14 }}
+        />
+        <View style={st.sheetLogoutWrap}>
+          <Pressable
+            onPress={() => {
+              setNameOpen(false);
+              handleLogout();
+            }}
+            style={st.sheetLogoutBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Logout"
+          >
+            <Ionicons name="log-out-outline" size={17} color={colors.red} />
+            <Text style={st.sheetLogoutText}>Logout (Kembali ke Halaman Login)</Text>
+          </Pressable>
+        </View>
+      </Sheet>
+      </ScrollView>
 
-      {/* sesi & pengaturan akun */}
-      <FadeIn delay={640}>
-        <SectionTitle>Sesi & Akun</SectionTitle>
-        <Card style={st.sessionCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-            <View style={st.sessionBadge}>
-              <Ionicons name="shield-checkmark" size={20} color={colors.gold} />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={st.sessionTitle}>Sesi Lokal Aktif</Text>
-                <Chip label="SINKRON" color={colors.green} />
-              </View>
-              <Text style={st.sessionSub}>
-                {stats.count} trade tersimpan · {doneCount}/{allLessons.length} materi selesai
-              </Text>
-            </View>
-          </View>
-
-          <Text style={st.sessionDesc}>
-            Gunakan tombol di bawah untuk keluar dan mereset sesi serta seluruh data lokal perangkat (jurnal trade offline, progres materi, & cache).
-          </Text>
-
-          <View style={{ marginTop: 14 }}>
-            <GoldButton
-              title="Logout & Reset Sesi"
-              icon="log-out-outline"
-              variant="danger"
-              onPress={() => setShowLogoutModal(true)}
-            />
-          </View>
-        </Card>
-      </FadeIn>
-
-      <Text style={st.disclaimer}>
-        Materi & alat di aplikasi ini untuk edukasi, bukan saran investasi. Trading forex berisiko tinggi.
-      </Text>
-
-      {/* modal konfirmasi logout & reset sesi */}
+      {/* ── Modal Konfirmasi Logout (Konsisten dengan Onboarding & Login) ── */}
       <Modal
         visible={showLogoutModal}
         transparent
         animationType="fade"
-        onRequestClose={() => !isResetting && setShowLogoutModal(false)}
+        statusBarTranslucent
+        onRequestClose={() => setShowLogoutModal(false)}
       >
         <View style={st.modalOverlay}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => !isResetting && setShowLogoutModal(false)}
-          />
-          <View style={st.modalBox}>
-            <View style={st.modalIconWrap}>
-              <Ionicons name="warning-outline" size={30} color={colors.red} />
-            </View>
-            <Text style={st.modalTitle}>Logout & Reset Sesi?</Text>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowLogoutModal(false)}>
+            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={st.modalDimmer} />
+          </Pressable>
+
+          <BlurView intensity={Platform.OS === 'ios' ? 25 : 15} tint="dark" style={st.modalCard}>
+            <Text style={st.modalTitle}>Keluar dari Akun?</Text>
             <Text style={st.modalDesc}>
-              Tindakan ini akan mengakhiri sesi aktif dan mereset seluruh data lokal di perangkat Anda (termasuk riwayat jurnal trade, progres checklist materi, serta cache offline).
-            </Text>
-            <Text style={st.modalSubDesc}>
-              Aplikasi akan kembali ke kondisi awal bersih. Data silabus resmi akan disinkronkan kembali dari server.
+              Anda akan keluar dari sesi ini dan kembali ke halaman login.
             </Text>
 
-            {isResetting ? (
-              <View style={st.loadingRow}>
-                <ActivityIndicator size="small" color={colors.gold} />
-                <Text style={st.loadingText}>Mereset sesi & data lokal...</Text>
-              </View>
-            ) : (
-              <View style={st.modalBtnRow}>
+            <View style={st.modalBtnRow}>
+              <Pressable
+                onPress={() => {
+                  tap('light');
+                  setShowLogoutModal(false);
+                }}
+                hitSlop={8}
+                style={st.modalCancelBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Batal keluar"
+              >
+                <Text style={st.modalCancelText}>Batal</Text>
+              </Pressable>
+
+              <View style={{ flex: 1 }}>
                 <PressScale
-                  style={st.cancelBtn}
-                  onPress={() => setShowLogoutModal(false)}
+                  onPress={() => {
+                    tap('select');
+                    setShowLogoutModal(false);
+                    logout();
+                  }}
+                  accessibilityLabel="Konfirmasi keluar dari akun"
                 >
-                  <Text style={st.cancelBtnText}>Batal</Text>
-                </PressScale>
-                <PressScale
-                  style={st.confirmBtn}
-                  onPress={handleConfirmLogout}
-                >
-                  <Ionicons name="log-out-outline" size={17} color="#fff" style={{ marginRight: 6 }} />
-                  <Text style={st.confirmBtnText}>Reset Sesi</Text>
+                  <LinearGradient
+                    colors={goldGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={st.modalConfirmBtn}
+                  >
+                    <Text style={st.modalConfirmText}>Ya, Keluar</Text>
+                  </LinearGradient>
                 </PressScale>
               </View>
-            )}
-          </View>
+            </View>
+          </BlurView>
         </View>
       </Modal>
-    </ScrollView>
+    </View>
+  );
+}
+
+function VipBadge() {
+  return (
+    <LinearGradient colors={goldGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.vip}>
+      <Ionicons name="diamond" size={11} color={colors.ink} />
+      <Text style={st.vipText}>VIP</Text>
+    </LinearGradient>
   );
 }
 
@@ -404,6 +428,7 @@ function Mini({ label, value, color }: { label: string; value: string; color?: s
 
 const st = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   brand: { color: colors.text, fontFamily: fonts.display, fontSize: 16, letterSpacing: 2 },
   brandSub: { color: colors.gold, fontFamily: fonts.semi, fontSize: 11, letterSpacing: 0.5 },
   datePill: {
@@ -419,31 +444,72 @@ const st = StyleSheet.create({
   },
   dateText: { color: colors.text, fontFamily: fonts.semi, fontSize: 12 },
   logoutPill: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(240,98,92,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(240,98,92,0.32)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toast: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(53,201,138,0.14)',
+    gap: 5,
+    backgroundColor: 'rgba(255,87,87,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(53,201,138,0.35)',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 16,
+    borderColor: 'rgba(255,87,87,0.22)',
+    borderRadius: 20,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
   },
-  toastText: { color: colors.text, fontFamily: fonts.semi, fontSize: 13, flex: 1 },
+  logoutText: { color: colors.red, fontFamily: fonts.semi, fontSize: 12 },
+  sheetLogoutWrap: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  sheetLogoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,87,87,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,87,87,0.2)',
+  },
+  sheetLogoutText: { color: colors.red, fontFamily: fonts.semi, fontSize: 13 },
   hello: { color: colors.textDim, fontFamily: fonts.medium, fontSize: 16 },
-  helloBig: { color: colors.text, fontFamily: fonts.display, fontSize: 30, letterSpacing: -0.8, marginTop: 2 },
-  day: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, marginTop: 6, marginBottom: 18 },
+  helloBig: { color: colors.text, fontFamily: fonts.display, fontSize: 30, letterSpacing: -0.8, flexShrink: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
+  vip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  vipText: { color: colors.ink, fontFamily: fonts.display, fontSize: 11, letterSpacing: 1.5 },
+  dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 18 },
+  achRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  achText: { color: colors.textDim, fontFamily: fonts.semi, fontSize: 13 },
+  sheetHint: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, marginBottom: 12, marginTop: -6 },
+  nameInput: {
+    height: 54,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderGold,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    fontFamily: fonts.bold,
+    fontSize: 17,
+    paddingHorizontal: 16,
+    outlineWidth: 0,
+  },
+  day: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, flexShrink: 1, marginRight: 8 },
   hero: {
     borderRadius: 26,
     padding: 20,
@@ -454,7 +520,7 @@ const st = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
   },
-  heroDeco: { position: 'absolute', right: -14, top: -4 },
+  heroDeco: { position: 'absolute', right: -40, top: -30 },
   heroEyebrow: { color: 'rgba(22,17,10,0.6)', fontFamily: fonts.bold, fontSize: 11, letterSpacing: 2 },
   ringText: { color: colors.ink, fontFamily: fonts.display, fontSize: 18 },
   heroTitle: { color: colors.ink, fontFamily: fonts.display, fontSize: 20, letterSpacing: -0.4 },
@@ -504,120 +570,13 @@ const st = StyleSheet.create({
     marginTop: 26,
     padding: 18,
     borderRadius: 22,
-    backgroundColor: 'rgba(227,182,79,0.07)',
+    backgroundColor: 'rgba(237,193,58,0.07)',
     borderWidth: 1,
-    borderColor: 'rgba(227,182,79,0.18)',
+    borderColor: 'rgba(237,193,58,0.18)',
   },
   tipQuote: { color: colors.gold, fontFamily: fonts.display, fontSize: 48, lineHeight: 50, marginRight: 10, marginTop: -4 },
   tipLabel: { color: colors.gold, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.8 },
   tipText: { color: colors.text, fontFamily: fonts.bold, fontSize: 16, lineHeight: 23, marginTop: 6 },
-  sessionCard: {
-    marginTop: 4,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: colors.card,
-    padding: 16,
-  },
-  sessionBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: 'rgba(227,182,79,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(227,182,79,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sessionTitle: { color: colors.text, fontFamily: fonts.bold, fontSize: 15 },
-  sessionSub: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 2 },
-  sessionDesc: { color: colors.textDim, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.76)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalBox: {
-    width: '100%',
-    maxWidth: 400,
-    backgroundColor: '#141419',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    padding: 22,
-    alignItems: 'center',
-  },
-  modalIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(240,98,92,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(240,98,92,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: { color: colors.text, fontFamily: fonts.display, fontSize: 20, letterSpacing: -0.4, textAlign: 'center' },
-  modalDesc: {
-    color: colors.textDim,
-    fontFamily: fonts.body,
-    fontSize: 13.5,
-    lineHeight: 20,
-    textAlign: 'center',
-    marginTop: 10,
-  },
-  modalSubDesc: {
-    color: colors.muted,
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    lineHeight: 17,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  modalBtnRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 22,
-    width: '100%',
-  },
-  cancelBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtnText: { color: colors.textDim, fontFamily: fonts.semi, fontSize: 14 },
-  confirmBtn: {
-    flex: 1.2,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: colors.red,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.red,
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  confirmBtnText: { color: '#ffffff', fontFamily: fonts.bold, fontSize: 14 },
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 22,
-    paddingVertical: 12,
-  },
-  loadingText: { color: colors.goldLight, fontFamily: fonts.semi, fontSize: 14 },
   disclaimer: {
     color: colors.muted,
     fontFamily: fonts.body,
@@ -626,5 +585,91 @@ const st = StyleSheet.create({
     textAlign: 'center',
     marginTop: 24,
     paddingHorizontal: 12,
+  },
+
+  /* Modal Popup Logout (Konsisten dengan Onboarding & Login) */
+  modalOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  modalDimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 310,
+    backgroundColor: 'rgba(12, 16, 24, 0.90)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 18,
+    alignItems: 'center',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+    ...(Platform.OS === 'web' ? ({ backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' } as any) : {}),
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontFamily: fonts.semi,
+    fontSize: 16,
+    letterSpacing: -0.2,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalDesc: {
+    color: 'rgba(255, 255, 255, 0.55)',
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18.5,
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  modalCancelText: {
+    color: 'rgba(255, 255, 255, 0.65)',
+    fontFamily: fonts.medium,
+    fontSize: 13,
+  },
+  modalConfirmBtn: {
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  modalConfirmText: {
+    color: colors.ink,
+    fontFamily: fonts.semi,
+    fontSize: 13,
+    letterSpacing: 0.2,
   },
 });

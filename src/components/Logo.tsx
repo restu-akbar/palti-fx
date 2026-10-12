@@ -1,28 +1,61 @@
 import React from 'react';
-import Svg, { Circle, Defs, LinearGradient, Line, Rect, Stop } from 'react-native-svg';
+import { View } from 'react-native';
+import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
+import { SYMBOL_PATH, SYMBOL_VB, WORDMARK_PATH, WORDMARK_VB } from './logoPaths';
 
-/** Monogram PALTI FX: cincin emas dengan tiga candlestick naik. */
-export function LogoMark({ size = 64 }: { size?: number }) {
+/**
+ * Logo resmi PALTI FX (anyaman dalam lingkaran).
+ * variant:
+ *  - 'gold'  : gradasi emas, selaras dengan warna aplikasi (default)
+ *  - 'flat'  : kuning asli logo
+ *  - 'ink'   : warna gelap (untuk di atas kartu emas)
+ */
+type Variant = 'gold' | 'flat' | 'ink';
+
+function Fill({ id, variant, h }: { id: string; variant: Variant; h: number }) {
+  if (variant !== 'gold') return null;
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Defs>
-        <LinearGradient id="g" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="100">
-          <Stop offset="0" stopColor="#F3DC8B" />
-          <Stop offset="0.5" stopColor="#D4AF37" />
-          <Stop offset="1" stopColor="#8A6A18" />
-        </LinearGradient>
-      </Defs>
-      <Circle cx="50" cy="50" r="46" fill="#0E0D0B" stroke="url(#g)" strokeWidth="3" />
-      <Circle cx="50" cy="50" r="39" fill="none" stroke="url(#g)" strokeWidth="0.8" opacity="0.6" />
-      {/* candle 1 */}
-      <Line x1="33" y1="50" x2="33" y2="74" stroke="url(#g)" strokeWidth="2" strokeLinecap="round" />
-      <Rect x="28" y="55" width="10" height="14" rx="1.5" fill="url(#g)" />
-      {/* candle 2 */}
-      <Line x1="50" y1="36" x2="50" y2="66" stroke="url(#g)" strokeWidth="2" strokeLinecap="round" />
-      <Rect x="45" y="41" width="10" height="19" rx="1.5" fill="url(#g)" />
-      {/* candle 3 */}
-      <Line x1="67" y1="22" x2="67" y2="56" stroke="url(#g)" strokeWidth="2" strokeLinecap="round" />
-      <Rect x="62" y="27" width="10" height="23" rx="1.5" fill="url(#g)" />
+    <Defs>
+      <LinearGradient id={id} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={h}>
+        <Stop offset="0" stopColor="#FCE7A0" />
+        <Stop offset="0.45" stopColor="#EDC13A" />
+        <Stop offset="1" stopColor="#B8891A" />
+      </LinearGradient>
+    </Defs>
+  );
+}
+
+const color = (variant: Variant, id: string) =>
+  variant === 'gold' ? `url(#${id})` : variant === 'flat' ? '#FCD404' : 'rgba(22,17,10,1)';
+
+export function LogoMark({ size = 64, variant = 'gold', opacity = 1 }: { size?: number; variant?: Variant; opacity?: number }) {
+  const id = `pfxSym${variant}`;
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${SYMBOL_VB.w} ${SYMBOL_VB.h}`} opacity={opacity}>
+      <Fill id={id} variant={variant} h={SYMBOL_VB.h} />
+      <Path d={SYMBOL_PATH} fill={color(variant, id)} fillRule="evenodd" />
     </Svg>
+  );
+}
+
+export function Wordmark({ width = 140, variant = 'gold' }: { width?: number; variant?: Variant }) {
+  const id = `pfxWm${variant}`;
+  const h = (width * WORDMARK_VB.h) / WORDMARK_VB.w;
+  return (
+    <Svg width={width} height={h} viewBox={`0 0 ${WORDMARK_VB.w} ${WORDMARK_VB.h}`}>
+      <Fill id={id} variant={variant} h={WORDMARK_VB.h} />
+      <Path d={WORDMARK_PATH} fill={color(variant, id)} fillRule="evenodd" />
+    </Svg>
+  );
+}
+
+/** Logo lengkap: simbol + tulisan "Palti FX / FOREX" (untuk splash & halaman pembuka). */
+export function LogoFull({ width = 180, variant = 'gold' }: { width?: number; variant?: Variant }) {
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <LogoMark size={width * 0.86} variant={variant} />
+      <View style={{ height: width * 0.1 }} />
+      <Wordmark width={width} variant={variant} />
+    </View>
   );
 }

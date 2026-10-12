@@ -1,7 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EquityChart } from '../components/EquityChart';
+import { StreakCard } from '../components/Streak';
+import { computeStreak } from '../lib/achievements';
 import { CountUp, FadeIn, PressScale, tap } from '../components/motion';
 import {
   Card,
@@ -13,13 +17,16 @@ import {
   Screen,
   Segmented,
   SectionTitle,
+  Sheet,
 } from '../components/ui';
 import { profitLoss } from '../lib/calc';
 import { fmt, fmtDate, parseNum, pct, signedUsd, todayIso, usd } from '../lib/format';
 import { findInstrument } from '../lib/instruments';
 import { computeStats, Trade, useStore } from '../lib/store';
 import { useNav } from '../nav';
-import { colors, fonts } from '../theme';
+import { colors, fonts, goldGradient } from '../theme';
+
+const native = Platform.OS !== 'web';
 
 type Period = 'all' | 'month' | 'week';
 
@@ -35,22 +42,27 @@ const inPeriod = (t: Trade, p: Period) => {
 
 export function JournalScreen() {
   const nav = useNav();
-  const { trades } = useStore();
+  const { trades, deleteTrade } = useStore();
   const [period, setPeriod] = useState<Period>('all');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const list = useMemo(() => trades.filter((t) => inPeriod(t, period)), [trades, period]);
   const s = useMemo(() => computeStats(list), [list]);
+  const selected = trades.find((t) => t.id === selectedId) ?? null;
+  const streak = useMemo(() => computeStreak(trades), [trades]);
+  const addTrade = () => nav.push({ name: 'tradeForm', params: {} });
 
   return (
     <Screen
       title="Jurnal Trading"
       eyebrow="PERFORMA"
       subtitle="Tersimpan aman di HP kamu"
-      right={
-        <PressScale onPress={() => nav.push({ name: 'tradeForm', params: {} })} style={st.addBtn} accessibilityLabel="Tambah trade">
-          <Ionicons name="add" size={24} color={colors.ink} />
-        </PressScale>
-      }
+      bottomPad={200}
+      floating={<AddTradeFab onPress={addTrade} />}
     >
+      <FadeIn delay={30}>
+        <StreakCard streak={streak} />
+      </FadeIn>
+
       <Segmented
         value={period}
         onChange={setPeriod}
@@ -62,55 +74,115 @@ export function JournalScreen() {
       />
 
       <FadeIn delay={60}>
-      <Card gold>
-        <Text style={st.netLabel}>Net profit / loss</Text>
-        <CountUp
-          value={s.net}
-          format={(n) => (s.count ? signedUsd(n) : '$0')}
-          style={[st.net, { color: s.net > 0 ? colors.green : s.net < 0 ? colors.red : colors.goldLight }]}
-        />
-        <View style={{ marginTop: 12 }}>
-          <EquityChart data={s.equity} />
-        </View>
-      </Card>
+        <Card gold>
+          <Text style={st.netLabel}>Net profit / loss</Text>
+          <CountUp
+            value={s.net}
+            format={(n) => (s.count ? signedUsd(n) : '$0')}
+            style={[st.net, { color: s.net > 0 ? colors.green : s.net < 0 ? colors.red : colors.goldLight }]}
+          />
+          <View style={{ marginTop: 12 }}>
+            <EquityChart data={s.equity} />
+          </View>
+        </Card>
       </FadeIn>
 
       <FadeIn delay={140}>
-      <View style={st.statsGrid}>
-        <Stat label="Total trade" value={String(s.count)} />
-        <Stat label="Win rate" value={s.count ? pct(s.winRate, 0) : '—'} />
-        <Stat label="Menang / Kalah" value={`${s.wins} / ${s.losses}`} />
-        <Stat label="Profit factor" value={s.profitFactor == null ? '∞' : s.count ? fmt(s.profitFactor, 2) : '—'} />
-        <Stat label="Rata-rata win" value={s.wins ? usd(s.avgWin) : '—'} color={colors.green} />
-        <Stat label="Rata-rata loss" value={s.losses ? usd(-s.avgLoss) : '—'} color={colors.red} />
-        <Stat label="Profit terbesar" value={s.best > 0 ? usd(s.best) : '—'} />
-        <Stat label="Loss terbesar" value={s.worst < 0 ? usd(s.worst) : '—'} />
-      </View>
+        <View style={st.statsGrid}>
+          <Stat label="Total trade" value={String(s.count)} />
+          <Stat label="Win rate" value={s.count ? pct(s.winRate, 0) : '—'} />
+          <Stat label="Menang / Kalah" value={`${s.wins} / ${s.losses}`} />
+          <Stat label="Profit factor" value={s.profitFactor == null ? '∞' : s.count ? fmt(s.profitFactor, 2) : '—'} />
+          <Stat label="Rata-rata win" value={s.wins ? usd(s.avgWin) : '—'} color={colors.green} />
+          <Stat label="Rata-rata loss" value={s.losses ? usd(-s.avgLoss) : '—'} color={colors.red} />
+          <Stat label="Profit terbesar" value={s.best > 0 ? usd(s.best) : '—'} />
+          <Stat label="Loss terbesar" value={s.worst < 0 ? usd(s.worst) : '—'} />
+        </View>
       </FadeIn>
 
       <SectionTitle>Riwayat</SectionTitle>
       {list.length === 0 ? (
         <Card>
-          <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+          <View style={{ alignItems: 'center', paddingVertical: 18 }}>
             <Ionicons name="book-outline" size={34} color={colors.gold} />
             <Text style={st.emptyTitle}>Belum ada catatan</Text>
-            <Text style={st.emptySub}>Catat setiap trade untuk melihat statistik performa kamu.</Text>
-            <GoldButton
-              title="Tambah trade"
-              icon="add"
-              style={{ marginTop: 16, alignSelf: 'stretch' }}
-              onPress={() => nav.push({ name: 'tradeForm', params: {} })}
-            />
+            <Text style={st.emptySub}>Tekan tombol “Catat Trade” di bawah untuk mulai mencatat.</Text>
           </View>
         </Card>
       ) : (
-        list.map((t, i) => (
-          <FadeIn key={t.id} delay={200 + Math.min(i, 10) * 50} from="right">
-            <TradeRow t={t} onPress={() => nav.push({ name: 'tradeForm', params: { tradeId: t.id } })} />
-          </FadeIn>
-        ))
+        <>
+          <View style={st.lockHint}>
+            <Ionicons name="lock-closed" size={12} color={colors.muted} />
+            <Text style={st.lockHintText}>Catatan terkunci. Ketuk untuk melihat detail.</Text>
+          </View>
+          {list.map((t, i) => (
+            <FadeIn key={t.id} delay={200 + Math.min(i, 10) * 50} from="right">
+              <TradeRow t={t} onPress={() => setSelectedId(t.id)} />
+            </FadeIn>
+          ))}
+        </>
       )}
+
+      <TradeDetailSheet
+        trade={selected}
+        onClose={() => setSelectedId(null)}
+        onEdit={(id) => {
+          setSelectedId(null);
+          nav.push({ name: 'tradeForm', params: { tradeId: id } });
+        }}
+        onDelete={(id) => {
+          deleteTrade(id);
+          setSelectedId(null);
+        }}
+      />
     </Screen>
+  );
+}
+
+/** Tombol besar "Catat Trade" yang melayang di atas menu bawah, dengan cahaya berdenyut. */
+function AddTradeFab({ onPress }: { onPress: () => void }) {
+  const insets = useSafeAreaInsets();
+  const glow = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glow, { toValue: 1, duration: 1300, easing: Easing.out(Easing.quad), useNativeDriver: native }),
+        Animated.delay(900),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [glow]);
+  return (
+    <View
+      pointerEvents="box-none"
+      style={[st.fabWrap, { bottom: Math.max(insets.bottom, 12) + 78 }]}
+    >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          st.fabGlow,
+          {
+            opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] }),
+            transform: [
+              { scaleX: glow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) },
+              { scaleY: glow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }) },
+            ],
+          },
+        ]}
+      />
+      <PressScale onPress={onPress} accessibilityLabel="Tambah trade" scaleTo={0.95}>
+        <LinearGradient colors={goldGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.fab}>
+          <View style={st.fabIcon}>
+            <Ionicons name="add" size={26} color={colors.goldLight} />
+          </View>
+          <View>
+            <Text style={st.fabTitle}>Catat Trade</Text>
+            <Text style={st.fabSub}>Tulis hasil trading hari ini</Text>
+          </View>
+        </LinearGradient>
+      </PressScale>
+    </View>
   );
 }
 
@@ -156,11 +228,143 @@ function TradeRow({ t, onPress }: { t: Trade; onPress: () => void }) {
   );
 }
 
+type Step = 'view' | 'confirmEdit' | 'confirmDelete';
+
+/**
+ * Detail trade (hanya baca). Mengedit/menghapus butuh 2 langkah:
+ * tekan Edit/Hapus → konfirmasi → baru bisa diubah.
+ */
+function TradeDetailSheet({
+  trade,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  trade: Trade | null;
+  onClose: () => void;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [step, setStep] = useState<Step>('view');
+  const [last, setLast] = useState<Trade | null>(trade);
+  useEffect(() => {
+    if (trade) {
+      setLast(trade);
+      setStep('view');
+    }
+  }, [trade]);
+  const t = trade ?? last; // tetap tampilkan isi saat animasi menutup
+  if (!t) return null;
+  const plColor = t.pl > 0 ? colors.green : t.pl < 0 ? colors.red : colors.text;
+  const num = (n?: number) => (n == null || !isFinite(n) ? '—' : String(n));
+
+  return (
+    <Sheet visible={!!trade} onClose={onClose} title={step === 'view' ? `${t.symbol} · ${t.direction}` : ' '}>
+      {step === 'view' && (
+        <FadeIn from="none" duration={220}>
+          <View style={st.detailHead}>
+            <View>
+              <Text style={st.detailLabel}>Hasil</Text>
+              <Text style={[st.detailPl, { color: plColor }]}>{signedUsd(t.pl)}</Text>
+            </View>
+            <View style={st.lockBadge}>
+              <Ionicons name="lock-closed" size={12} color={colors.gold} />
+              <Text style={st.lockBadgeText}>Terkunci</Text>
+            </View>
+          </View>
+          <View>
+            <View style={st.detailGrid}>
+              <Detail label="Tanggal" value={fmtDate(t.date)} />
+              <Detail label="Lot" value={fmt(t.lot, 2)} />
+              <Detail label="Entry" value={num(t.entry)} />
+              <Detail label="Exit" value={num(t.exit)} />
+              <Detail label="Stop loss" value={num(t.sl)} />
+              <Detail label="Take profit" value={num(t.tp)} />
+              {t.pips != null && isFinite(t.pips) && (
+                <Detail label="Pergerakan" value={`${fmt(t.pips * 10, 0)} pt · ${fmt(t.pips, 1)} pips`} />
+              )}
+              {t.emotion ? <Detail label="Emosi" value={t.emotion} /> : null}
+            </View>
+            {t.setup ? <Detail label="Setup" value={t.setup} wide /> : null}
+            {t.notes ? <Detail label="Catatan" value={t.notes} wide /> : null}
+          </View>
+          <View style={st.actions}>
+            <GoldButton
+              title="Hapus"
+              icon="trash-outline"
+              variant="danger"
+              style={{ flex: 1 }}
+              onPress={() => setStep('confirmDelete')}
+            />
+            <GoldButton
+              title="Edit"
+              icon="create-outline"
+              variant="outline"
+              style={{ flex: 1.4 }}
+              onPress={() => setStep('confirmEdit')}
+            />
+          </View>
+        </FadeIn>
+      )}
+
+      {step !== 'view' && (
+        <FadeIn from="scale" duration={260}>
+          <View style={{ alignItems: 'center', paddingTop: 4 }}>
+            <View style={[st.confirmIcon, step === 'confirmDelete' && { backgroundColor: colors.red + '22' }]}>
+              <Ionicons
+                name={step === 'confirmEdit' ? 'create' : 'trash'}
+                size={28}
+                color={step === 'confirmEdit' ? colors.gold : colors.red}
+              />
+            </View>
+            <Text style={st.confirmTitle}>
+              {step === 'confirmEdit' ? 'Yakin mau mengubah catatan ini?' : 'Hapus catatan ini?'}
+            </Text>
+            <Text style={st.confirmText}>
+              {step === 'confirmEdit'
+                ? `${t.symbol} ${t.direction} · ${fmtDate(t.date)} · ${signedUsd(t.pl)}\n\nJurnal yang jujur adalah kunci evaluasi. Ubah hanya untuk memperbaiki salah input.`
+                : `${t.symbol} ${t.direction} · ${fmtDate(t.date)} · ${signedUsd(t.pl)}\n\nCatatan yang dihapus tidak bisa dikembalikan.`}
+            </Text>
+          </View>
+          <View style={st.actions}>
+            <GoldButton title="Batal" variant="outline" style={{ flex: 1 }} onPress={() => setStep('view')} />
+            {step === 'confirmEdit' ? (
+              <GoldButton title="Ya, edit" icon="create-outline" style={{ flex: 1.4 }} onPress={() => onEdit(t.id)} />
+            ) : (
+              <GoldButton
+                title="Ya, hapus"
+                icon="trash"
+                variant="danger"
+                style={{ flex: 1.4 }}
+                onPress={() => {
+                  tap('success');
+                  onDelete(t.id);
+                }}
+              />
+            )}
+          </View>
+        </FadeIn>
+      )}
+    </Sheet>
+  );
+}
+
+function Detail({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <View style={[st.detail, wide && { width: '100%', marginTop: 10 }]}>
+      <Text style={st.detailLabel}>{label}</Text>
+      <Text style={st.detailValue} numberOfLines={wide ? 4 : 1}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 const EMOTIONS = ['Tenang', 'Yakin', 'Ragu', 'Takut', 'Serakah', 'Balas dendam'];
 
 export function TradeFormScreen({ tradeId }: { tradeId?: string }) {
   const nav = useNav();
-  const { trades, saveTrade, deleteTrade, settings } = useStore();
+  const { trades, saveTrade, settings } = useStore();
   const existing = tradeId ? trades.find((t) => t.id === tradeId) : undefined;
   const str = (n?: number) => (n == null || !isFinite(n) ? '' : String(n));
 
@@ -215,22 +419,6 @@ export function TradeFormScreen({ tradeId }: { tradeId?: string }) {
     });
     tap('success');
     nav.pop();
-  };
-
-  const remove = () => {
-    if (!existing) return;
-    const doIt = () => {
-      deleteTrade(existing.id);
-      nav.pop();
-    };
-    if (Platform.OS === 'web') {
-      doIt(); // versi web hanya untuk preview
-    } else {
-      Alert.alert('Hapus trade?', 'Catatan ini akan dihapus permanen.', [
-        { text: 'Batal', style: 'cancel' },
-        { text: 'Hapus', style: 'destructive', onPress: doIt },
-      ]);
-    }
   };
 
   return (
@@ -294,19 +482,83 @@ export function TradeFormScreen({ tradeId }: { tradeId?: string }) {
 
       {error ? <Note icon="alert-circle-outline">{error}</Note> : null}
       <GoldButton title={existing ? 'Simpan perubahan' : 'Simpan trade'} icon="checkmark" onPress={save} style={{ marginTop: 16 }} />
-      {existing && <GoldButton title="Hapus trade" icon="trash-outline" variant="danger" onPress={remove} style={{ marginTop: 10 }} />}
     </Screen>
   );
 }
 
 const st = StyleSheet.create({
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
+  fabWrap: { position: 'absolute', left: 18, right: 18, alignItems: 'stretch' },
+  fabGlow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 22,
     backgroundColor: colors.gold,
+  },
+  fab: {
+    height: 64,
+    borderRadius: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    shadowColor: colors.gold,
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+  },
+  fabIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 14,
+  },
+  fabTitle: { color: colors.ink, fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.3 },
+  fabSub: { color: 'rgba(22,17,10,0.65)', fontFamily: fonts.semi, fontSize: 12, marginTop: 1 },
+  lockHint: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4, marginBottom: 10 },
+  lockHintText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12 },
+  detailHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
+  detailPl: { fontFamily: fonts.display, fontSize: 32, letterSpacing: -0.8, marginTop: 2 },
+  lockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.borderGold,
+    backgroundColor: 'rgba(237,193,58,0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  lockBadgeText: { color: colors.gold, fontFamily: fonts.bold, fontSize: 11 },
+  detailGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 12 },
+  detail: { width: '50%' },
+  detailLabel: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12 },
+  detailValue: { color: colors.text, fontFamily: fonts.semi, fontSize: 15, marginTop: 2 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 20, flexShrink: 0 },
+  confirmIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: 'rgba(237,193,58,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  confirmTitle: { color: colors.text, fontFamily: fonts.display, fontSize: 20, textAlign: 'center', letterSpacing: -0.3 },
+  confirmText: {
+    color: colors.textDim,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 8,
   },
   netLabel: { color: colors.textDim, fontFamily: fonts.semi, fontSize: 13 },
   net: { fontFamily: fonts.display, fontSize: 36, marginTop: 4, letterSpacing: -1 },

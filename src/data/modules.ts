@@ -15,10 +15,12 @@
 
 export type Lesson = {
   id: string;
+  moduleId?: string;
   title: string;
   minutes: number;
+  youtubeUrls?: string[];
   content: string;
-  youtube_urls?: string[];
+  sortOrder?: number;
 };
 
 export type Module = {
@@ -26,11 +28,12 @@ export type Module = {
   title: string;
   subtitle: string;
   level: 'Pemula' | 'Menengah' | 'Lanjutan';
-  icon: string | any;
+  icon: 'school-outline' | 'shield-checkmark-outline' | 'analytics-outline' | 'bulb-outline' | 'trending-up-outline';
   lessons: Lesson[];
+  sortOrder?: number;
 };
 
-export const DEFAULT_MODULES: Module[] = [
+export const MODULES: Module[] = [
   {
     id: 'dasar',
     title: 'Dasar-Dasar Forex',
@@ -179,12 +182,6 @@ Lihat statistik di menu Jurnal secara berkala: win rate, profit factor, dan kurv
   },
 ];
 
-export let MODULES: Module[] = DEFAULT_MODULES;
-
-export function setGlobalModules(mods: Module[]) {
-  MODULES = mods;
-}
-
 export const findModule = (id: string) => MODULES.find((m) => m.id === id);
 
-export const ALL_LESSONS = DEFAULT_MODULES.flatMap((m) => m.lessons.map((l) => ({ ...l, moduleId: m.id })));
+export const ALL_LESSONS = MODULES.flatMap((m) => m.lessons.map((l) => ({ ...l, moduleId: m.id })));

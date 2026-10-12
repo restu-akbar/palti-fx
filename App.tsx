@@ -12,15 +12,24 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
 import { LogoMark } from './src/components/Logo';
 import { tap } from './src/components/motion';
 import { IconName } from './src/components/ui';
-import { StoreProvider } from './src/lib/store';
+import { StoreProvider, useStore } from './src/lib/store';
 import { NavProvider, Route, TabKey, useNav } from './src/nav';
+import { EduProvider } from './src/context/EduContext';
+import { AuthService } from './src/lib/authService';
+import { getSecureNickname } from './src/lib/nicknameStorage';
 import { EduScreen, LessonScreen, ModuleScreen } from './src/screens/EduScreens';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { JournalScreen, TradeFormScreen } from './src/screens/JournalScreens';
+import { LoginScreen } from './src/screens/LoginScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { ToolScreen, ToolsScreen } from './src/screens/ToolScreens';
+import { AchievementsScreen } from './src/screens/AchievementsScreen';
+import { AchievementWatcher } from './src/components/AchievementWatcher';
 import { colors, fonts, goldGradient } from './src/theme';
 
 const native = Platform.OS !== 'web';
@@ -50,6 +59,8 @@ function renderRoute(route: Route) {
       return <JournalScreen />;
     case 'tradeForm':
       return <TradeFormScreen tradeId={route.params.tradeId} />;
+    case 'achievements':
+      return <AchievementsScreen />;
   }
 }
 
@@ -108,12 +119,11 @@ function TabBar() {
   }, [idx, x]);
   const tabW = w / TABS.length;
   return (
-    <View style={[st.tabWrap, { paddingBottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
+    <View style={[st.tabWrap, { paddingBottom: Math.max(insets.bottom, 12), pointerEvents: 'box-none' }]}>
       <LinearGradient
         colors={['rgba(6,6,8,0)', 'rgba(6,6,8,0.92)', colors.bg]}
         locations={[0, 0.55, 1]}
-        style={st.fade}
-        pointerEvents="none"
+        style={[st.fade, { pointerEvents: 'none' }]}
       />
       <View style={st.tabBar} onLayout={(e) => setW(e.nativeEvent.layout.width - 12)}>
         {w > 0 && (
@@ -148,27 +158,76 @@ function TabBar() {
   );
 }
 
-function Splash() {
-  const v = useRef(new Animated.Value(0)).current;
+/**
+ * Splash Screen: LogoMark PALTI FX dengan animasi spring physics.
+ * Logo mulai dari posisi miring, melayang masuk dengan putaran halus ke tengah,
+ * lalu larut keluar dengan lembut. Menggunakan spring untuk motion yang natural.
+ */
+function Splash({ onFinish }: { onFinish: () => void }) {
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
+
+  const progress = useRef(new Animated.Value(0)).current;
+  const fade = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(v, { toValue: 1, duration: 800, useNativeDriver: native }),
-        Animated.timing(v, { toValue: 0.4, duration: 800, useNativeDriver: native }),
-      ]),
-    ).start();
-  }, [v]);
+    if (Platform.OS !== 'web') {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+
+    // Spring entrance: natural deceleration tanpa easing buatan
+    Animated.spring(progress, {
+      toValue: 1,
+      tension: 28,
+      friction: 9,
+      useNativeDriver: native,
+    }).start();
+
+    // Setelah logo settle (~1.4s), larut keluar ke Onboarding
+    const exit = setTimeout(() => {
+      Animated.timing(fade, {
+        toValue: 0,
+        duration: 380,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: native,
+      }).start(() => onFinishRef.current());
+    }, 1400);
+
+    return () => clearTimeout(exit);
+  }, [progress, fade]);
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-      <Animated.View style={{ opacity: v }}>
-        <LogoMark size={84} />
+    <Animated.View
+      style={[
+        StyleSheet.absoluteFill,
+        {
+          backgroundColor: colors.bg,
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          opacity: fade,
+          pointerEvents: 'none',
+        },
+      ]}
+    >
+      <Animated.View
+        style={{
+          opacity: progress.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 1, 1] }),
+          transform: [
+            { rotate: progress.interpolate({ inputRange: [0, 1], outputRange: ['-24deg', '0deg'] }) },
+            { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.68, 1] }) },
+          ],
+        }}
+      >
+        <LogoMark size={142} />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
-export default function App() {
-  const [loaded] = useFonts({
+function MainApp() {
+  const { ready, settings, updateSettings, syncFromCloud } = useStore();
+  const [fontsLoaded] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
@@ -177,19 +236,142 @@ export default function App() {
     ...Ionicons.font,
   });
 
-  if (!loaded) return <Splash />;
+  const [splashFinished, setSplashFinished] = useState(false);
+  const [authView, setAuthView] = useState<'login' | 'forgot_password'>('login');
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [authChecked, setAuthChecked] = useState(false);
 
+  const isLoggedIn = settings.isLoggedIn ?? false;
+  const isWelcomed = settings.welcomed ?? false;
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setAuthView('login');
+    }
+  }, [isLoggedIn]);
+
+  // Rekonsiliasi sesi sekali saat startup (setelah store ready)
+  const sessionCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!ready || sessionCheckedRef.current) return;
+    sessionCheckedRef.current = true;
+
+    AuthService.restoreSession().then(async (res) => {
+      if (res.state === 'authenticated') {
+        const userKey = res.identifier;
+        const savedNick = await getSecureNickname(userKey);
+        updateSettings({
+          isLoggedIn: true,
+          role: res.role || 'member',
+          activeUser: userKey,
+          name: savedNick || res.name || res.identifier,
+        });
+        syncFromCloud();
+      } else if (res.state === 'unauthenticated') {
+        if (isLoggedIn) {
+          updateSettings({ isLoggedIn: false, role: undefined, name: undefined, activeUser: undefined });
+        }
+      }
+      setAuthChecked(true);
+    });
+  }, [ready, isLoggedIn, updateSettings, syncFromCloud]);
+
+  // Listener bila sesi berakhir di luar app (misal token revoke)
+  useEffect(() => {
+    const sub = AuthService.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        updateSettings({ isLoggedIn: false });
+      }
+    });
+    return () => {
+      sub.unsubscribe();
+    };
+  }, [updateSettings]);
+
+  // 1. Tunggu hingga data lokal AsyncStorage siap, font selesai dimuat, dan cek sesi awal tuntas
+  if (!ready || !fontsLoaded || !authChecked) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <LogoMark size={142} />
+      </View>
+    );
+  }
+
+  // Helper untuk menentukan konten layar aktif tanpa glitch / re-mount splash
+  const renderContent = () => {
+    // A. Pengguna sudah login -> Masuk ke Dashboard Beranda & Navigasi
+    if (isLoggedIn) {
+      return (
+        <>
+          <CurrentScreen />
+          <TabBar />
+          <AchievementWatcher />
+        </>
+      );
+    }
+
+    // B. Pengguna baru (belum pernah menyelesaikan onboarding) -> Tampilkan Onboarding
+    if (!isWelcomed) {
+      return (
+        <OnboardingScreen
+          onDone={() => updateSettings({ welcomed: true })}
+          onSkip={() => updateSettings({ welcomed: true })}
+        />
+      );
+    }
+
+    // C. Pengguna sudah melewati onboarding -> Tampilkan Login atau Reset Password
+    if (authView === 'forgot_password') {
+      return (
+        <ResetPasswordScreen
+          initialIdentifier={forgotIdentifier}
+          onBackToLogin={() => setAuthView('login')}
+          onSuccess={() => setAuthView('login')}
+        />
+      );
+    }
+
+    return (
+      <LoginScreen
+        onForgotPassword={(id) => {
+          setForgotIdentifier(id || '');
+          setAuthView('forgot_password');
+        }}
+        onSuccess={async ({ identifier, name, role }) => {
+          const savedNick = await getSecureNickname(identifier);
+          updateSettings({
+            isLoggedIn: true,
+            role: role || 'member',
+            activeUser: identifier,
+            name: savedNick || name || identifier,
+          });
+          syncFromCloud();
+        }}
+      />
+    );
+  };
+
+  return (
+    <View style={st.outer}>
+      <View style={st.app}>
+        <StatusBar style="light" />
+        {renderContent()}
+        {!splashFinished && (
+          <Splash onFinish={() => setSplashFinished(true)} />
+        )}
+      </View>
+    </View>
+  );
+}
+
+export default function App() {
   return (
     <SafeAreaProvider>
       <StoreProvider>
         <NavProvider>
-          <View style={st.outer}>
-            <View style={st.app}>
-              <StatusBar style="light" />
-              <CurrentScreen />
-              <TabBar />
-            </View>
-          </View>
+          <EduProvider>
+            <MainApp />
+          </EduProvider>
         </NavProvider>
       </StoreProvider>
     </SafeAreaProvider>
