@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_MODULES, setGlobalModules, Module, Lesson } from '../data/modules';
-import { fetchEduModulesFromSupabase, subscribeToEduRealtime } from './supabase';
+import { fetchEduModulesFromSupabase, subscribeToEduRealtime, supabase } from './supabase';
 
 export type Trade = {
   id: string;
@@ -43,6 +43,7 @@ export type StoreValue = {
   findModule: (id: string) => Module | undefined;
   refreshModules: () => Promise<void>;
   isSyncingModules: boolean;
+  logoutAndResetSession: () => Promise<void>;
 };
 
 const KEYS = {
@@ -168,6 +169,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [modules]
   );
 
+  const logoutAndResetSession = useCallback(async () => {
+    try {
+      // 1. Sign out dari Supabase Auth
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn('[logoutAndResetSession] Supabase signOut warning:', e);
+      }
+
+      // 2. Bersihkan seluruh penyimpanan lokal AsyncStorage
+      await AsyncStorage.clear();
+
+      // 3. Reset seluruh state di memori aplikasi
+      setTrades([]);
+      setCompleted({});
+      setSettings({});
+      setModules(DEFAULT_MODULES);
+      setGlobalModules(DEFAULT_MODULES);
+
+      // 4. Sinkronisasi ulang materi segar dari Supabase
+      await refreshModules();
+    } catch (err) {
+      console.error('[logoutAndResetSession] Error resetting session:', err);
+    }
+  }, [refreshModules]);
+
   const value = useMemo(
     () => ({
       ready,
@@ -183,6 +210,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       findModule,
       refreshModules,
       isSyncingModules,
+      logoutAndResetSession,
     }),
     [
       ready,
@@ -198,6 +226,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       findModule,
       refreshModules,
       isSyncingModules,
+      logoutAndResetSession,
     ],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
