@@ -7,7 +7,6 @@ interface AdminLayoutProps {
   activeTab: 'dashboard' | 'materi' | 'invitations' | 'users';
   onSelectTab: (tab: 'dashboard' | 'materi' | 'invitations' | 'users') => void;
   onLogout: () => void;
-  onViewLanding?: () => void;
   onUpdateAdminProfile?: (profile: Profile) => void;
   children: React.ReactNode;
 }
@@ -17,7 +16,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   activeTab,
   onSelectTab,
   onLogout,
-  onViewLanding,
   onUpdateAdminProfile,
   children,
 }) => {
@@ -41,7 +39,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         activeTab={activeTab}
         onSelectTab={onSelectTab}
         onLogout={onLogout}
-        onViewLanding={onViewLanding}
         onUpdateAdminProfile={onUpdateAdminProfile}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}

@@ -9,17 +9,19 @@ import {
   CheckCircle2,
   AlertCircle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Check
 } from 'lucide-react';
 import type { Profile } from '../../types/admin';
-import { AdminAuthService } from '../../lib/adminAuth';
+import { AdminAuthService, checkAdminPasswordCriteria } from '../../lib/adminAuth';
 
 export interface AdminSidebarProps {
   currentAdmin: Profile;
   activeTab: 'dashboard' | 'materi' | 'invitations' | 'users';
   onSelectTab: (tab: 'dashboard' | 'materi' | 'invitations' | 'users') => void;
   onLogout: () => void;
-  onViewLanding?: () => void;
   onUpdateAdminProfile?: (profile: Profile) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -48,6 +50,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const [editEmail, setEditEmail] = useState(currentAdmin.email || '');
   const [editPassword, setEditPassword] = useState('');
   const [editConfirmPassword, setEditConfirmPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [showEditConfirmPassword, setShowEditConfirmPassword] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
@@ -57,6 +61,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     setEditEmail(currentAdmin.email || '');
     setEditPassword('');
     setEditConfirmPassword('');
+    setShowEditPassword(false);
+    setShowEditConfirmPassword(false);
     setProfileError(null);
     setProfileSuccess(null);
     setShowProfileModal(true);
@@ -76,8 +82,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       return;
     }
     if (editPassword) {
-      if (editPassword.length < 6) {
-        setProfileError('Kata sandi baru minimal terdiri dari 6 karakter.');
+      const pwCriteria = checkAdminPasswordCriteria(editPassword);
+      if (!pwCriteria.minLength) {
+        setProfileError('Kata sandi baru minimal terdiri dari 8 karakter.');
+        return;
+      }
+      if (!pwCriteria.hasLetter) {
+        setProfileError('Kata sandi baru harus mengandung setidaknya satu huruf (a-z / A-Z).');
+        return;
+      }
+      if (!pwCriteria.hasDigit) {
+        setProfileError('Kata sandi baru harus mengandung setidaknya satu angka (0-9).');
         return;
       }
       if (editPassword !== editConfirmPassword) {
@@ -431,20 +446,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             textAlign: 'center',
             position: 'relative',
           }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '50%',
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 1.25rem',
-              color: '#F87171',
-            }}>
-              <LogOut size={22} />
-            </div>
 
             <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#FFF', marginBottom: '0.65rem' }}>
               Konfirmasi Log Out
@@ -457,7 +458,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               <button
                 type="button"
                 onClick={() => setShowLogoutModal(false)}
-                className="btn-secondary"
+                className="btn-cancel"
                 disabled={loggingOut}
                 style={{ padding: '0.65rem 1rem', fontSize: '0.84rem', justifyContent: 'center' }}
               >
@@ -610,28 +611,143 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 <label className="pfx-label" htmlFor="edit-admin-password">
                   Kata Sandi Baru <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(Opsional)</span>
                 </label>
-                <input
-                  id="edit-admin-password"
-                  type="password"
-                  className="pfx-input"
-                  value={editPassword}
-                  onChange={(e) => setEditPassword(e.target.value)}
-                  placeholder="masukan password baru disini"
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="edit-admin-password"
+                    name="new-password"
+                    type={showEditPassword ? 'text' : 'password'}
+                    className="pfx-input"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    placeholder="Minimal 8 karakter (huruf & angka)"
+                    autoComplete="new-password"
+                    style={{ paddingRight: '2.5rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-dim)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '0.25rem',
+                      transition: 'color 0.15s ease',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.color = '#FFF')}
+                    onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
+                    tabIndex={-1}
+                    aria-label={showEditPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                  >
+                    {showEditPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
               </div>
 
               {editPassword && (
                 <div style={{ marginBottom: '1.25rem' }}>
                   <label className="pfx-label" htmlFor="edit-admin-confirm-password">Konfirmasi Kata Sandi Baru</label>
-                  <input
-                    id="edit-admin-confirm-password"
-                    type="password"
-                    className="pfx-input"
-                    value={editConfirmPassword}
-                    onChange={(e) => setEditConfirmPassword(e.target.value)}
-                    placeholder="Ulangi kata sandi baru"
-                    required
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="edit-admin-confirm-password"
+                      name="confirm-password"
+                      type={showEditConfirmPassword ? 'text' : 'password'}
+                      className="pfx-input"
+                      value={editConfirmPassword}
+                      onChange={(e) => setEditConfirmPassword(e.target.value)}
+                      placeholder="Ulangi kata sandi baru"
+                      required
+                      autoComplete="new-password"
+                      style={{ paddingRight: '2.5rem' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditConfirmPassword(!showEditConfirmPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '0.75rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-dim)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0.25rem',
+                        transition: 'color 0.15s ease',
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.color = '#FFF')}
+                      onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
+                      tabIndex={-1}
+                      aria-label={showEditConfirmPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                    >
+                      {showEditConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {editPassword && (
+                <div style={{
+                  marginBottom: '1.25rem',
+                  padding: '0.75rem 0.85rem',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.025)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.35rem',
+                  fontSize: '0.73rem',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    color: editPassword.length >= 8 ? 'var(--success)' : 'var(--text-dim)',
+                    transition: 'color 0.15s ease',
+                  }}>
+                    <Check size={12} style={{ opacity: editPassword.length >= 8 ? 1 : 0.3 }} />
+                    <span>Minimal 8 karakter</span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    color: /[a-zA-Z]/.test(editPassword) ? 'var(--success)' : 'var(--text-dim)',
+                    transition: 'color 0.15s ease',
+                  }}>
+                    <Check size={12} style={{ opacity: /[a-zA-Z]/.test(editPassword) ? 1 : 0.3 }} />
+                    <span>Mengandung huruf (A-Z / a-z)</span>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    color: /[0-9]/.test(editPassword) ? 'var(--success)' : 'var(--text-dim)',
+                    transition: 'color 0.15s ease',
+                  }}>
+                    <Check size={12} style={{ opacity: /[0-9]/.test(editPassword) ? 1 : 0.3 }} />
+                    <span>Mengandung angka (0-9)</span>
+                  </div>
+                  {editConfirmPassword.length > 0 && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      color: editPassword === editConfirmPassword ? 'var(--success)' : '#FDA4AF',
+                      transition: 'color 0.15s ease',
+                    }}>
+                      <Check size={12} style={{ opacity: editPassword === editConfirmPassword ? 1 : 0.4 }} />
+                      <span>{editPassword === editConfirmPassword ? 'Konfirmasi kata sandi cocok' : 'Konfirmasi kata sandi belum cocok'}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -639,7 +755,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowProfileModal(false)}
-                  className="btn-secondary"
+                  className="btn-cancel"
                   disabled={profileSaving}
                   style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}
                 >

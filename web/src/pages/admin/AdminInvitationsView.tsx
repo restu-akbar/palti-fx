@@ -542,7 +542,7 @@ export const AdminInvitationsView: React.FC = () => {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                <button type="button" onClick={() => setShowCreateModal(false)} className="btn-secondary">
+                <button type="button" onClick={() => setShowCreateModal(false)} className="btn-cancel">
                   Batal
                 </button>
                 <button type="submit" className="btn-primary" disabled={actionLoading}>
@@ -665,7 +665,7 @@ export const AdminInvitationsView: React.FC = () => {
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-              <button onClick={() => setDeleteConfirm(null)} className="btn-secondary">
+              <button onClick={() => setDeleteConfirm(null)} className="btn-cancel">
                 Batal
               </button>
               <button onClick={executeDelete} className="btn-danger-ghost" disabled={actionLoading}>

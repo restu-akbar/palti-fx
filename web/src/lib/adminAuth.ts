@@ -67,11 +67,19 @@ export class AdminAuthService {
         }
       }
 
-      if (!resolvedProfile || resolvedProfile.role !== 'admin') {
-        // Bukan admin! Keluarkan dari sesi backoffice
-        await supabase.auth.signOut();
+      if (!resolvedProfile || resolvedProfile.role !== 'admin' || resolvedProfile.status === 'suspended') {
+        // Bukan admin atau suspended! Bersihkan sesi dan cache
+        try {
+          localStorage.removeItem('palti_admin_profile');
+        } catch (e) {}
+        await supabase.auth.signOut().catch(() => {});
         return null;
       }
+
+      // Pastikan state profil terverifikasi tersimpan di localStorage
+      try {
+        localStorage.setItem('palti_admin_profile', JSON.stringify(resolvedProfile));
+      } catch (e) {}
 
       return resolvedProfile;
     } catch (err) {
@@ -160,12 +168,20 @@ export class AdminAuthService {
       }
 
       if (resolvedProfile.status === 'suspended') {
+        try {
+          localStorage.removeItem('palti_admin_profile');
+        } catch (e) {}
         await supabase.auth.signOut();
         return {
           success: false,
           error: 'Akun Administrator ini saat ini berstatus Ditangguhkan (Suspended).',
         };
       }
+
+      // Simpan state login admin ke localStorage agar tetap tersimpan saat web dibuka kembali
+      try {
+        localStorage.setItem('palti_admin_profile', JSON.stringify(resolvedProfile));
+      } catch (e) {}
 
       return { success: true, profile: resolvedProfile };
     } catch (err: any) {
@@ -203,7 +219,12 @@ export class AdminAuthService {
       // 1. Update Supabase Auth jika ada password, email (hanya jika berubah), atau nama (user_metadata)
       const authUpdatePayload: { email?: string; password?: string; data?: { full_name?: string } } = {};
       if (params.password && params.password.trim()) {
-        authUpdatePayload.password = params.password.trim();
+        const pw = params.password.trim();
+        const criteria = checkAdminPasswordCriteria(pw);
+        if (!criteria.isValid) {
+          return { success: false, error: 'Kata sandi baru minimal 8 karakter serta wajib mengandung kombinasi huruf dan angka.' };
+        }
+        authUpdatePayload.password = pw;
       }
       if (isEmailChanged && updates.email) {
         authUpdatePayload.email = updates.email;
@@ -305,7 +326,134 @@ export class AdminAuthService {
     }
   }
 
+  /**
+   * Langkah 1 Pemulihan Sandi: Kirim link / kode OTP reset ke email administrator
+   */
+  static async requestPasswordReset(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail) {
+        return { success: false, error: 'Silakan masukkan alamat email administrator.' };
+      }
+
+      // Validasi format email sederhana
+      if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        return { success: false, error: 'Format alamat email tidak valid.' };
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+      if (error) {
+        console.error('[AdminAuthService.requestPasswordReset] Supabase error:', error);
+        if (error.status === 429 || (error as any).code === 'over_email_send_rate_limit') {
+          return { success: false, error: 'Terlalu banyak permintaan. Silakan tunggu 1-2 menit sebelum mencoba lagi.' };
+        }
+        return { success: false, error: error.message || 'Gagal mengirim instruksi pemulihan kata sandi.' };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('[AdminAuthService.requestPasswordReset]', err);
+      return { success: false, error: err?.message || 'Terjadi kesalahan sistem saat meminta pemulihan sandi.' };
+    }
+  }
+
+  /**
+   * Langkah 2a Pemulihan Sandi: Verifikasi kode OTP recovery 6 digit
+   */
+  static async verifyResetOtp(email: string, otp: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanOtp = otp.trim().replace(/\D/g, '');
+
+      if (!cleanOtp || cleanOtp.length < 6) {
+        return { success: false, error: 'Masukkan kode OTP yang valid (minimal 6 digit angka).' };
+      }
+
+      // Bersihkan residu sesi lokal sebelumnya agar tidak ada konflik sesi pemulihan
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanOtp,
+        type: 'recovery',
+      });
+
+      if (error) {
+        console.error('[AdminAuthService.verifyResetOtp] error:', error);
+        if (error.message.includes('expired') || error.message.includes('invalid')) {
+          return {
+            success: false,
+            error: 'Kode OTP salah atau telah kedaluwarsa. Jika Anda sempat meminta kode lebih dari 1 kali, pastikan menggunakan kode dari email yang PALING TERBARU.',
+          };
+        }
+        return { success: false, error: error.message || 'Verifikasi OTP gagal.' };
+      }
+
+      if (!data.session && !data.user) {
+        return { success: false, error: 'Sesi verifikasi tidak dapat dibuat. Silakan coba kembali.' };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('[AdminAuthService.verifyResetOtp]', err);
+      return { success: false, error: err?.message || 'Terjadi kesalahan sistem saat memverifikasi kode OTP.' };
+    }
+  }
+
+  /**
+   * Langkah 2b Pemulihan Sandi: Simpan kata sandi baru lalu bersihkan sesi recovery
+   */
+  static async updateForgottenPassword(newPassword: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const criteria = checkAdminPasswordCriteria(newPassword);
+      if (!criteria.minLength) {
+        return { success: false, error: 'Kata sandi baru minimal harus terdiri dari 8 karakter.' };
+      }
+      if (!criteria.hasLetter) {
+        return { success: false, error: 'Kata sandi baru harus mengandung setidaknya satu huruf (a-z / A-Z).' };
+      }
+      if (!criteria.hasDigit) {
+        return { success: false, error: 'Kata sandi baru harus mengandung setidaknya satu angka (0-9).' };
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) {
+        console.error('[AdminAuthService.updateForgottenPassword] error:', error);
+        return { success: false, error: error.message || 'Gagal menyimpan kata sandi baru.' };
+      }
+
+      // Logout dari sesi recovery sementara agar admin dapat login ulang secara fresh & aman
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      localStorage.removeItem('palti_admin_profile');
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('[AdminAuthService.updateForgottenPassword]', err);
+      return { success: false, error: err?.message || 'Terjadi kesalahan sistem saat memperbarui kata sandi.' };
+    }
+  }
+
   static async logout(): Promise<void> {
-    await supabase.auth.signOut();
+    try {
+      localStorage.removeItem('palti_admin_profile');
+    } catch (e) {}
+    await supabase.auth.signOut().catch(() => {});
   }
 }
+
+/**
+ * Validasi kriteria kata sandi admin (minimal 8 karakter, huruf, dan angka)
+ */
+export function checkAdminPasswordCriteria(pw: string) {
+  const p = pw ?? '';
+  return {
+    minLength: p.length >= 8,
+    hasLetter: /[a-zA-Z]/.test(p),
+    hasDigit: /[0-9]/.test(p),
+    isValid: p.length >= 8 && /[a-zA-Z]/.test(p) && /[0-9]/.test(p),
+  };
+}
+

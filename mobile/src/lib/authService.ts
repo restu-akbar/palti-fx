@@ -185,8 +185,18 @@ export class AuthService {
         if (!data) return { success: false, error: 'Kode salah atau sudah kedaluwarsa.' };
         email = String(data);
       }
+      // Bersihkan sesi lokal sebelumnya agar tidak ada konflik sesi pemulihan
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
       const { error } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' });
-      if (error) return { success: false, error: mapAuthError(error) };
+      if (error) {
+        if (error.message.includes('expired') || error.message.includes('invalid')) {
+          return {
+            success: false,
+            error: 'Kode salah atau kedaluwarsa. Jika Anda menekan kirim ulang, gunakan kode dari email yang PALING TERBARU.',
+          };
+        }
+        return { success: false, error: mapAuthError(error) };
+      }
       return { success: true };
     } catch (err: any) {
       return { success: false, error: mapAuthError(err) };

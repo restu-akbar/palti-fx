@@ -97,6 +97,7 @@ export function ResetPasswordScreen({
 
   // Handle Send OTP
   const handleSendOtp = async () => {
+    if (isSendingOtp || countdown > 0) return;
     const cleanId = normalizeIdentifier(identifier);
     if (!cleanId) {
       setOtpError('Masukkan email atau ID Member terlebih dahulu');
@@ -126,6 +127,7 @@ export function ResetPasswordScreen({
 
   // Handle Verify OTP
   const handleVerifyOtp = async () => {
+    if (isVerifyingOtp) return;
     Keyboard.dismiss();
     setOtpError(null);
     const cleanId = normalizeIdentifier(identifier);
@@ -152,6 +154,7 @@ export function ResetPasswordScreen({
 
   // Handle Save New Password
   const handleSavePassword = async () => {
+    if (isSavingPassword) return;
     Keyboard.dismiss();
     setPasswordError(null);
 
@@ -186,7 +189,9 @@ export function ResetPasswordScreen({
     normalizeIdentifier(identifier).length > 0 &&
     normalizeOtp(otp).length >= 6;
   const isStep2Valid =
-    newPassword.length >= 8 && confirmPassword.length >= 8 && newPassword === confirmPassword;
+    validatePassword(newPassword) === null &&
+    confirmPassword.length >= 8 &&
+    newPassword === confirmPassword;
 
   return (
     <View style={st.container}>
@@ -317,7 +322,7 @@ export function ResetPasswordScreen({
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Ionicons name="paper-plane-outline" size={14} color={colors.gold} />
                             <Text style={st.sendOtpFullBtnText}>
-                              {countdown > 0 ? `Kirim Ulang Kode OTP (${countdown}s)` : otpSent ? 'Kirim Ulang Kode OTP' : 'Kirim Kode OTP'}
+                              {countdown > 0 ? `Minta Kode Baru (${countdown}s)` : otpSent ? 'Minta Kode OTP Baru' : 'Kirim Kode OTP'}
                             </Text>
                           </View>
                         )}
@@ -348,6 +353,9 @@ export function ResetPasswordScreen({
                           style={st.textInput}
                         />
                       </View>
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', fontFamily: fonts.medium, marginTop: 4 }}>
+                        Masa berlaku kode: 30 menit
+                      </Text>
                     </View>
 
                     {/* Submit Step 1 Button */}
@@ -489,6 +497,26 @@ export function ResetPasswordScreen({
                         />
                         <Text style={[st.reqText, newPassword.length >= 8 && st.reqTextDone]}>
                           Minimal 8 karakter
+                        </Text>
+                      </View>
+                      <View style={st.reqRow}>
+                        <Ionicons
+                          name={/[a-zA-Z]/.test(newPassword) ? 'checkmark-circle' : 'ellipse-outline'}
+                          size={13}
+                          color={/[a-zA-Z]/.test(newPassword) ? colors.green : 'rgba(255,255,255,0.25)'}
+                        />
+                        <Text style={[st.reqText, /[a-zA-Z]/.test(newPassword) && st.reqTextDone]}>
+                          Mengandung huruf (A-Z / a-z)
+                        </Text>
+                      </View>
+                      <View style={st.reqRow}>
+                        <Ionicons
+                          name={/[0-9]/.test(newPassword) ? 'checkmark-circle' : 'ellipse-outline'}
+                          size={13}
+                          color={/[0-9]/.test(newPassword) ? colors.green : 'rgba(255,255,255,0.25)'}
+                        />
+                        <Text style={[st.reqText, /[0-9]/.test(newPassword) && st.reqTextDone]}>
+                          Mengandung angka (0-9)
                         </Text>
                       </View>
                       <View style={st.reqRow}>

@@ -133,7 +133,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
   const isActivateValid =
     isEmail(normalizeIdentifier(activateIdentifier)) &&
     normalizeInviteCode(activationCode).length >= 4 &&
-    activatePassword.length >= 8 &&
+    validatePassword(activatePassword) === null &&
     activatePassword === activateConfirmPassword;
 
   const handleIdentifierBlur = () => {
@@ -177,7 +177,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
     onSuccess({
       identifier: res.identifier || cleanId,
       name: res.name || 'Trader Palti',
-      role: res.role || 'member',
+      role: 'member',
     });
   };
 
@@ -567,7 +567,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                       onSuccess({
                         identifier: activateResult.identifier,
                         name: activateResult.name || 'Trader Palti',
-                        role: activateResult.role || 'member',
+                        role: 'member',
                       });
                     } else {
                       setIdentifier(activateResult?.identifier || activateIdentifier);
@@ -721,6 +721,67 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
                     </Pressable>
                   </View>
                 </View>
+
+                {/* Password Criteria Checklist */}
+                {activatePassword.length > 0 && (
+                  <View style={st.reqList}>
+                    <View style={st.reqRow}>
+                      <Ionicons
+                        name={activatePassword.length >= 8 ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={13}
+                        color={activatePassword.length >= 8 ? colors.green : 'rgba(255,255,255,0.25)'}
+                      />
+                      <Text style={[st.reqText, activatePassword.length >= 8 && st.reqTextDone]}>
+                        Minimal 8 karakter
+                      </Text>
+                    </View>
+                    <View style={st.reqRow}>
+                      <Ionicons
+                        name={/[a-zA-Z]/.test(activatePassword) ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={13}
+                        color={/[a-zA-Z]/.test(activatePassword) ? colors.green : 'rgba(255,255,255,0.25)'}
+                      />
+                      <Text style={[st.reqText, /[a-zA-Z]/.test(activatePassword) && st.reqTextDone]}>
+                        Mengandung huruf (A-Z / a-z)
+                      </Text>
+                    </View>
+                    <View style={st.reqRow}>
+                      <Ionicons
+                        name={/[0-9]/.test(activatePassword) ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={13}
+                        color={/[0-9]/.test(activatePassword) ? colors.green : 'rgba(255,255,255,0.25)'}
+                      />
+                      <Text style={[st.reqText, /[0-9]/.test(activatePassword) && st.reqTextDone]}>
+                        Mengandung angka (0-9)
+                      </Text>
+                    </View>
+                    <View style={st.reqRow}>
+                      <Ionicons
+                        name={
+                          activateConfirmPassword.length > 0 && activatePassword === activateConfirmPassword
+                            ? 'checkmark-circle'
+                            : 'ellipse-outline'
+                        }
+                        size={13}
+                        color={
+                          activateConfirmPassword.length > 0 && activatePassword === activateConfirmPassword
+                            ? colors.green
+                            : 'rgba(255,255,255,0.25)'
+                        }
+                      />
+                      <Text
+                        style={[
+                          st.reqText,
+                          activateConfirmPassword.length > 0 &&
+                            activatePassword === activateConfirmPassword &&
+                            st.reqTextDone,
+                        ]}
+                      >
+                        Kata sandi cocok
+                      </Text>
+                    </View>
+                  </View>
+                )}
 
                 {/* Action Buttons */}
                 <View style={{ gap: 8, marginTop: 4 }}>
@@ -1069,4 +1130,10 @@ const st = StyleSheet.create({
     fontFamily: fonts.semi,
     fontSize: 13,
   },
+
+  /* Password Requirements */
+  reqList: { gap: 6, paddingVertical: 2 },
+  reqRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  reqText: { color: 'rgba(255,255,255,0.35)', fontFamily: fonts.medium, fontSize: 11 },
+  reqTextDone: { color: 'rgba(255,255,255,0.7)' },
 });

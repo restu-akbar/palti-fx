@@ -1764,7 +1764,7 @@ export const AdminMateriView: React.FC = () => {
                   Tersimpan langsung ke database
                 </span>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={() => setShowModModal(false)} className="btn-secondary">
+                  <button type="button" onClick={() => setShowModModal(false)} className="btn-cancel">
                     Batal
                   </button>
                   <button type="submit" className="btn-primary" disabled={actionLoading}>
@@ -2217,7 +2217,7 @@ export const AdminMateriView: React.FC = () => {
                   Modul: {selectedModule?.title}
                 </span>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={() => setShowLesModal(false)} className="btn-secondary">
+                  <button type="button" onClick={() => setShowLesModal(false)} className="btn-cancel">
                     Batal
                   </button>
                   <button type="submit" className="btn-primary" disabled={actionLoading}>
@@ -2677,7 +2677,7 @@ export const AdminMateriView: React.FC = () => {
             </p>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-              <button onClick={() => setDeleteConfirm(null)} className="btn-secondary">
+              <button onClick={() => setDeleteConfirm(null)} className="btn-cancel">
                 Batal
               </button>
               <button onClick={executeDelete} className="btn-danger-ghost" disabled={actionLoading}>
@@ -2903,7 +2903,7 @@ export const AdminMateriView: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button type="button" onClick={() => setShowInsertImgModal(false)} className="btn-secondary">
+              <button type="button" onClick={() => setShowInsertImgModal(false)} className="btn-cancel">
                 Batal
               </button>
               <button
@@ -2977,7 +2977,7 @@ export const AdminMateriView: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button type="button" onClick={() => setShowInsertVideoModal(false)} className="btn-secondary">
+              <button type="button" onClick={() => setShowInsertVideoModal(false)} className="btn-cancel">
                 Batal
               </button>
               <button

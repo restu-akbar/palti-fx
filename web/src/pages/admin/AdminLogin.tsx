@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { ShieldAlert, Loader2 } from 'lucide-react';
+import { ShieldAlert, Loader2, Eye, EyeOff } from 'lucide-react';
 import { AdminAuthService } from '../../lib/adminAuth';
 import type { Profile } from '../../types/admin';
 
 interface AdminLoginProps {
   onLoginSuccess: (profile: Profile) => void;
-  onBackToLanding: () => void;
+  onForgotPassword: () => void;
 }
 
-export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackToLanding }) => {
+export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onForgotPassword }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -36,11 +37,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFillTestAdmin = () => {
-    setEmail('dioraput@gmail.com');
-    setPassword('admin123');
   };
 
   return (
@@ -184,33 +180,81 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} method="post" action="#" name="admin-login-form">
             <div style={{ marginBottom: '1.15rem' }}>
               <label className="pfx-label" htmlFor="admin-email">Alamat Email</label>
               <input
                 id="admin-email"
+                name="username"
                 type="email"
                 className="pfx-input"
                 placeholder="input email disini"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                autoComplete="email"
+                autoComplete="username"
               />
             </div>
 
             <div style={{ marginBottom: '1.65rem' }}>
-              <label className="pfx-label" htmlFor="admin-password">Kata Sandi</label>
-              <input
-                id="admin-password"
-                type="password"
-                className="pfx-input"
-                placeholder="input password disini"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <label className="pfx-label" htmlFor="admin-password" style={{ margin: 0 }}>Kata Sandi</label>
+                <button
+                  type="button"
+                  onClick={onForgotPassword}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--gold-accent)',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    padding: 0,
+                    transition: 'color 0.15s ease',
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.color = 'var(--gold-hover)')}
+                  onMouseOut={(e) => (e.currentTarget.style.color = 'var(--gold-accent)')}
+                >
+                  Lupa kata sandi?
+                </button>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="admin-password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="pfx-input"
+                  placeholder="input password disini"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  style={{ paddingRight: '2.5rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '0.75rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-dim)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0.25rem',
+                    transition: 'color 0.15s ease',
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.color = '#FFF')}
+                  onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                >
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -229,56 +273,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBackTo
               )}
             </button>
           </form>
-
-          {/* Divider & Return to Landing Page Button */}
-          <div style={{
-            marginTop: '1.5rem',
-            paddingTop: '1.25rem',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.85rem',
-            alignItems: 'center',
-          }}>
-            <button
-              type="button"
-              onClick={onBackToLanding}
-              className="btn-secondary"
-              style={{
-                width: '100%',
-                padding: '0.65rem',
-                fontSize: '0.84rem',
-                justifyContent: 'center',
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              <span>Masuk ke Landing Page</span>
-            </button>
-
-            {/* Quick test shortcut */}
-            <button
-              type="button"
-              onClick={handleFillTestAdmin}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-dim)',
-                fontSize: '0.76rem',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                transition: 'color 0.15s ease',
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.color = 'var(--gold-accent)')}
-              onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
-            >
-              <span>Gunakan Akun Uji Admin</span>
-            </button>
-          </div>
         </div>
       </div>
     </div>
   );
 };
+

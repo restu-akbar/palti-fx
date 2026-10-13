@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { LandingPage } from './pages/LandingPage';
 import { AdminLogin } from './pages/admin/AdminLogin';
+import { AdminForgotPassword } from './pages/admin/AdminForgotPassword';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminDashboardView } from './pages/admin/AdminDashboardView';
 import { AdminMateriView } from './pages/admin/AdminMateriView';
@@ -10,33 +10,66 @@ import { AdminAuthService } from './lib/adminAuth';
 import type { Profile } from './types/admin';
 
 type AdminTab = 'dashboard' | 'materi' | 'invitations' | 'users';
+type AppView = 'admin-login' | 'admin-forgot-password' | 'admin-panel';
 
 export function App() {
-  const [currentAdmin, setCurrentAdmin] = useState<Profile | null>(null);
+  const [currentAdmin, setCurrentAdmin] = useState<Profile | null>(() => {
+    try {
+      const cached = localStorage.getItem('palti_admin_profile');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [checkingAuth, setCheckingAuth] = useState(true);
   
-  // Route state: 'landing' | 'admin-login' | 'admin-panel'
-  const [currentView, setCurrentView] = useState<'landing' | 'admin-login' | 'admin-panel'>('landing');
-  const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('dashboard');
+  // Route state: 'admin-login' | 'admin-forgot-password' | 'admin-panel'
+  const [currentView, setCurrentView] = useState<AppView>(() => {
+    const path = window.location.pathname.toLowerCase();
+    if (
+      path.includes('/forgot-password') ||
+      path.includes('/reset-password') ||
+      path.includes('/lupa-password')
+    ) {
+      return 'admin-forgot-password';
+    }
+    try {
+      const cached = localStorage.getItem('palti_admin_profile');
+      if (cached) return 'admin-panel';
+    } catch {}
+    return 'admin-login';
+  });
+  const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>(() => {
+    const path = window.location.pathname.toLowerCase();
+    if (path.includes('/materi')) return 'materi';
+    if (path.includes('/invitations') || path.includes('/invite')) return 'invitations';
+    if (path.includes('/users') || path.includes('/member')) return 'users';
+    return 'dashboard';
+  });
 
   // Parse path on initial load & popstate
-  const syncRouteFromUrl = () => {
+  const syncRouteFromUrl = (adminParam?: Profile | null) => {
     const path = window.location.pathname.toLowerCase();
 
-    if (path.startsWith('/admin')) {
-      if (path.includes('/materi')) setActiveAdminTab('materi');
-      else if (path.includes('/invitations') || path.includes('/invite')) setActiveAdminTab('invitations');
-      else if (path.includes('/users') || path.includes('/member')) setActiveAdminTab('users');
-      else setActiveAdminTab('dashboard');
+    if (
+      path.includes('/forgot-password') ||
+      path.includes('/reset-password') ||
+      path.includes('/lupa-password')
+    ) {
+      setCurrentView('admin-forgot-password');
+      return;
+    }
 
-      // If already logged in, show admin-panel; otherwise show admin-login
-      if (currentAdmin) {
-        setCurrentView('admin-panel');
-      } else {
-        setCurrentView('admin-login');
-      }
+    if (path.includes('/materi')) setActiveAdminTab('materi');
+    else if (path.includes('/invitations') || path.includes('/invite')) setActiveAdminTab('invitations');
+    else if (path.includes('/users') || path.includes('/member')) setActiveAdminTab('users');
+    else setActiveAdminTab('dashboard');
+
+    const effectiveAdmin = adminParam !== undefined ? adminParam : currentAdmin;
+    if (effectiveAdmin) {
+      setCurrentView('admin-panel');
     } else {
-      setCurrentView('landing');
+      setCurrentView('admin-login');
     }
   };
 
@@ -48,32 +81,36 @@ export function App() {
         const admin = await AdminAuthService.getCurrentAdmin();
         if (admin) {
           setCurrentAdmin(admin);
-          const path = window.location.pathname.toLowerCase();
-          if (path.startsWith('/admin')) {
-            setCurrentView('admin-panel');
-          }
+          syncRouteFromUrl(admin);
+        } else {
+          setCurrentAdmin(null);
+          syncRouteFromUrl(null);
         }
       } catch (err) {
         console.error(err);
+        syncRouteFromUrl(null);
       } finally {
         setCheckingAuth(false);
-        syncRouteFromUrl();
       }
     };
 
     initAuth();
 
-    window.addEventListener('popstate', syncRouteFromUrl);
-    return () => window.removeEventListener('popstate', syncRouteFromUrl);
+    const handlePopState = () => {
+      syncRouteFromUrl();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const navigateTo = (view: 'landing' | 'admin-login' | 'admin-panel', tab?: AdminTab) => {
+  const navigateTo = (view: AppView, tab?: AdminTab) => {
     if (tab) setActiveAdminTab(tab);
     setCurrentView(view);
 
-    let path = '/';
-    if (view === 'admin-login') {
-      path = '/admin/login';
+    let path = '/admin/login';
+    if (view === 'admin-forgot-password') {
+      path = '/admin/forgot-password';
     } else if (view === 'admin-panel') {
       const selectedTab = tab || activeAdminTab;
       path = selectedTab === 'dashboard' ? '/admin' : `/admin/${selectedTab}`;
@@ -86,10 +123,18 @@ export function App() {
 
   const handleLoginSuccess = (admin: Profile) => {
     setCurrentAdmin(admin);
+    try {
+      localStorage.setItem('palti_admin_profile', JSON.stringify(admin));
+    } catch {}
     navigateTo('admin-panel', 'dashboard');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await AdminAuthService.logout();
+    } catch (err) {
+      console.error(err);
+    }
     setCurrentAdmin(null);
     navigateTo('admin-login');
   };
@@ -105,8 +150,8 @@ export function App() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'var(--bg-primary)',
-        color: 'var(--gold-500)',
+        backgroundColor: 'var(--bg-deep)',
+        color: 'var(--gold-accent)',
         fontFamily: 'var(--font-display)',
         fontSize: '1.1rem',
       }}>
@@ -115,33 +160,27 @@ export function App() {
             width: '48px',
             height: '48px',
             borderRadius: '12px',
-            border: '3px solid var(--gold-500)',
+            border: '3px solid var(--gold-accent)',
             borderTopColor: 'transparent',
             margin: '0 auto 1.5rem',
             animation: 'spin 0.8s linear infinite',
           }} />
-          <span>Memuat Ekosistem PALTI FX...</span>
+          <span>Memuat Konsol Admin PALTI FX...</span>
         </div>
       </div>
     );
   }
 
-  // 1. Landing Page
-  if (currentView === 'landing') {
-    return <LandingPage onNavigateAdmin={() => navigateTo(currentAdmin ? 'admin-panel' : 'admin-login')} />;
-  }
-
-  // 2. Admin Login
-  if (currentView === 'admin-login') {
+  // 1. Forgot Password / Pemulihan Kata Sandi
+  if (currentView === 'admin-forgot-password') {
     return (
-      <AdminLogin
-        onLoginSuccess={handleLoginSuccess}
-        onBackToLanding={() => navigateTo('landing')}
+      <AdminForgotPassword
+        onBackToLogin={() => navigateTo('admin-login')}
       />
     );
   }
 
-  // 3. Admin Backoffice Panel (Guarded)
+  // 2. Admin Backoffice Panel (Guarded)
   if (currentView === 'admin-panel' && currentAdmin) {
     return (
       <AdminLayout
@@ -149,7 +188,6 @@ export function App() {
         activeTab={activeAdminTab}
         onSelectTab={(tab) => navigateTo('admin-panel', tab)}
         onLogout={handleLogout}
-        onViewLanding={() => navigateTo('landing')}
         onUpdateAdminProfile={handleUpdateAdminProfile}
       >
         {activeAdminTab === 'dashboard' && (
@@ -165,8 +203,13 @@ export function App() {
     );
   }
 
-  // Fallback to landing
-  return <LandingPage onNavigateAdmin={() => navigateTo('admin-login')} />;
+  // 3. Admin Login (Default / Fallback)
+  return (
+    <AdminLogin
+      onLoginSuccess={handleLoginSuccess}
+      onForgotPassword={() => navigateTo('admin-forgot-password')}
+    />
+  );
 }
 
 export default App;

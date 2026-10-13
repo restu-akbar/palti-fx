@@ -1101,7 +1101,7 @@ export const AdminUsersView: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
               <button
                 onClick={() => setStatusConfirm(null)}
-                className="btn-secondary"
+                className="btn-cancel"
                 disabled={actionLoadingId === statusConfirm.user.id}
               >
                 Batal
@@ -1172,7 +1172,7 @@ export const AdminUsersView: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
               <button
                 onClick={() => setRoleConfirm(null)}
-                className="btn-secondary"
+                className="btn-cancel"
                 disabled={actionLoadingId === roleConfirm.user.id}
               >
                 Batal

@@ -262,7 +262,7 @@ function MainApp() {
         const savedNick = await getSecureNickname(userKey);
         updateSettings({
           isLoggedIn: true,
-          role: res.role || 'member',
+          role: 'member', // Di HP, semua akun (termasuk admin) tetap masuk sebagai member / user biasa
           activeUser: userKey,
           name: savedNick || res.name || res.identifier,
         });
@@ -337,11 +337,11 @@ function MainApp() {
           setForgotIdentifier(id || '');
           setAuthView('forgot_password');
         }}
-        onSuccess={async ({ identifier, name, role }) => {
+        onSuccess={async ({ identifier, name }) => {
           const savedNick = await getSecureNickname(identifier);
           updateSettings({
             isLoggedIn: true,
-            role: role || 'member',
+            role: 'member', // Di HP, semua akun (termasuk admin) tetap masuk sebagai member / user biasa
             activeUser: identifier,
             name: savedNick || name || identifier,
           });

@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   /* Ultra-Premium Dark Base with Atmospheric Depth */
   --bg-deep: #07090D;
   --bg-subtle: #0B0E15;
@@ -67,6 +68,7 @@
 }
 
 html, body {
+  color-scheme: dark;
   background-color: var(--bg-deep);
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -187,6 +189,37 @@ a {
 
 .pfx-input::placeholder, .pfx-textarea::placeholder {
   color: var(--text-dim);
+}
+
+/* ─── Prevent Browser WebKit Autofill White Background Glitch ─── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-text-fill-color: #EDEDED !important;
+  color: #EDEDED !important;
+  -webkit-box-shadow: 0 0 0 1000px #0F1420 inset !important;
+  box-shadow: 0 0 0 1000px #0F1420 inset !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  transition: background-color 5000000s ease-in-out 0s;
+  caret-color: #EDEDED !important;
+  font-family: inherit !important;
+}
+
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #121826 inset, 0 0 0 1px rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 0 0 1000px #121826 inset, 0 0 0 1px rgba(255, 255, 255, 0.25) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
 .pfx-textarea {
@@ -312,6 +345,42 @@ input[type=number] {
 
 .btn-secondary:active {
   transform: translateY(0);
+}
+
+/* ─── Cancel / Ghost Button (Nyaru, Subdued, Low-Profile) ─── */
+.btn-cancel {
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.48);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.84rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  transition: all 0.18s ease;
+}
+
+.btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.82);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn-cancel:active {
+  transform: translateY(0);
+  background: rgba(255, 255, 255, 0.09);
+  color: #FFFFFF;
+}
+
+.btn-cancel:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 /* ─── Header Admin Portal Button (Clean Minimal Pill) ─── */

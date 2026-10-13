@@ -55,8 +55,8 @@ const FEATURE_CARDS: FeatureCardItem[] = [
   },
 ];
 
-interface LandingPageProps {
-  onNavigateAdmin: () => void;
+export interface LandingPageProps {
+  onNavigateAdmin?: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => {
@@ -134,6 +134,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
       window.removeEventListener('resize', calculateLayout);
     };
   }, []);
+
+  const handleAdminClick = () => {
+    if (onNavigateAdmin) {
+      onNavigateAdmin();
+    } else {
+      window.location.href = '/admin';
+    }
+  };
 
   return (
     <div style={{ minHeight: '100vh', display: 'block', position: 'relative' }}>
@@ -250,7 +258,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
               Aktivasi VIP
             </a>
             <button 
-              onClick={onNavigateAdmin} 
+              onClick={handleAdminClick} 
               className={`btn-header-admin ${isOverLightSection ? 'btn-header-admin-light' : ''}`}
               type="button"
             >
@@ -292,7 +300,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem', marginTop: '1rem' }}>
-          {/* Prominent Urgent CTA Button (Plain / Static / Belum Difungsikan) */}
+          {/* Prominent Urgent CTA Button */}
           <button
             type="button"
             className="btn-cta-urgent"
@@ -520,7 +528,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateAdmin }) => 
       </section>
 
       {/* ─── VIP Activation Section ─── */}
-      {/* ─── VIP Activation Section (Ultra Clean & Minimal) ─── */}
       <section id="aktivasi" style={{
         padding: '5.5rem 2rem 4.5rem 2rem',
         maxWidth: '1100px',

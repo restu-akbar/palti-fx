@@ -20,12 +20,29 @@ export function isEmail(v: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v ?? '').trim());
 }
 
-/** Mengembalikan pesan error, atau null jika valid. */
+/** Mengembalikan pesan error, atau null jika valid (min 8 karakter, harus berisikan huruf dan angka). */
 export function validatePassword(pw: string): string | null {
   if (!pw || pw.length < MIN_PASSWORD_LENGTH) {
     return `Kata sandi minimal ${MIN_PASSWORD_LENGTH} karakter.`;
   }
+  if (!/[a-zA-Z]/.test(pw)) {
+    return 'Kata sandi harus mengandung setidaknya satu huruf (a-z / A-Z).';
+  }
+  if (!/[0-9]/.test(pw)) {
+    return 'Kata sandi harus mengandung setidaknya satu angka (0-9).';
+  }
   return null;
+}
+
+/** Mengecek kriteria password secara individual untuk feedback UI. */
+export function checkPasswordCriteria(pw: string) {
+  const p = pw ?? '';
+  return {
+    minLength: p.length >= MIN_PASSWORD_LENGTH,
+    hasLetter: /[a-zA-Z]/.test(p),
+    hasDigit: /[0-9]/.test(p),
+    isValid: p.length >= MIN_PASSWORD_LENGTH && /[a-zA-Z]/.test(p) && /[0-9]/.test(p),
+  };
 }
 
 export interface AuthErrorLike {

@@ -31,9 +31,11 @@ assert.equal(isEmail('notanemail'), false);
 assert.equal(isEmail('pfx-8821'), false);
 assert.equal(isEmail(''), false);
 
-// 5. validatePassword
-assert.equal(validatePassword('12345678'), null);
-assert.notEqual(validatePassword('1234567'), null);
+// 5. validatePassword (min 8 chars, letters and digits)
+assert.equal(validatePassword('Palti123'), null);
+assert.notEqual(validatePassword('12345678'), null); // no letter
+assert.notEqual(validatePassword('abcdefgh'), null); // no digit
+assert.notEqual(validatePassword('Palti12'), null); // < 8
 assert.notEqual(validatePassword(''), null);
 
 // 6. mapAuthError

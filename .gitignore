@@ -43,6 +43,7 @@ yarn-error.*
 # OS
 .DS_Store
 Thumbs.db
+*.zip
 
 # TypeScript
 *.tsbuildinfo
