@@ -24,7 +24,8 @@ import {
   ArrowRight,
   Image as ImageIcon,
   Upload,
-  Camera
+  Camera,
+  Search
 } from 'lucide-react';
 import type { EduLesson, EduModule } from '../../types/admin';
 import { AdminMateriService, extractYouTubeId } from '../../lib/adminMateri';
@@ -707,10 +708,160 @@ const MobileRichText: React.FC<{
   return <div style={{ wordBreak: 'break-word' }}>{blocks}</div>;
 };
 
+export interface MatchedMateriItem {
+  moduleId: string;
+  moduleTitle: string;
+  moduleIndex: number;
+  moduleLevel: string;
+  moduleIcon?: string;
+  lessonId: string;
+  lessonTitle: string;
+  lessonIndex: number;
+  minutes: number;
+  hasVideo: boolean;
+  matchType: 'title' | 'subbab' | 'content' | 'module';
+  matchedSubbab?: string;
+  snippet?: string;
+  lesson: EduLesson;
+}
+
+/**
+ * Mencari bab dan subbab di seluruh kurikulum berdasarkan kata kunci
+ */
+export function searchEduLessons(modules: EduModule[], rawQuery: string): MatchedMateriItem[] {
+  const query = rawQuery.trim().toLowerCase();
+  if (!query) return [];
+
+  const results: MatchedMateriItem[] = [];
+
+  modules.forEach((mod, modIdx) => {
+    const modTitle = mod.title || '';
+    const lessons = mod.lessons || [];
+
+    lessons.forEach((les, lesIdx) => {
+      const lesTitle = les.title || '';
+      const lesContent = les.content || '';
+      const lesMinutes = les.minutes || 0;
+      const hasVideo = !!(les.youtube_urls && les.youtube_urls.length > 0);
+
+      // 1. Cek Judul Bab
+      if (lesTitle.toLowerCase().includes(query)) {
+        results.push({
+          moduleId: mod.id,
+          moduleTitle: modTitle,
+          moduleIndex: modIdx + 1,
+          moduleLevel: mod.level,
+          moduleIcon: mod.icon,
+          lessonId: les.id,
+          lessonTitle: lesTitle,
+          lessonIndex: lesIdx + 1,
+          minutes: lesMinutes,
+          hasVideo,
+          matchType: 'title',
+          lesson: les,
+        });
+        return;
+      }
+
+      // 2. Parse subbab & konten di dalam markdown
+      const lines = lesContent.split('\n');
+      let currentSubbab = '';
+      let matchedSubbab: string | undefined;
+      let matchedSnippet: string | undefined;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const headingMatch = line.match(/^#{1,3}\s+(.+)$/);
+        if (headingMatch) {
+          currentSubbab = headingMatch[1].trim();
+          if (currentSubbab.toLowerCase().includes(query)) {
+            matchedSubbab = currentSubbab;
+            break;
+          }
+        } else if (line.toLowerCase().includes(query)) {
+          if (!matchedSnippet) {
+            const clean = line.replace(/^[->*#]+\s*/, '').replace(/[*_`]/g, '').trim();
+            if (clean) {
+              const matchIdx = clean.toLowerCase().indexOf(query);
+              const start = Math.max(0, matchIdx - 25);
+              const end = Math.min(clean.length, matchIdx + query.length + 45);
+              const snippetText = (start > 0 ? '...' : '') + clean.slice(start, end) + (end < clean.length ? '...' : '');
+              matchedSnippet = snippetText;
+              if (currentSubbab) {
+                matchedSubbab = currentSubbab;
+              }
+            }
+          }
+        }
+      }
+
+      if (matchedSubbab) {
+        results.push({
+          moduleId: mod.id,
+          moduleTitle: modTitle,
+          moduleIndex: modIdx + 1,
+          moduleLevel: mod.level,
+          moduleIcon: mod.icon,
+          lessonId: les.id,
+          lessonTitle: lesTitle,
+          lessonIndex: lesIdx + 1,
+          minutes: lesMinutes,
+          hasVideo,
+          matchType: 'subbab',
+          matchedSubbab,
+          snippet: matchedSnippet,
+          lesson: les,
+        });
+        return;
+      }
+
+      if (matchedSnippet) {
+        results.push({
+          moduleId: mod.id,
+          moduleTitle: modTitle,
+          moduleIndex: modIdx + 1,
+          moduleLevel: mod.level,
+          moduleIcon: mod.icon,
+          lessonId: les.id,
+          lessonTitle: lesTitle,
+          lessonIndex: lesIdx + 1,
+          minutes: lesMinutes,
+          hasVideo,
+          matchType: 'content',
+          snippet: matchedSnippet,
+          lesson: les,
+        });
+        return;
+      }
+
+      // 3. Cek Judul Modul
+      if (modTitle.toLowerCase().includes(query)) {
+        results.push({
+          moduleId: mod.id,
+          moduleTitle: modTitle,
+          moduleIndex: modIdx + 1,
+          moduleLevel: mod.level,
+          moduleIcon: mod.icon,
+          lessonId: les.id,
+          lessonTitle: lesTitle,
+          lessonIndex: lesIdx + 1,
+          minutes: lesMinutes,
+          hasVideo,
+          matchType: 'module',
+          lesson: les,
+        });
+      }
+    });
+  });
+
+  return results;
+}
+
 export const AdminMateriView: React.FC = () => {
   const [modules, setModules] = useState<EduModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedModId, setSelectedModId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Modals state
   const [showModModal, setShowModModal] = useState(false);
@@ -823,6 +974,11 @@ export const AdminMateriView: React.FC = () => {
       return acc + (m.lessons?.reduce((lAcc, l) => lAcc + (l.youtube_urls?.length || 0), 0) || 0);
     }, 0);
   }, [modules]);
+
+  // Hasil pencarian bab & subbab
+  const searchResults = useMemo(() => {
+    return searchEduLessons(modules, searchQuery);
+  }, [modules, searchQuery]);
 
   /* ─── Handlers Modul ─── */
   const handleOpenAddModule = () => {
@@ -1159,13 +1315,230 @@ export const AdminMateriView: React.FC = () => {
           </div>
         </div>
 
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Search Bar Input */}
+          <div style={{ position: 'relative', width: '280px' }}>
+            <Search
+              size={13}
+              color="var(--text-dim)"
+              style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+            />
+            <input
+              type="text"
+              className="pfx-input"
+              placeholder="Cari bab, subbab, kata kunci..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                paddingLeft: '2.2rem',
+                fontSize: '0.82rem',
+                paddingRight: searchQuery ? '2rem' : '0.85rem',
+                height: '36px',
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  position: 'absolute',
+                  right: '0.65rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-dim)',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                }}
+                title="Bersihkan pencarian"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
           <button onClick={handleOpenAddModule} className="btn-primary" style={{ padding: '0.5rem 1rem' }}>
             <Plus size={15} />
             <span>Tambah Modul</span>
           </button>
         </div>
       </div>
+
+      {/* ─── HASIL PENCARIAN MATERI (BAB & SUBBAB) ─── */}
+      {searchQuery.trim().length > 0 && (
+        <div style={{
+          marginBottom: '2rem',
+          padding: '1.35rem 1.5rem',
+          borderRadius: 'var(--radius-lg)',
+          backgroundColor: 'rgba(13, 17, 24, 0.75)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          border: '1px solid rgba(212, 175, 55, 0.22)',
+          boxShadow: '0 18px 45px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        }}>
+          {/* Header Row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.15rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(212, 175, 55, 0.12)',
+                border: '1px solid rgba(212, 175, 55, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--gold-accent)',
+              }}>
+                <Search size={14} />
+              </div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#FFF', margin: 0 }}>
+                Hasil Pencarian Bab: <span style={{ color: 'var(--gold-accent)' }}>"{searchQuery}"</span>
+              </h3>
+              <span style={{
+                fontSize: '0.72rem',
+                backgroundColor: 'rgba(212, 175, 55, 0.12)',
+                border: '1px solid rgba(212, 175, 55, 0.25)',
+                color: 'var(--gold-accent)',
+                padding: '2px 8px',
+                borderRadius: '9999px',
+                fontWeight: 600,
+              }}>
+                {searchResults.length} Bab Ditemukan
+              </span>
+            </div>
+
+            <button
+              onClick={() => setSearchQuery('')}
+              className="btn-cancel"
+              style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+            >
+              <X size={13} />
+              <span>Tutup Hasil</span>
+            </button>
+          </div>
+
+          {/* List of Results */}
+          {searchResults.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '0.88rem', marginBottom: '0.4rem', color: '#FFF' }}>
+                Tidak ada bab atau subbab yang cocok dengan kata kunci "{searchQuery}"
+              </p>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', maxWidth: '480px', margin: '0 auto' }}>
+                Coba cari dengan kata kunci lain seperti: <em>pair, pip, lot, leverage, candlestick, support, resistance</em>.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '0.85rem' }}>
+              {searchResults.map((item) => (
+                <div
+                  key={item.lessonId}
+                  onClick={() => {
+                    setSelectedModId(item.moduleId);
+                    setPreviewLesson(item.lesson);
+                  }}
+                  className="pfx-card pfx-card-interactive"
+                  style={{
+                    padding: '1.1rem 1.2rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.55rem',
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  {/* Row 1: Di modul & bab apa */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.72rem', color: 'var(--gold-accent)', fontWeight: 600 }}>
+                      <span>Modul {item.moduleIndex}: {item.moduleTitle}</span>
+                      <span style={{ color: 'rgba(255,255,255,0.2)' }}>•</span>
+                      <span style={{ color: '#FFF' }}>Bab {item.lessonIndex}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                      <Clock size={11} />
+                      <span>{item.minutes}m</span>
+                      {item.hasVideo && <Video size={11} color="var(--danger)" />}
+                    </div>
+                  </div>
+
+                  {/* Row 2: Judul Bab */}
+                  <h4 style={{ fontSize: '0.94rem', fontWeight: 600, color: '#FFF', margin: 0, lineHeight: 1.35 }}>
+                    {item.lessonTitle}
+                  </h4>
+
+                  {/* Row 3: Subbab atau Cuplikan Kata Kunci */}
+                  {item.matchedSubbab && (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.3rem 0.6rem',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(212, 175, 55, 0.08)',
+                      border: '1px solid rgba(212, 175, 55, 0.2)',
+                      fontSize: '0.75rem',
+                      color: 'var(--gold-accent)',
+                      fontWeight: 500,
+                      alignSelf: 'flex-start',
+                    }}>
+                      <span style={{ fontSize: '0.85em' }}>📌</span>
+                      <span>Subbab: <strong>{item.matchedSubbab}</strong></span>
+                    </div>
+                  )}
+
+                  {item.snippet && (
+                    <p style={{
+                      fontSize: '0.76rem',
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.45,
+                      margin: 0,
+                      backgroundColor: 'rgba(0, 0, 0, 0.22)',
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(255, 255, 255, 0.04)',
+                    }}>
+                      "{item.snippet}"
+                    </p>
+                  )}
+
+                  {/* Row 4: Aksi Footer */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.4rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)', marginTop: 'auto' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                      Klik untuk preview naskah
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedModId(item.moduleId);
+                        setSearchQuery('');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--gold-accent)',
+                        fontSize: '0.74rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                      }}
+                    >
+                      <span>Buka di Silabus</span>
+                      <ArrowRight size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {feedbackMsg && (
         <div style={{

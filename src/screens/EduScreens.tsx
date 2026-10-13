@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AnimatedBar, FadeIn, ProgressRing, tap } from '../components/motion';
 import { Card, Chip, GoldButton, IconBadge, Screen } from '../components/ui';
 import { YouTubePlayer } from '../components/YouTubePlayer';
@@ -14,6 +14,150 @@ import { colors, fonts } from '../theme';
 const levelColor = (l: Module['level']) =>
   l === 'Pemula' ? colors.green : l === 'Menengah' ? colors.gold : colors.red;
 
+export interface MatchedLessonItem {
+  moduleId: string;
+  moduleTitle: string;
+  moduleIndex: number;
+  moduleLevel: Module['level'];
+  moduleIcon: any;
+  lessonId: string;
+  lessonTitle: string;
+  lessonIndex: number;
+  minutes: number;
+  hasVideo: boolean;
+  matchType: 'title' | 'subbab' | 'content' | 'module';
+  matchedSubbab?: string;
+  snippet?: string;
+}
+
+/**
+ * Mencari bab dan subbab di seluruh kurikulum berdasarkan kata kunci
+ */
+export function searchEduLessons(modules: Module[], rawQuery: string): MatchedLessonItem[] {
+  const query = rawQuery.trim().toLowerCase();
+  if (!query) return [];
+
+  const results: MatchedLessonItem[] = [];
+
+  modules.forEach((mod, modIdx) => {
+    const modTitle = mod.title || '';
+    const lessons = mod.lessons || [];
+
+    lessons.forEach((les, lesIdx) => {
+      const lesTitle = les.title || '';
+      const lesContent = les.content || '';
+      const lesMinutes = les.minutes || 0;
+      const hasVideo = !!(les.youtubeUrls && les.youtubeUrls.length > 0);
+
+      // 1. Cek Judul Bab
+      if (lesTitle.toLowerCase().includes(query)) {
+        results.push({
+          moduleId: mod.id,
+          moduleTitle: modTitle,
+          moduleIndex: modIdx + 1,
+          moduleLevel: mod.level,
+          moduleIcon: mod.icon,
+          lessonId: les.id,
+          lessonTitle: lesTitle,
+          lessonIndex: lesIdx + 1,
+          minutes: lesMinutes,
+          hasVideo,
+          matchType: 'title',
+        });
+        return;
+      }
+
+      // 2. Parse subbab & konten di dalam markdown
+      const lines = lesContent.split('\n');
+      let currentSubbab = '';
+      let matchedSubbab: string | undefined;
+      let matchedSnippet: string | undefined;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const headingMatch = line.match(/^#{1,3}\s+(.+)$/);
+        if (headingMatch) {
+          currentSubbab = headingMatch[1].trim();
+          if (currentSubbab.toLowerCase().includes(query)) {
+            matchedSubbab = currentSubbab;
+            break;
+          }
+        } else if (line.toLowerCase().includes(query)) {
+          if (!matchedSnippet) {
+            const clean = line.replace(/^[->*#]+\s*/, '').replace(/[*_`]/g, '').trim();
+            if (clean) {
+              const matchIdx = clean.toLowerCase().indexOf(query);
+              const start = Math.max(0, matchIdx - 20);
+              const end = Math.min(clean.length, matchIdx + query.length + 40);
+              const snippetText = (start > 0 ? '...' : '') + clean.slice(start, end) + (end < clean.length ? '...' : '');
+              matchedSnippet = snippetText;
+              if (currentSubbab) {
+                matchedSubbab = currentSubbab;
+              }
+            }
+          }
+        }
+      }
+
+      if (matchedSubbab) {
+        results.push({
+          moduleId: mod.id,
+          moduleTitle: modTitle,
+          moduleIndex: modIdx + 1,
+          moduleLevel: mod.level,
+          moduleIcon: mod.icon,
+          lessonId: les.id,
+          lessonTitle: lesTitle,
+          lessonIndex: lesIdx + 1,
+          minutes: lesMinutes,
+          hasVideo,
+          matchType: 'subbab',
+          matchedSubbab,
+          snippet: matchedSnippet,
+        });
+        return;
+      }
+
+      if (matchedSnippet) {
+        results.push({
+          moduleId: mod.id,
+          moduleTitle: modTitle,
+          moduleIndex: modIdx + 1,
+          moduleLevel: mod.level,
+          moduleIcon: mod.icon,
+          lessonId: les.id,
+          lessonTitle: lesTitle,
+          lessonIndex: lesIdx + 1,
+          minutes: lesMinutes,
+          hasVideo,
+          matchType: 'content',
+          snippet: matchedSnippet,
+        });
+        return;
+      }
+
+      // 3. Cek Judul Modul
+      if (modTitle.toLowerCase().includes(query)) {
+        results.push({
+          moduleId: mod.id,
+          moduleTitle: modTitle,
+          moduleIndex: modIdx + 1,
+          moduleLevel: mod.level,
+          moduleIcon: mod.icon,
+          lessonId: les.id,
+          lessonTitle: lesTitle,
+          lessonIndex: lesIdx + 1,
+          minutes: lesMinutes,
+          hasVideo,
+          matchType: 'module',
+        });
+      }
+    });
+  });
+
+  return results;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    1. EDU SCREEN (Daftar Seluruh Modul)
    ═══════════════════════════════════════════════════════════════════════ */
@@ -21,11 +165,16 @@ export function EduScreen() {
   const nav = useNav();
   const { completed } = useStore();
   const { modules } = useEdu();
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Hitung total lesson secara dinamis
   const allLessons = modules.flatMap((m) => m.lessons);
   const done = allLessons.filter((l) => completed[l.id]).length;
   const total = allLessons.length;
+
+  const searchResults = useMemo(() => {
+    return searchEduLessons(modules, searchQuery);
+  }, [modules, searchQuery]);
 
   return (
     <Screen title="Edukasi" eyebrow="AKADEMI PALTI FX" subtitle="Belajar bertahap dari dasar sampai mahir">
@@ -44,40 +193,155 @@ export function EduScreen() {
         </Card>
       </FadeIn>
 
-      {/* ── Daftar Modul ── */}
-      <View style={{ gap: 12, marginTop: 18 }}>
-        {modules.map((m, i) => {
-          const d = m.lessons.filter((l) => completed[l.id]).length;
-          const lessonCount = m.lessons.length;
-          return (
-            <FadeIn key={m.id} delay={120 + i * 80}>
-              <Card onPress={() => nav.push({ name: 'module', params: { moduleId: m.id } })}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <IconBadge name={m.icon} box={52} size={24} solid={lessonCount > 0 && d === lessonCount} />
-                  <View style={{ flex: 1, marginLeft: 14 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <Chip label={m.level} color={levelColor(m.level)} />
-                      <Text style={st.meta}>Modul {i + 1}</Text>
-                    </View>
-                    <Text style={st.title}>{m.title}</Text>
-                    <Text style={st.sub}>{m.subtitle}</Text>
-                  </View>
-                </View>
+      {/* ── Search Bar Input ── */}
+      <FadeIn delay={90}>
+        <View style={st.searchBox}>
+          <Ionicons name="search-outline" size={16} color="rgba(255,255,255,0.4)" style={{ marginRight: 8 }} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Cari bab atau subbab materi..."
+            placeholderTextColor="rgba(255,255,255,0.25)"
+            selectionColor={colors.gold}
+            autoCorrect={false}
+            returnKeyType="search"
+            style={st.searchInput}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')} hitSlop={10}>
+              <Ionicons name="close-circle" size={16} color="rgba(255,255,255,0.3)" />
+            </Pressable>
+          )}
+        </View>
+      </FadeIn>
 
-                {/* Progress bar */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
-                  <View style={{ flex: 1 }}>
-                    <AnimatedBar value={lessonCount ? d / lessonCount : 0} delay={300 + i * 80} />
-                  </View>
-                  <Text style={st.progressText}>
-                    {d}/{lessonCount}
-                  </Text>
-                </View>
+      {/* ── Tampilan Hasil Pencarian ATAU Daftar Modul ── */}
+      {searchQuery.trim().length > 0 ? (
+        <View style={{ marginTop: 14 }}>
+          {/* Header Hasil */}
+          <View style={st.searchHeaderRow}>
+            <Text style={st.searchHeaderTitle}>
+              HASIL PENCARIAN ({searchResults.length} BAB DITEMUKAN)
+            </Text>
+            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+              <Text style={st.searchResetText}>Reset</Text>
+            </Pressable>
+          </View>
+
+          {searchResults.length === 0 ? (
+            <FadeIn delay={50}>
+              <Card style={{ alignItems: 'center', paddingVertical: 28, marginTop: 8 }}>
+                <Ionicons name="search-outline" size={32} color="rgba(255,255,255,0.2)" />
+                <Text style={[st.title, { marginTop: 12, textAlign: 'center' }]}>Tidak ada materi ditemukan</Text>
+                <Text style={[st.sub, { textAlign: 'center', marginTop: 4, paddingHorizontal: 16 }]}>
+                  Tidak ada bab atau subbab yang memuat kata kunci "{searchQuery}". Coba kata kunci seperti: pair, pip, lot, leverage, candlestick.
+                </Text>
               </Card>
             </FadeIn>
-          );
-        })}
-      </View>
+          ) : (
+            <View style={{ gap: 10, marginTop: 8 }}>
+              {searchResults.map((item, idx) => {
+                const isCompleted = !!completed[item.lessonId];
+                return (
+                  <FadeIn key={item.lessonId} delay={60 + idx * 40}>
+                    <Card
+                      onPress={() => {
+                        tap('select');
+                        nav.push({ name: 'lesson', params: { moduleId: item.moduleId, lessonId: item.lessonId } });
+                      }}
+                      style={{ paddingVertical: 14 }}
+                    >
+                      {/* Lokasi Bab: Di Modul mana & Bab berapa */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+                          <Chip label={`Modul ${item.moduleIndex}`} color={levelColor(item.moduleLevel)} />
+                          <Text style={st.meta} numberOfLines={1}>
+                            Bab {item.lessonIndex} · {item.moduleTitle}
+                          </Text>
+                        </View>
+                        {isCompleted && <Chip label="Selesai" color={colors.green} />}
+                      </View>
+
+                      {/* Judul Bab */}
+                      <Text style={[st.title, { fontSize: 15 }]}>{item.lessonTitle}</Text>
+
+                      {/* Subbab Match Badge atau Cuplikan */}
+                      {item.matchedSubbab && (
+                        <View style={st.subbabBadge}>
+                          <Ionicons name="bookmark" size={11} color={colors.gold} />
+                          <Text style={st.subbabBadgeText} numberOfLines={1}>
+                            Subbab: <Text style={{ fontFamily: fonts.bold }}>{item.matchedSubbab}</Text>
+                          </Text>
+                        </View>
+                      )}
+
+                      {item.snippet && (
+                        <Text style={st.snippetText} numberOfLines={2}>
+                          "{item.snippet}"
+                        </Text>
+                      )}
+
+                      {/* Footer Meta */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.06)' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={st.sub}>
+                            <Ionicons name="time-outline" size={12} color={colors.muted} /> {item.minutes} menit baca
+                          </Text>
+                          {item.hasVideo && (
+                            <View style={st.videoBadge}>
+                              <Ionicons name="logo-youtube" size={10} color={colors.red} />
+                              <Text style={st.videoBadgeText}>Video</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                          <Text style={[st.meta, { color: colors.gold }]}>Baca Bab</Text>
+                          <Ionicons name="chevron-forward" size={14} color={colors.gold} />
+                        </View>
+                      </View>
+                    </Card>
+                  </FadeIn>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      ) : (
+        /* ── Daftar Modul ── */
+        <View style={{ gap: 12, marginTop: 18 }}>
+          {modules.map((m, i) => {
+            const d = m.lessons.filter((l) => completed[l.id]).length;
+            const lessonCount = m.lessons.length;
+            return (
+              <FadeIn key={m.id} delay={120 + i * 80}>
+                <Card onPress={() => nav.push({ name: 'module', params: { moduleId: m.id } })}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <IconBadge name={m.icon} box={52} size={24} solid={lessonCount > 0 && d === lessonCount} />
+                    <View style={{ flex: 1, marginLeft: 14 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <Chip label={m.level} color={levelColor(m.level)} />
+                        <Text style={st.meta}>Modul {i + 1}</Text>
+                      </View>
+                      <Text style={st.title}>{m.title}</Text>
+                      <Text style={st.sub}>{m.subtitle}</Text>
+                    </View>
+                  </View>
+
+                  {/* Progress bar */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
+                    <View style={{ flex: 1 }}>
+                      <AnimatedBar value={lessonCount ? d / lessonCount : 0} delay={300 + i * 80} />
+                    </View>
+                    <Text style={st.progressText}>
+                      {d}/{lessonCount}
+                    </Text>
+                  </View>
+                </Card>
+              </FadeIn>
+            );
+          })}
+        </View>
+      )}
     </Screen>
   );
 }
@@ -89,6 +353,7 @@ export function ModuleScreen({ moduleId }: { moduleId: string }) {
   const nav = useNav();
   const { completed } = useStore();
   const { findModule } = useEdu();
+  const [moduleSearch, setModuleSearch] = useState('');
 
   const m = findModule(moduleId);
 
@@ -102,14 +367,50 @@ export function ModuleScreen({ moduleId }: { moduleId: string }) {
 
   const nextIdx = m.lessons.findIndex((l) => !completed[l.id]);
 
+  // Filter lessons inside module
+  const displayedLessons = useMemo(() => {
+    const q = moduleSearch.trim().toLowerCase();
+    if (!q) return m.lessons;
+    return m.lessons.filter((l) => {
+      if (l.title.toLowerCase().includes(q)) return true;
+      if (l.content && l.content.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [m.lessons, moduleSearch]);
+
   return (
     <Screen title={m.title} eyebrow={m.level.toUpperCase()} subtitle={m.subtitle}>
+      {/* ── Search Bar Input dalam Modul jika bab >= 3 ── */}
+      {m.lessons.length >= 3 && (
+        <FadeIn delay={60}>
+          <View style={[st.searchBox, { marginTop: 0, marginBottom: 14 }]}>
+            <Ionicons name="search-outline" size={16} color="rgba(255,255,255,0.4)" style={{ marginRight: 8 }} />
+            <TextInput
+              value={moduleSearch}
+              onChangeText={setModuleSearch}
+              placeholder={`Cari dalam ${m.title}...`}
+              placeholderTextColor="rgba(255,255,255,0.25)"
+              selectionColor={colors.gold}
+              autoCorrect={false}
+              returnKeyType="search"
+              style={st.searchInput}
+            />
+            {moduleSearch.length > 0 && (
+              <Pressable onPress={() => setModuleSearch('')} hitSlop={10}>
+                <Ionicons name="close-circle" size={16} color="rgba(255,255,255,0.3)" />
+              </Pressable>
+            )}
+          </View>
+        </FadeIn>
+      )}
+
       {/* ── Timeline Bab ── */}
       <View>
-        {m.lessons.map((l, i) => {
+        {displayedLessons.map((l, i) => {
+          const originalIdx = m.lessons.findIndex((orig) => orig.id === l.id);
           const done = !!completed[l.id];
-          const isNext = i === nextIdx;
-          const last = i === m.lessons.length - 1;
+          const isNext = originalIdx === nextIdx;
+          const last = i === displayedLessons.length - 1;
           const hasVideo = l.youtubeUrls && l.youtubeUrls.length > 0;
 
           return (
@@ -121,7 +422,7 @@ export function ModuleScreen({ moduleId }: { moduleId: string }) {
                     {done ? (
                       <Ionicons name="checkmark" size={16} color={colors.ink} />
                     ) : (
-                      <Text style={[st.nodeText, isNext && { color: colors.gold }]}>{i + 1}</Text>
+                      <Text style={[st.nodeText, isNext && { color: colors.gold }]}>{originalIdx + 1}</Text>
                     )}
                   </View>
                   {!last && <View style={[st.line, done && { backgroundColor: colors.gold }]} />}
@@ -322,6 +623,69 @@ const st = StyleSheet.create({
   sub: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, marginTop: 3 },
   meta: { color: colors.muted, fontFamily: fonts.semi, fontSize: 12 },
   progressText: { color: colors.gold, fontFamily: fonts.bold, fontSize: 12, marginLeft: 10 },
+
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 44,
+    marginTop: 14,
+  },
+  searchInput: {
+    flex: 1,
+    color: colors.text,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    padding: 0,
+  },
+  searchHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginBottom: 8,
+  },
+  searchHeaderTitle: {
+    color: colors.muted,
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    letterSpacing: 1,
+  },
+  searchResetText: {
+    color: colors.gold,
+    fontFamily: fonts.semi,
+    fontSize: 12,
+  },
+  subbabBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(237,193,58,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(237,193,58,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  subbabBadgeText: {
+    color: colors.goldLight,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+  },
+  snippetText: {
+    color: colors.textDim,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
 
   videoBadge: {
     flexDirection: 'row',
