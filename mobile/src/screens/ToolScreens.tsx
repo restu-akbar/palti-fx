@@ -548,10 +548,12 @@ function ProfitLossTool() {
 
 function CompoundTool() {
   const [initial, setInitial] = useState('1000');
-  const [percent, setPercent] = useState('5');
-  const [periods, setPeriods] = useState('12');
+  const [percent, setPercent] = useState('1');
+  const [periods, setPeriods] = useState('30');
   const [add, setAdd] = useState('');
-  const [unit, setUnit] = useState<'bulan' | 'minggu' | 'hari'>('bulan');
+  const [unit, setUnit] = useState<'hari' | 'minggu' | 'bulan'>('hari');
+  const [showAll, setShowAll] = useState(false);
+
   const rows = useMemo(
     () =>
       compounding({
@@ -562,11 +564,14 @@ function CompoundTool() {
       }),
     [initial, percent, periods, add],
   );
+
   const last = rows[rows.length - 1];
-  const init = parseNum(initial);
+  const init = isFinite(parseNum(initial)) ? parseNum(initial) : 0;
   const addNum = isFinite(parseNum(add)) ? parseNum(add) : 0;
   const totalDeposit = init + addNum * rows.length;
+  const totalProfit = last ? last.end - totalDeposit : 0;
   const maxEnd = rows.reduce((mx, r) => Math.max(mx, r.end), 0);
+  const displayRows = showAll || rows.length <= 35 ? rows : rows.slice(0, 30);
 
   return (
     <View>
@@ -594,16 +599,34 @@ function CompoundTool() {
         label="Saldo akhir"
         value={last?.end}
         format={(n) => usd(n)}
-        caption={last ? `Profit ${signedUsd(last.end - totalDeposit)} · tumbuh ${pct((last.end - totalDeposit) / totalDeposit, 0)}` : undefined}
+        caption={last && totalDeposit > 0 ? `Profit ${signedUsd(totalProfit)} · tumbuh ${pct(totalProfit / totalDeposit, 1)}` : undefined}
       >
         {last && (
-          <View style={st.bars}>
-            {rows.slice(-24).map((r) => (
-              <View key={r.period} style={{ flex: 1, justifyContent: 'flex-end' }}>
-                <View style={[st.barCol, { height: `${Math.max(4, (r.end / maxEnd) * 100)}%` }]} />
-              </View>
-            ))}
-          </View>
+          <>
+            <View style={st.bars}>
+              {rows.slice(-24).map((r) => (
+                <View key={r.period} style={{ flex: 1, justifyContent: 'flex-end' }}>
+                  <View style={[st.barCol, { height: `${Math.max(4, (r.end / maxEnd) * 100)}%` }]} />
+                </View>
+              ))}
+            </View>
+            <ResultRow label="Modal awal" value={usd(init)} />
+            {addNum > 0 && (
+              <ResultRow label={`Total setoran (${rows.length} ${unit})`} value={usd(addNum * rows.length)} />
+            )}
+            <ResultRow
+              label="Total profit bersih"
+              value={signedUsd(totalProfit)}
+              color={totalProfit >= 0 ? colors.green : colors.red}
+            />
+            {totalDeposit > 0 && (
+              <ResultRow
+                label="Persentase pertumbuhan"
+                value={pct(totalProfit / totalDeposit, 1)}
+                color={colors.goldLight}
+              />
+            )}
+          </>
         )}
       </Result>
       {rows.length > 0 && (
@@ -612,16 +635,36 @@ function CompoundTool() {
             <Text style={[st.th, { flex: 0.6, textAlign: 'left' }]}>{unit === 'bulan' ? 'Bln' : unit === 'minggu' ? 'Mgg' : 'Hari'}</Text>
             <Text style={st.th}>Awal</Text>
             <Text style={st.th}>Profit</Text>
+            {addNum > 0 && <Text style={st.th}>+Setoran</Text>}
             <Text style={st.th}>Akhir</Text>
           </View>
-          {rows.map((r) => (
+          {displayRows.map((r) => (
             <View key={r.period} style={st.tr}>
               <Text style={[st.td, { flex: 0.6, color: colors.gold, textAlign: 'left' }]}>{r.period}</Text>
-              <Text style={st.td}>{fmt(r.start, 0)}</Text>
-              <Text style={[st.td, { color: r.profit >= 0 ? colors.green : colors.red }]}>{fmt(r.profit, 0)}</Text>
-              <Text style={[st.td, { color: colors.text }]}>{fmt(r.end, 0)}</Text>
+              <Text style={st.td} numberOfLines={1} adjustsFontSizeToFit>{usd(r.start)}</Text>
+              <Text style={[st.td, { color: r.profit >= 0 ? colors.green : colors.red }]} numberOfLines={1} adjustsFontSizeToFit>
+                {signedUsd(r.profit)}
+              </Text>
+              {addNum > 0 && (
+                <Text style={[st.td, { color: colors.goldLight }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {signedUsd(r.add ?? addNum)}
+                </Text>
+              )}
+              <Text style={[st.td, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{usd(r.end)}</Text>
             </View>
           ))}
+          {rows.length > 35 && (
+            <PressScale
+              onPress={() => setShowAll((v) => !v)}
+              style={{ paddingVertical: 12, alignItems: 'center', backgroundColor: 'rgba(237,193,58,0.06)' }}
+            >
+              <Text style={{ color: colors.gold, fontFamily: fonts.semi, fontSize: 13 }}>
+                {showAll
+                  ? `Tampilkan ringkas (30 ${unit})`
+                  : `Lihat semua ${rows.length} ${unit} (sisa ${rows.length - 30} baris)`}
+              </Text>
+            </PressScale>
+          )}
         </Card>
       )}
       <Note icon="warning">
@@ -668,5 +711,5 @@ const st = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   th: { flex: 1, color: colors.gold, fontFamily: fonts.bold, fontSize: 12, textAlign: 'right' },
-  td: { flex: 1, color: colors.textDim, fontFamily: fonts.medium, fontSize: 13, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  td: { flex: 1, color: colors.textDim, fontFamily: fonts.medium, fontSize: 12, textAlign: 'right', fontVariant: ['tabular-nums'] },
 });

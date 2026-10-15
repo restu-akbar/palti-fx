@@ -54,6 +54,32 @@ close(pl2.pips, -50, 1e-6); close(pl2.usd!, -50 * 1000 / 149.5, 1e-6);
 const c = compounding({ initial: 1000, percent: 10, periods: 2 });
 close(c[1].end, 1210);
 
+// compounding harian (daily) & konsistensi setiap baris: start + profit + add === end
+const daily = compounding({ initial: 1000, percent: 1, periods: 30 });
+assert.equal(daily.length, 30);
+close(daily[0].start, 1000);
+close(daily[0].profit, 10);
+close(daily[0].end, 1010);
+for (let i = 0; i < daily.length; i++) {
+  const row = daily[i];
+  close(row.start + row.profit + (row.add ?? 0), row.end, 1e-4);
+  if (i > 0) {
+    close(daily[i - 1].end, row.start, 1e-4);
+  }
+}
+// compounding dengan periode hingga 365 hari (tidak terpotong di 120)
+const longPeriod = compounding({ initial: 1000, percent: 1, periods: 200 });
+assert.equal(longPeriod.length, 200);
+
+// compounding dengan tambahan setoran berkala
+const withAdd = compounding({ initial: 1000, percent: 5, periods: 2, addPerPeriod: 50 });
+close(withAdd[0].start, 1000);
+close(withAdd[0].profit, 50);
+close(withAdd[0].end, 1100);
+close(withAdd[1].start, 1100);
+close(withAdd[1].profit, 55);
+close(withAdd[1].end, 1205);
+
 // konvensi PALTI FX: 100 point = 10 pips = $1 pada 0.01 lot (XAUUSD & pair xxxUSD)
 for (const sym of ['XAUUSD', 'EURUSD', 'GBPUSD']) {
   const inst = findInstrument(sym);

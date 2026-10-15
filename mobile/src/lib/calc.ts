@@ -132,7 +132,15 @@ export function profitLoss(params: {
   return { pips, usd: pv == null ? null : pips * pv * lot };
 }
 
-export type CompoundRow = { period: number; start: number; profit: number; end: number };
+export type CompoundRow = {
+  period: number;
+  start: number;
+  profit: number;
+  add?: number;
+  end: number;
+};
+
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export function compounding(params: {
   initial: number;
@@ -141,15 +149,15 @@ export function compounding(params: {
   addPerPeriod?: number;
 }): CompoundRow[] {
   const { initial, percent, periods } = params;
-  const add = params.addPerPeriod && isFinite(params.addPerPeriod) ? params.addPerPeriod : 0;
+  const add = typeof params.addPerPeriod === 'number' && isFinite(params.addPerPeriod) ? round2(params.addPerPeriod) : 0;
   if (!valid(initial) || !isFinite(percent) || !valid(periods)) return [];
   const rows: CompoundRow[] = [];
-  let bal = initial;
-  const n = Math.min(Math.floor(periods), 120);
+  let bal = round2(initial);
+  const n = Math.min(Math.floor(periods), 365);
   for (let i = 1; i <= n; i++) {
-    const profit = (bal * percent) / 100;
-    const end = bal + profit + add;
-    rows.push({ period: i, start: bal, profit, end });
+    const profit = round2((bal * percent) / 100);
+    const end = round2(bal + profit + add);
+    rows.push({ period: i, start: bal, profit, add, end });
     bal = end;
   }
   return rows;

@@ -16,7 +16,8 @@ export const fmt = (n: number | null | undefined, digits = 2): string => {
 export const usd = (n: number | null | undefined, digits = 2) =>
   n == null || !isFinite(n) ? '—' : (n < 0 ? '-$' : '$') + fmt(Math.abs(n), digits);
 
-export const signedUsd = (n: number) => (n > 0 ? '+' : '') + usd(n);
+export const signedUsd = (n: number | null | undefined, digits = 2) =>
+  n == null || !isFinite(n) ? '—' : (n > 0 ? '+' : '') + usd(n, digits);
 
 export const pct = (n: number | null | undefined, digits = 1) =>
   n == null || !isFinite(n) ? '—' : fmt(n * 100, digits) + '%';
