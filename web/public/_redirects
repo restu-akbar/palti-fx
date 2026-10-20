@@ -1,0 +1,3 @@
+# SPA fallback: semua path yang bukan file statis di-serve ke index.html
+# agar routing History API (/admin, /admin/materi, dst.) tidak 404 saat refresh.
+/*    /index.html    200
