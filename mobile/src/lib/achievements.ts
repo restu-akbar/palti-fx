@@ -1,6 +1,7 @@
 import type { Ionicons } from '@expo/vector-icons';
 import { MODULES } from '../data/modules';
-import type { Settings, Trade } from './store';
+import type { Settings } from '../core/domain/settings';
+import type { Trade } from '../core/domain/trade';
 
 /* ------------------------------------------------------------------ */
 /* Streak: hari berturut-turut ada catatan jurnal.                      */

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Settings, Trade } from './store';
+import type { Settings } from '../core/domain/settings';
+import type { Trade } from '../core/domain/trade';
 
 export const TRADES_USER_KEY_PREFIX = '@pfx_user_trades_';
 export const COMPLETED_USER_KEY_PREFIX = '@pfx_user_completed_';

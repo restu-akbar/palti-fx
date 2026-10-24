@@ -14,45 +14,13 @@ import {
   loadAllUserData,
 } from './userCacheStorage';
 import { UserSyncService } from './userSyncService';
+import type { Settings } from '../core/domain/settings';
+import { Trade, upsertTrade } from '../core/domain/trade';
+import { mergeCompleted, mergeTrades, mergeUnlocked } from '../core/domain/syncMerge';
 
-export type Trade = {
-  id: string;
-  date: string; // YYYY-MM-DD
-  symbol: string;
-  direction: 'BUY' | 'SELL';
-  lot: number;
-  entry?: number;
-  exit?: number;
-  sl?: number;
-  tp?: number;
-  pl: number; // USD, hasil bersih
-  pips?: number;
-  setup?: string;
-  emotion?: string;
-  notes?: string;
-  createdAt: number;
-};
-
-export type Settings = {
-  balance?: string;
-  riskPercent?: string;
-  leverage?: string;
-  lastSymbol?: string;
-  /** Sudah melihat layar sambutan */
-  welcomed?: boolean;
-  /** Status autentikasi login pengguna */
-  isLoggedIn?: boolean;
-  /** Role akun: member atau admin */
-  role?: 'member' | 'admin';
-  /** Nama panggilan member (untuk sapaan) */
-  name?: string;
-  /** Identifier / Email akun yang sedang aktif */
-  activeUser?: string;
-  /** Pencapaian yang sudah terbuka: id → waktu terbuka (ms) */
-  unlocked?: Record<string, number>;
-  /** Berapa kali kalkulator Lot Size dibuka */
-  lotCalcCount?: number;
-};
+export type { Trade, Stats } from '../core/domain/trade';
+export type { Settings } from '../core/domain/settings';
+export { computeStats } from '../core/domain/trade';
 
 type StoreValue = {
   ready: boolean;
@@ -111,12 +79,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       setCompleted((prev) => {
         // Unggah progres lokal yang belum tercatat di cloud
-        Object.entries(prev).forEach(([lId, done]) => {
-          if (done && !cloud.completed[lId]) {
-            UserSyncService.saveLessonProgress(uid, lId, true);
-          }
-        });
-        const merged = { ...cloud.completed, ...prev };
+        const { merged, toUpload } = mergeCompleted(cloud.completed, prev);
+        toUpload.forEach((lId) => UserSyncService.saveLessonProgress(uid, lId, true));
         saveLocalCompletedForUser(targetUser, merged);
         return merged;
       });
@@ -125,32 +89,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // simpan ke storage lokal per-akun agar tidak saling menimpa.
       setSettings((prev) => {
         const cloudUnlocked: Record<string, number> = (cloud as { unlocked?: Record<string, number> }).unlocked || {};
-        if (prev.unlocked) {
-          Object.entries(prev.unlocked).forEach(([achId, ts]) => {
-            if (!cloudUnlocked[achId]) {
-              UserSyncService.saveAchievement(uid, achId, ts);
-            }
-          });
-        }
-        const mergedUnlocked = { ...cloudUnlocked, ...(prev.unlocked || {}) };
+        const { merged: mergedUnlocked, toUpload } = mergeUnlocked(cloudUnlocked, prev.unlocked);
+        toUpload.forEach(([achId, ts]) => UserSyncService.saveAchievement(uid, achId, ts));
         const next = { ...prev, unlocked: mergedUnlocked };
         saveLocalAchievementsForUser(targetUser, mergedUnlocked);
         return next;
       });
 
       setTrades((prev) => {
-        const idMap = new Map<string, Trade>();
-        // Masukkan data transaksi dari cloud
-        cloud.trades.forEach((t) => idMap.set(t.id, t));
         // Unggah transaksi lokal yang belum tercatat di cloud
-        prev.forEach((t) => {
-          if (!idMap.has(t.id)) {
-            UserSyncService.saveTrade(uid, t);
-          }
-          idMap.set(t.id, t);
-        });
-        const merged = Array.from(idMap.values());
-        merged.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt));
+        const { merged, toUpload } = mergeTrades(cloud.trades, prev);
+        toUpload.forEach((t) => UserSyncService.saveTrade(uid, t));
         saveLocalTradesForUser(targetUser, merged);
         return merged;
       });
@@ -189,9 +138,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const saveTrade = useCallback<StoreValue['saveTrade']>((t) => {
     setTrades((prev) => {
       const item: Trade = { ...t, id: t.id ?? newId(), createdAt: t.createdAt ?? Date.now() } as Trade;
-      const exists = prev.some((p) => p.id === item.id);
-      const next = exists ? prev.map((p) => (p.id === item.id ? item : p)) : [item, ...prev];
-      next.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt));
+      const next = upsertTrade(prev, item);
       saveLocalTradesForUser(activeUserRef.current, next);
       getCurrentUserId().then((uid) => {
         if (uid) UserSyncService.saveTrade(uid, item);
@@ -353,61 +300,4 @@ export function useStore() {
   const v = useContext(Ctx);
   if (!v) throw new Error('useStore must be inside StoreProvider');
   return v;
-}
-
-export type Stats = {
-  count: number;
-  wins: number;
-  losses: number;
-  winRate: number;
-  net: number;
-  grossWin: number;
-  grossLoss: number;
-  avgWin: number;
-  avgLoss: number;
-  profitFactor: number | null;
-  best: number;
-  worst: number;
-  equity: number[];
-};
-
-export function computeStats(trades: Trade[]): Stats {
-  const chron = [...trades].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt));
-  let net = 0;
-  let grossWin = 0;
-  let grossLoss = 0;
-  let wins = 0;
-  let losses = 0;
-  let best = 0;
-  let worst = 0;
-  const equity: number[] = [0];
-  for (const t of chron) {
-    net += t.pl;
-    equity.push(net);
-    if (t.pl > 0) {
-      wins++;
-      grossWin += t.pl;
-    } else if (t.pl < 0) {
-      losses++;
-      grossLoss += -t.pl;
-    }
-    best = Math.max(best, t.pl);
-    worst = Math.min(worst, t.pl);
-  }
-  const count = chron.length;
-  return {
-    count,
-    wins,
-    losses,
-    winRate: count ? wins / count : 0,
-    net,
-    grossWin,
-    grossLoss,
-    avgWin: wins ? grossWin / wins : 0,
-    avgLoss: losses ? grossLoss / losses : 0,
-    profitFactor: grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? null : 0,
-    best,
-    worst,
-    equity,
-  };
 }

@@ -1,4 +1,4 @@
-import { Trade } from './store';
+import type { Trade } from '../core/domain/trade';
 import { supabase } from './supabase';
 
 export class UserSyncService {
