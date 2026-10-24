@@ -43,4 +43,5 @@ npm run start:web      # Web admin (Vite)
 npm run test:mobile
 npm run lint:mobile
 npm run build:web
+npm run test:db        # tes RLS/trigger database (butuh Docker, atau set TEST_DATABASE_URL)
 ```

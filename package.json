@@ -20,6 +20,7 @@
     "test:mobile": "npm run test --workspace=mobile",
     "test:web": "npm run test --workspace=web",
     "test:coverage:mobile": "npm run test:coverage --workspace=mobile",
-    "test:coverage:web": "npm run test:coverage --workspace=web"
+    "test:coverage:web": "npm run test:coverage --workspace=web",
+    "test:db": "npm run test:db --workspace=mobile"
   }
 }
