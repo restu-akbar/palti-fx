@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Settings } from '../core/domain/settings';
+import type { Settings, UserScopedSettings } from '../core/domain/settings';
+import type { UserCacheBundle } from '../core/ports/userCache';
 import type { Trade } from '../core/domain/trade';
 
 export const TRADES_USER_KEY_PREFIX = '@pfx_user_trades_';
@@ -179,10 +180,7 @@ export async function saveLocalAchievementsForUser(
 /* 4. PENGATURAN SPESIFIK AKUN (SETTINGS)                             */
 /* ------------------------------------------------------------------ */
 
-export type UserScopedSettings = Pick<
-  Settings,
-  'balance' | 'riskPercent' | 'leverage' | 'lastSymbol' | 'lotCalcCount'
->;
+export type { UserScopedSettings };
 
 /**
  * Membaca preferensi & kalkulator spesifik milik akun tertentu (balance, risk %, leverage, dsb).
@@ -235,12 +233,7 @@ export async function saveLocalSettingsForUser(
 /* 5. LOAD ALL USER CACHE DATA SECARA PARALEL                         */
 /* ------------------------------------------------------------------ */
 
-export interface UserCacheBundle {
-  trades: Trade[];
-  completed: Record<string, boolean>;
-  achievements: Record<string, number>;
-  settings: UserScopedSettings;
-}
+export type { UserCacheBundle };
 
 /**
  * Memuat seluruh cache penting milik suatu akun secara paralel dan efisien.

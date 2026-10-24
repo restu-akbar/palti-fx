@@ -18,3 +18,8 @@ export type Settings = {
   /** Berapa kali kalkulator Lot Size dibuka */
   lotCalcCount?: number;
 };
+
+export type UserScopedSettings = Pick<
+  Settings,
+  'balance' | 'riskPercent' | 'leverage' | 'lastSymbol' | 'lotCalcCount'
+>;

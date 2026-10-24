@@ -38,7 +38,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "npx tsx tests/calc.test.ts && npx tsx tests/streak.test.ts && npx tsx tests/auth.test.ts && npx tsx tests/achievementStorage.test.ts && npx tsx tests/userCacheStorage.test.ts && npx tsx tests/eduMediaSync.test.ts && npx tsx tests/syncMerge.test.ts",
+    "test": "npx tsx tests/calc.test.ts && npx tsx tests/streak.test.ts && npx tsx tests/auth.test.ts && npx tsx tests/achievementStorage.test.ts && npx tsx tests/userCacheStorage.test.ts && npx tsx tests/eduMediaSync.test.ts && npx tsx tests/syncMerge.test.ts && npx tsx tests/reconcileUserData.test.ts && npx tsx tests/eduMapper.test.ts",
     "lint": "expo lint"
   },
   "private": true
