@@ -16,7 +16,10 @@
     "ios": "npm run ios --workspace=mobile",
     "lint": "npm run lint --workspace=mobile",
     "lint:mobile": "npm run lint --workspace=mobile",
-    "test": "npm run test --workspace=mobile",
-    "test:mobile": "npm run test --workspace=mobile"
+    "test": "npm run test --workspaces --if-present",
+    "test:mobile": "npm run test --workspace=mobile",
+    "test:web": "npm run test --workspace=web",
+    "test:coverage:mobile": "npm run test:coverage --workspace=mobile",
+    "test:coverage:web": "npm run test:coverage --workspace=web"
   }
 }

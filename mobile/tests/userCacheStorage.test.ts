@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
+import { it } from 'vitest';
 import {
   normalizeUserKey,
   getUserStorageKey,
 } from '../src/lib/userCacheStorage';
-import type { Trade } from '../src/lib/store';
+import type { Trade } from '../src/core/domain/trade';
 
 async function run() {
   // 1. Normalisasi user key
@@ -98,10 +99,6 @@ async function run() {
   const reloadCaseInsensitive = await mockGetTrades('  TRADERA@PALTI.ID  ');
   assert.equal(reloadCaseInsensitive.length, 2);
 
-  console.log('Semua tes isolasi userCacheStorage & perpindahan akun lulus ✓');
 }
 
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+it('isolasi userCacheStorage dan perpindahan akun', run);

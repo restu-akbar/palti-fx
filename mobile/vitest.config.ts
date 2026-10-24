@@ -6,7 +6,8 @@ export default defineConfig({
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      include: ['src/lib/**/*.ts'],
+      include: ['src/lib/**/*.ts', 'src/core/**/*.ts'],
+      exclude: ['src/lib/supabase.ts'],
       reporter: ['text', 'lcov'],
     },
   },
