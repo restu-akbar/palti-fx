@@ -38,7 +38,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "npx tsx tests/calc.test.ts && npx tsx tests/streak.test.ts && npx tsx tests/auth.test.ts && npx tsx tests/achievementStorage.test.ts",
+    "test": "npx tsx tests/calc.test.ts && npx tsx tests/streak.test.ts && npx tsx tests/auth.test.ts && npx tsx tests/achievementStorage.test.ts && npx tsx tests/userCacheStorage.test.ts",
     "lint": "expo lint"
   },
   "private": true

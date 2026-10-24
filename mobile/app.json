@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "PALTI FX",
+    "name": "Palti FX",
     "slug": "palti-fx",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -26,7 +26,7 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "name": "PALTI FX",
+      "name": "Palti FX",
       "backgroundColor": "#08080A",
       "themeColor": "#08080A"
     },

@@ -55,9 +55,13 @@ export function StreakCard({ streak }: { streak: StreakInfo }) {
   const on = streak.current > 0;
   const msg = streak.today
     ? 'Mantap! Jurnal hari ini sudah tercatat.'
-    : on
-      ? 'Catat trade hari ini supaya streak tidak putus.'
-      : 'Catat trade hari ini untuk memulai streak.';
+    : streak.isWeekend
+      ? on
+        ? 'Pasar tutup di akhir pekan (streak kamu tetap aman).'
+        : 'Pasar tutup di akhir pekan. Siap mulai streak hari Senin.'
+      : on
+        ? 'Catat trade hari ini supaya streak tidak putus.'
+        : 'Catat trade hari ini untuk memulai streak.';
   return (
     <Card style={{ marginBottom: 12 }} padded={false}>
       <LinearGradient

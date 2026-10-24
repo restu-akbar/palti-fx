@@ -31,6 +31,8 @@ export type StreakInfo = {
   best: number;
   /** Sudah mencatat hari ini? */
   today: boolean;
+  /** Apakah hari ini akhir pekan (Sabtu / Minggu)? */
+  isWeekend: boolean;
   /** Status Senin–Jumat minggu ini: true = ada catatan, null = belum lewat */
   week: { label: string; done: boolean; isToday: boolean; future: boolean }[];
 };
@@ -38,6 +40,7 @@ export type StreakInfo = {
 export function computeStreak(trades: Trade[], now = new Date()): StreakInfo {
   const days = new Set(trades.map((t) => t.date));
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+  const todayIsWeekend = isWeekend(today);
 
   // streak berjalan (hari ini belum mencatat tidak memutus streak)
   let cur = 0;
@@ -77,7 +80,7 @@ export function computeStreak(trades: Trade[], now = new Date()): StreakInfo {
     };
   });
 
-  return { current: cur, best, today: days.has(toKey(today)), week };
+  return { current: cur, best, today: days.has(toKey(today)), isWeekend: todayIsWeekend, week };
 }
 
 /* ------------------------------------------------------------------ */

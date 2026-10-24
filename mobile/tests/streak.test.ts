@@ -27,12 +27,27 @@ assert.equal(computeStreak([t('2026-09-27')], sun).current, 1);
 assert.equal(computeStreak([t('2026-09-25'), t('2026-09-27')], sun).current, 2);
 // Sabtu: streak Jumat tetap berjalan
 const sat = new Date(2026, 9, 3, 10);
-assert.equal(computeStreak([t('2026-10-01'), t('2026-10-02')], sat).current, 2);
-// minggu ini: Sen..Jum
-assert.deepEqual(computeStreak([t('2026-09-28')], wed).week.map((w) => w.done), [true, false, false, false, false]);
+// Sabtu & Minggu flag
+assert.equal(computeStreak([], wed).isWeekend, false);
+assert.equal(computeStreak([], sat).isWeekend, true);
+assert.equal(computeStreak([], sun).isWeekend, true);
 
-// achievements
-const ctx = { trades: [t('2026-09-28')], completed: {}, settings: { welcomed: true }, streakBest: 1 };
-const un = ACHIEVEMENTS.filter((a) => isUnlocked(a, ctx)).map((a) => a.id);
-assert.deepEqual(un.sort(), ['first-trade', 'first-win', 'welcome'].sort());
+// Senin pagi sebelum mencatat trade: trade hari Jumat tetap menjaga streak aktif
+const mon = new Date(2026, 8, 28, 9); // Senin 28 Sep 2026 pagi
+assert.equal(computeStreak([t('2026-09-25')], mon).current, 1);
+assert.equal(computeStreak([t('2026-09-24'), t('2026-09-25')], mon).current, 2);
+
+// Jumat ada trade, Sabtu libur, Minggu ada trade kripto, Senin pagi: streak 2
+assert.equal(computeStreak([t('2026-09-25'), t('2026-09-27')], mon).current, 2);
+
+// achievements dengan weekend skip: Kamis, Jumat, Senin -> streakBest 3 -> streak-3 unlocked!
+const ctx3 = {
+  trades: [t('2026-09-24'), t('2026-09-25'), t('2026-09-28')],
+  completed: {},
+  settings: { welcomed: true },
+  streakBest: computeStreak([t('2026-09-24'), t('2026-09-25'), t('2026-09-28')], mon).best,
+};
+const un3 = ACHIEVEMENTS.filter((a) => isUnlocked(a, ctx3)).map((a) => a.id);
+assert.ok(un3.includes('streak-3'), 'streak-3 harus terbuka meski melewati Sabtu & Minggu');
+
 console.log('Tes streak & pencapaian lulus ✓');

@@ -2,6 +2,7 @@
   "name": "palti-fx",
   "version": "1.0.0",
   "private": true,
+  "main": "mobile/index.ts",
   "workspaces": [
     "mobile",
     "web"

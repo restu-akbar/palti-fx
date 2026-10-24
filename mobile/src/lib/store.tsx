@@ -1,8 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from './supabase';
 import { getSecureNickname, setSecureNickname } from './nicknameStorage';
-import { getLocalAchievementsForUser, saveLocalAchievementsForUser } from './achievementStorage';
+import {
+  getLocalTradesForUser,
+  saveLocalTradesForUser,
+  getLocalCompletedForUser,
+  saveLocalCompletedForUser,
+  getLocalAchievementsForUser,
+  saveLocalAchievementsForUser,
+  getLocalSettingsForUser,
+  saveLocalSettingsForUser,
+  loadAllUserData,
+} from './userCacheStorage';
 import { UserSyncService } from './userSyncService';
 
 export type Trade = {
@@ -90,10 +100,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [completed, setCompleted] = useState<Record<string, boolean>>({});
   const [settings, setSettings] = useState<Settings>({});
+  const activeUserRef = useRef<string | undefined>(undefined);
 
   const syncFromCloud = useCallback(async (userId?: string) => {
     const uid = userId || (await getCurrentUserId());
     if (!uid) return;
+    const targetUser = activeUserRef.current;
     try {
       const cloud = await UserSyncService.fetchUserData(uid);
 
@@ -105,12 +117,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
         });
         const merged = { ...cloud.completed, ...prev };
-        persist(KEYS.completed, merged);
+        saveLocalCompletedForUser(targetUser, merged);
         return merged;
       });
 
       // Gabungan: unggah unlocked lokal yang belum ada di cloud, gabung kedua sisi,
-      // simpan ke storage lokal per-akun + persist global agar tidak ada fungsi yang hilang.
+      // simpan ke storage lokal per-akun agar tidak saling menimpa.
       setSettings((prev) => {
         const cloudUnlocked: Record<string, number> = (cloud as { unlocked?: Record<string, number> }).unlocked || {};
         if (prev.unlocked) {
@@ -122,11 +134,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
         const mergedUnlocked = { ...cloudUnlocked, ...(prev.unlocked || {}) };
         const next = { ...prev, unlocked: mergedUnlocked };
-        persist(KEYS.settings, next);
-        const targetUser = next.activeUser || prev.activeUser;
         saveLocalAchievementsForUser(targetUser, mergedUnlocked);
         return next;
       });
+
       setTrades((prev) => {
         const idMap = new Map<string, Trade>();
         // Masukkan data transaksi dari cloud
@@ -140,7 +151,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         });
         const merged = Array.from(idMap.values());
         merged.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt));
-        persist(KEYS.trades, merged);
+        saveLocalTradesForUser(targetUser, merged);
         return merged;
       });
     } catch (err) {
@@ -150,21 +161,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const [t, c, s] = await Promise.all([
-        load<Trade[]>(KEYS.trades, []),
-        load<Record<string, boolean>>(KEYS.completed, {}),
-        load<Settings>(KEYS.settings, {}),
+      const globalSettings = await load<Settings>(KEYS.settings, {});
+      const activeUser = globalSettings.activeUser;
+      activeUserRef.current = activeUser;
+
+      const [userData, secureName] = await Promise.all([
+        loadAllUserData(activeUser),
+        activeUser ? getSecureNickname(activeUser) : null,
       ]);
-      const [secureName, localAchievements] = await Promise.all([
-        s.activeUser ? getSecureNickname(s.activeUser) : null,
-        getLocalAchievementsForUser(s.activeUser),
-      ]);
-      setTrades(t);
-      setCompleted(c);
-      setSettings({ ...s, name: secureName || s.name, unlocked: localAchievements });
+
+      setTrades(userData.trades);
+      setCompleted(userData.completed);
+      setSettings({
+        ...globalSettings,
+        ...userData.settings,
+        name: secureName || globalSettings.name,
+        unlocked: userData.achievements,
+      });
       setReady(true);
 
-      if (s.isLoggedIn) {
+      if (globalSettings.isLoggedIn) {
         syncFromCloud();
       }
     })();
@@ -176,7 +192,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const exists = prev.some((p) => p.id === item.id);
       const next = exists ? prev.map((p) => (p.id === item.id ? item : p)) : [item, ...prev];
       next.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt));
-      persist(KEYS.trades, next);
+      saveLocalTradesForUser(activeUserRef.current, next);
       getCurrentUserId().then((uid) => {
         if (uid) UserSyncService.saveTrade(uid, item);
       });
@@ -187,7 +203,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const deleteTrade = useCallback((id: string) => {
     setTrades((prev) => {
       const next = prev.filter((p) => p.id !== id);
-      persist(KEYS.trades, next);
+      saveLocalTradesForUser(activeUserRef.current, next);
       getCurrentUserId().then((uid) => {
         if (uid) UserSyncService.deleteTrade(uid, id);
       });
@@ -199,7 +215,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setCompleted((prev) => {
       const isDone = done ?? !prev[lessonId];
       const next = { ...prev, [lessonId]: isDone };
-      persist(KEYS.completed, next);
+      saveLocalCompletedForUser(activeUserRef.current, next);
       getCurrentUserId().then((uid) => {
         if (uid) UserSyncService.saveLessonProgress(uid, lessonId, isDone);
       });
@@ -209,25 +225,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => {
-      const next = { ...prev, ...patch };
+      const prevUser = prev.activeUser;
+      const nextUser = patch.activeUser !== undefined ? patch.activeUser : prevUser;
+      const userChanged = patch.activeUser !== undefined && patch.activeUser !== prevUser;
+
+      activeUserRef.current = nextUser;
+
+      // Pergantian akun aktif: muat seluruh cache lokal milik akun baru tanpa menimpa akun lama
+      if (userChanged) {
+        Promise.all([
+          loadAllUserData(nextUser),
+          nextUser ? getSecureNickname(nextUser) : null,
+        ]).then(([userData, secureName]) => {
+          setTrades(userData.trades);
+          setCompleted(userData.completed);
+          setSettings((cur) => ({
+            ...cur,
+            ...userData.settings,
+            name: secureName || cur.name,
+            unlocked: userData.achievements,
+          }));
+        });
+      }
+
+      // Simpan preferensi trading per akun
+      if (
+        patch.balance !== undefined ||
+        patch.riskPercent !== undefined ||
+        patch.leverage !== undefined ||
+        patch.lastSymbol !== undefined ||
+        patch.lotCalcCount !== undefined
+      ) {
+        saveLocalSettingsForUser(nextUser, {
+          balance: patch.balance ?? prev.balance,
+          riskPercent: patch.riskPercent ?? prev.riskPercent,
+          leverage: patch.leverage ?? prev.leverage,
+          lastSymbol: patch.lastSymbol ?? prev.lastSymbol,
+          lotCalcCount: patch.lotCalcCount ?? prev.lotCalcCount,
+        });
+      }
+
       // Simpan nama panggilan spesifik untuk user yang sedang aktif
       if (patch.name !== undefined) {
-        const targetUser = next.activeUser || prev.activeUser;
-        setSecureNickname(targetUser, patch.name);
+        setSecureNickname(nextUser, patch.name);
         getCurrentUserId().then((uid) => {
           if (uid) UserSyncService.updateProfileName(uid, patch.name || null);
         });
       }
-      // Jika terjadi pergantian akun aktif, muat medali pencapaian milik akun tersebut
-      if (patch.activeUser !== undefined && patch.activeUser !== prev.activeUser) {
-        getLocalAchievementsForUser(patch.activeUser).then((ach) => {
-          setSettings((cur) => ({ ...cur, unlocked: ach }));
-        });
-      }
-      // Simpan medali pencapaian secara lokal + sinkronkan ke cloud (tidak memutus salah satu sisi)
+
+      // Simpan medali pencapaian secara lokal per akun + sinkronkan ke cloud
       if (patch.unlocked !== undefined) {
-        const targetUser = next.activeUser || prev.activeUser;
-        saveLocalAchievementsForUser(targetUser, patch.unlocked);
+        saveLocalAchievementsForUser(nextUser, patch.unlocked);
         getCurrentUserId().then((uid) => {
           if (uid && patch.unlocked) {
             Object.entries(patch.unlocked).forEach(([achId, ts]) => {
@@ -236,21 +284,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
         });
       }
-      persist(KEYS.settings, next);
+
+      const next = { ...prev, ...patch };
+      // Simpan pengaturan global perangkat (tanpa menghapus partisi data akun manapun)
+      persist(KEYS.settings, {
+        welcomed: next.welcomed,
+        isLoggedIn: next.isLoggedIn,
+        activeUser: next.activeUser,
+        role: next.role,
+        name: next.name,
+      });
       return next;
     });
   }, []);
 
   const logout = useCallback(() => {
     supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+    activeUserRef.current = undefined;
     setTrades([]);
     setCompleted({});
-    AsyncStorage.removeItem(KEYS.trades).catch(() => {});
-    AsyncStorage.removeItem(KEYS.completed).catch(() => {});
     setSettings((prev) => {
-      // Hapus status login, nama, dan user aktif agar tidak bocor ke akun berikutnya
-      const next = {
-        ...prev,
+      // Bersihkan state in-memory agar aman saat layar login tampil kembali.
+      // PENTING: Jangan hapus AsyncStorage cache milik akun yang logout,
+      // agar ketika login kembali, seluruh data lokal tetap utuh dan tidak hilang.
+      const next: Settings = {
+        welcomed: prev.welcomed ?? true,
         isLoggedIn: false,
         role: undefined,
         name: undefined,
