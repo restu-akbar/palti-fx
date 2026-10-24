@@ -25,7 +25,10 @@ import {
   Image as ImageIcon,
   Upload,
   Camera,
-  Search
+  Search,
+  MousePointer,
+  Layers,
+  HelpCircle
 } from 'lucide-react';
 import type { EduLesson, EduModule } from '../../types/admin';
 import { AdminMateriService, extractYouTubeId } from '../../lib/adminMateri';
@@ -173,26 +176,77 @@ function compressImageFile(file: File, maxWidth = 1200, quality = 0.82): Promise
   });
 }
 
+export interface EmbeddedMediaItem {
+  id: string;
+  type: 'image' | 'video';
+  src: string;
+  caption?: string;
+  name: string;
+}
+
+/**
+ * Mengubah markdown foto base64/URL panjang menjadi wrapper token ringkas:
+ * ![Caption](data:image/...) -> [FOTO: Caption | id="foto_1"]
+ * Menjaga naskah editor tetap bersih, ringan, dan mudah di-scroll tanpa banjir base64.
+ */
+export function collapseMediaContent(rawContent: string): {
+  cleanContent: string;
+  mediaList: EmbeddedMediaItem[];
+} {
+  if (!rawContent) return { cleanContent: '', mediaList: [] };
+  const mediaList: EmbeddedMediaItem[] = [];
+  let counter = 1;
+
+  const imgRegex = /!\[(.*?)\]\((.*?)\)/g;
+  const cleanContent = rawContent.replace(imgRegex, (_, caption, src) => {
+    const trimmedSrc = (src || '').trim();
+    const trimmedCaption = (caption || '').trim();
+    const mediaId = `foto_${counter++}`;
+    const displayName = trimmedCaption || `Foto #${mediaList.length + 1}`;
+
+    mediaList.push({
+      id: mediaId,
+      type: 'image',
+      src: trimmedSrc,
+      caption: trimmedCaption,
+      name: displayName,
+    });
+
+    return `[FOTO: ${displayName} | id="${mediaId}"]`;
+  });
+
+  return { cleanContent, mediaList };
+}
+
+/**
+ * Mengubah kembali wrapper token ringkas menjadi markdown foto asli sebelum disimpan ke database:
+ * [FOTO: ... | id="foto_1"] -> ![Caption](src_asli)
+ */
+export function expandMediaContent(
+  cleanContent: string,
+  mediaList: EmbeddedMediaItem[]
+): string {
+  if (!cleanContent) return '';
+  const mediaMap = new Map<string, EmbeddedMediaItem>();
+  mediaList.forEach((m) => mediaMap.set(m.id, m));
+
+  const tagRegex = /\[(?:FOTO|GAMBAR|MEDIA_FOTO):\s*(.*?)\s*\|\s*id=["'](.*?)["']\]/gi;
+  return cleanContent.replace(tagRegex, (match, label, id) => {
+    const item = mediaMap.get(id);
+    if (!item) return match;
+    const cap = item.caption || label || '';
+    return cap ? `![${cap}](${item.src})` : `![](${item.src})`;
+  });
+}
+
 /**
  * MobileRichText - Replikasi parser dan styling RichText dari aplikasi mobile PALTI FX
- * Mendukung format:
- * - Foto/Gambar inline (semua format: PNG, JPG, JPEG, WEBP, GIF, SVG, BMP, AVIF)
- * - Video YouTube inline (bisa diletakkan di mana saja dalam naskah)
- * - # Judul Utama (dengan bar emas)
- * - ## Judul Sub-bab (dengan bar emas 20px)
- * - ### Sub-judul kecil
- * - - Poin daftar / * Poin daftar (dengan bullet wajik emas 45deg)
- * - 1. Poin bernomor (dengan badge nomor bulat)
- * - > Catatan penting / tips (dengan kartu gradien emas & badge bohlam) - mendukung multi-baris
- * - ``` Kode / blok rumus monospace
- * - --- atau *** Garis pemisah tipis
- * - Baris biasa / paragraf (dengan warna teks gading & tipografi mobile yang rapi)
- * - Format inline: **tebal**, *miring*, `kode`, [link](url)
  */
 const MobileRichText: React.FC<{
   content: string;
   onImageClick?: (url: string, caption?: string) => void;
-}> = ({ content, onImageClick }) => {
+  embeddedMediaList?: EmbeddedMediaItem[];
+}> = ({ content, onImageClick, embeddedMediaList }) => {
   if (!content || !content.trim()) {
     return (
       <div style={{ color: '#7A766E', fontStyle: 'italic', fontSize: '13px', padding: '1.5rem 0', textAlign: 'center' }}>
@@ -370,17 +424,24 @@ const MobileRichText: React.FC<{
       return;
     }
 
-    // 1. Cek Foto / Gambar Inline (Semua Format: PNG, JPG, JPEG, WEBP, GIF, SVG, BMP, AVIF, Data URL)
-    // Format: ![caption](url) atau [foto: url] atau [gambar: url] atau [image: url] atau tautan langsung
+    // 1. Cek Foto / Gambar Inline (Semua Format: PNG, JPG, JPEG, WEBP, GIF, SVG, BMP, AVIF, Data URL, atau Wrapper Tag)
     const imgMdMatch = trimmed.match(/^!\[(.*?)\]\((.*?)\)$/);
     const imgTagMatch = trimmed.match(/^\[(?:foto|gambar|image|img)(?::|\s+)(.*?)\]$/i);
+    const imgEmbedMatch = trimmed.match(/^\[(?:foto|gambar|media_foto):\s*(.*?)\s*\|\s*id=["'](.*?)["']\]$/i);
     const isDirectImgUrl = /^(https?:\/\/.*?\.(?:png|jpg|jpeg|webp|gif|svg|avif|bmp)(?:\?.*)?)$/i.test(trimmed) || 
                            /^data:image\/(?:png|jpeg|jpg|webp|gif|svg\+xml|bmp|avif);base64,/i.test(trimmed);
 
     let imgSrc: string | null = null;
     let imgCaption = '';
 
-    if (imgMdMatch) {
+    if (imgEmbedMatch) {
+      const mediaId = imgEmbedMatch[2];
+      const found = embeddedMediaList?.find((m) => m.id === mediaId);
+      if (found) {
+        imgSrc = found.src;
+        imgCaption = found.caption || imgEmbedMatch[1];
+      }
+    } else if (imgMdMatch) {
       imgCaption = imgMdMatch[1].trim();
       imgSrc = imgMdMatch[2].trim();
     } else if (imgTagMatch) {
@@ -436,7 +497,7 @@ const MobileRichText: React.FC<{
               justifyContent: 'space-between',
             }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ color: '#E3B64F', fontStyle: 'normal' }}>📸</span>
+                <Camera size={13} color="#E3B64F" />
                 <span>{imgCaption}</span>
               </span>
               {onImageClick && (
@@ -887,9 +948,14 @@ export const AdminMateriView: React.FC = () => {
   const [imgCaptionInput, setImgCaptionInput] = useState('');
   const [imgPreviewData, setImgPreviewData] = useState<string | null>(null);
   const [imgCompressing, setImgCompressing] = useState(false);
+  const [isDraggingImg, setIsDraggingImg] = useState(false);
+  const [imgInsertPosition, setImgInsertPosition] = useState<'cursor' | 'top' | 'bottom'>('cursor');
 
   const [showInsertVideoModal, setShowInsertVideoModal] = useState(false);
   const [videoModalUrl, setVideoModalUrl] = useState('');
+  const [videoInsertPosition, setVideoInsertPosition] = useState<'cursor' | 'top' | 'bottom'>('cursor');
+  const [embeddedMediaList, setEmbeddedMediaList] = useState<EmbeddedMediaItem[]>([]);
+  const [showNaskahGuide, setShowNaskahGuide] = useState(false);
 
   // Lightbox Modal State
   const [lightboxImg, setLightboxImg] = useState<{ url: string; caption?: string } | null>(null);
@@ -1063,6 +1129,7 @@ export const AdminMateriView: React.FC = () => {
     setLesUrls([]);
     setInputUrl('');
     setLesContent('');
+    setEmbeddedMediaList([]);
     setShowLesModal(true);
   };
 
@@ -1072,7 +1139,10 @@ export const AdminMateriView: React.FC = () => {
     setLesMinutes(les.minutes);
     setLesUrls([...(les.youtube_urls || [])]);
     setInputUrl('');
-    setLesContent(les.content || '');
+    // Otomatis bungkus data URL foto panjang menjadi tag container ringkas [FOTO: ... | id="..."]
+    const { cleanContent, mediaList } = collapseMediaContent(les.content || '');
+    setLesContent(cleanContent);
+    setEmbeddedMediaList(mediaList);
     setShowLesModal(true);
   };
 
@@ -1091,36 +1161,77 @@ export const AdminMateriView: React.FC = () => {
     setLesUrls(lesUrls.filter((_, i) => i !== idx));
   };
 
-  const insertAtCursor = (textToInsert: string) => {
+  const insertMediaContent = (markdownToInsert: string, position: 'cursor' | 'top' | 'bottom' = 'cursor') => {
     const textarea = contentTextareaRef.current;
+    const current = lesContent || '';
+
+    if (position === 'top') {
+      const trimmedMarkdown = markdownToInsert.trim();
+      const newContent = current.trim() ? trimmedMarkdown + '\n\n' + current.trimStart() : trimmedMarkdown;
+      setLesContent(newContent);
+      return;
+    }
+
+    if (position === 'bottom') {
+      const trimmedMarkdown = markdownToInsert.trim();
+      const newContent = current.trim() ? current.trimEnd() + '\n\n' + trimmedMarkdown : trimmedMarkdown;
+      setLesContent(newContent);
+      return;
+    }
+
+    // Default: 'cursor'
     if (!textarea) {
-      setLesContent((prev) => (prev ? prev + '\n\n' + textToInsert : textToInsert));
+      setLesContent((prev) => (prev ? prev + '\n\n' + markdownToInsert : markdownToInsert));
       return;
     }
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const prev = lesContent;
-    const newContent = prev.substring(0, start) + textToInsert + prev.substring(end);
+    const newContent = prev.substring(0, start) + markdownToInsert + prev.substring(end);
     setLesContent(newContent);
     setTimeout(() => {
       textarea.focus();
-      textarea.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
+      textarea.setSelectionRange(start + markdownToInsert.length, start + markdownToInsert.length);
     }, 50);
   };
 
-  const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const insertAtCursor = (textToInsert: string) => {
+    insertMediaContent(textToInsert, 'cursor');
+  };
+
+  const processImageFile = async (file: File) => {
     if (!file) return;
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/svg+xml', 'image/bmp', 'image/avif'];
+    const validExtensions = /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i;
+
+    if (!validTypes.includes(file.type) && !validExtensions.test(file.name)) {
+      notify('Format berkas tidak didukung. Harap pilih gambar (PNG, JPG, WEBP, GIF, SVG, BMP, AVIF).', true);
+      return;
+    }
+
     setImgCompressing(true);
     try {
       const compressedDataUrl = await compressImageFile(file);
       setImgPreviewData(compressedDataUrl);
+      if (!imgCaptionInput.trim()) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        setImgCaptionInput(cleanName);
+      }
+      notify(`Berkas "${file.name}" siap disisipkan.`);
     } catch (err) {
       console.error(err);
       notify('Gagal memproses berkas gambar.', true);
     } finally {
       setImgCompressing(false);
     }
+  };
+
+  const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processImageFile(file);
+    }
+    e.target.value = '';
   };
 
   const handleConfirmInsertImage = () => {
@@ -1130,13 +1241,31 @@ export const AdminMateriView: React.FC = () => {
       return;
     }
     const caption = imgCaptionInput.trim();
-    const markdown = caption ? `\n\n![${caption}](${src})\n\n` : `\n\n![](${src})\n\n`;
-    insertAtCursor(markdown);
+    const mediaId = `foto_${Date.now()}`;
+    const displayName = caption || `Foto #${embeddedMediaList.length + 1}`;
+
+    // Simpan ke embeddedMediaList untuk manajemen container pembungkus
+    setEmbeddedMediaList((prev) => [
+      ...prev,
+      {
+        id: mediaId,
+        type: 'image',
+        src,
+        caption,
+        name: displayName,
+      },
+    ]);
+
+    // Masukkan tag ringkas ke naskah (clean looks, tanpa ribuan karakter base64)
+    const tagMarkdown = `\n\n[FOTO: ${displayName} | id="${mediaId}"]\n\n`;
+    insertMediaContent(tagMarkdown, imgInsertPosition);
+
     setShowInsertImgModal(false);
     setImgPreviewData(null);
     setImgUrlInput('');
     setImgCaptionInput('');
-    notify('Foto berhasil disisipkan ke dalam naskah.');
+    setIsDraggingImg(false);
+    notify('Foto berhasil disisipkan dengan pembungkus container ringkas.');
   };
 
   const handleConfirmInsertVideo = () => {
@@ -1147,7 +1276,7 @@ export const AdminMateriView: React.FC = () => {
       notify('Tautan YouTube tidak valid. Pastikan format link benar (contoh: https://youtu.be/... atau watch?v=...)', true);
       return;
     }
-    insertAtCursor(`\n\n${url}\n\n`);
+    insertMediaContent(`\n\n${url}\n\n`, videoInsertPosition);
     if (!lesUrls.some((u) => extractYouTubeId(u) === ytid)) {
       setLesUrls((prev) => [...prev, url]);
     }
@@ -1164,11 +1293,11 @@ export const AdminMateriView: React.FC = () => {
   }, [lesContent]);
 
   const contentImageCount = useMemo(() => {
-    if (!lesContent) return 0;
-    const imgRegex = /!\[.*?\]\(.*?\)|\[(?:foto|gambar|image|img):.*?\]/gi;
+    if (!lesContent) return embeddedMediaList.length;
+    const imgRegex = /!\[.*?\]\(.*?\)|\[(?:foto|gambar|image|img|media_foto).*?\]/gi;
     const matches = lesContent.match(imgRegex);
-    return matches ? matches.length : 0;
-  }, [lesContent]);
+    return matches ? matches.length : embeddedMediaList.length;
+  }, [lesContent, embeddedMediaList]);
 
   const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1178,11 +1307,14 @@ export const AdminMateriView: React.FC = () => {
     }
     setActionLoading(true);
 
+    // Expand media wrappers kembali ke format markdown lengkap dengan data URL / src asli sebelum dikirim ke database
+    const expandedContent = expandMediaContent(lesContent, embeddedMediaList);
+
     // Otomatis sinkronkan seluruh video YouTube yang ada di dalam naskah ke daftar youtubeUrls
     const contentUrls: string[] = [];
     const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi;
     let ytMatch;
-    while ((ytMatch = ytRegex.exec(lesContent)) !== null) {
+    while ((ytMatch = ytRegex.exec(expandedContent)) !== null) {
       const full = ytMatch[0];
       const norm = full.startsWith('http') ? full : `https://${full}`;
       if (!contentUrls.includes(norm)) contentUrls.push(norm);
@@ -1200,7 +1332,7 @@ export const AdminMateriView: React.FC = () => {
         title: lesTitle,
         minutes: lesMinutes,
         youtubeUrls: combinedUrls,
-        content: lesContent,
+        content: expandedContent,
       });
       if (res.success) {
         notify(`Bab "${lesTitle.trim()}" berhasil diperbarui.`);
@@ -1215,7 +1347,7 @@ export const AdminMateriView: React.FC = () => {
         title: lesTitle,
         minutes: lesMinutes,
         youtubeUrls: combinedUrls,
-        content: lesContent,
+        content: expandedContent,
       });
       if (res.success) {
         notify('Bab materi baru berhasil ditambahkan.');
@@ -1484,7 +1616,7 @@ export const AdminMateriView: React.FC = () => {
                       fontWeight: 500,
                       alignSelf: 'flex-start',
                     }}>
-                      <span style={{ fontSize: '0.85em' }}>📌</span>
+                      <BookOpen size={12} color="var(--gold-accent)" />
                       <span>Subbab: <strong>{item.matchedSubbab}</strong></span>
                     </div>
                   )}
@@ -2409,17 +2541,94 @@ export const AdminMateriView: React.FC = () => {
                       color: contentVideoCount > 0 ? 'var(--gold-accent)' : 'var(--text-dim)',
                       fontWeight: contentVideoCount > 0 ? 600 : 400,
                     }}>
-                      {contentVideoCount} Video di Naskah
+                      {contentVideoCount} Video
                     </span>
                     <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>•</span>
                     <span style={{
                       color: contentImageCount > 0 ? '#38BDF8' : 'var(--text-dim)',
                       fontWeight: contentImageCount > 0 ? 600 : 400,
                     }}>
-                      {contentImageCount} Foto di Naskah
+                      {contentImageCount} Foto
                     </span>
                   </div>
                 </div>
+
+                {/* ─── CONTAINER PEMBUNGKUS MEDIA TERSEMAT ─── */}
+                {embeddedMediaList.length > 0 && (
+                  <div style={{
+                    margin: '0.65rem 0',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.025)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--gold-accent)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        <Layers size={13} />
+                        <span>Pembungkus Media Tersemat ({embeddedMediaList.length})</span>
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                        Media dibungkus tag ringkas agar naskah bersih &amp; mudah di-scroll
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '4px' }}>
+                      {embeddedMediaList.map((m) => (
+                        <div
+                          key={m.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            backgroundColor: 'rgba(0, 0, 0, 0.35)',
+                            border: '1px solid rgba(227, 182, 79, 0.25)',
+                            fontSize: '0.75rem',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <img
+                            src={m.src}
+                            alt={m.name}
+                            style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }}
+                          />
+                          <div style={{ maxWidth: '160px', overflow: 'hidden' }}>
+                            <div style={{ fontWeight: 600, color: '#FFF', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              {m.name}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--gold-accent)', fontFamily: 'monospace' }}>
+                              [FOTO: {m.name}]
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(`[FOTO: ${m.name} | id="${m.id}"]`);
+                              notify(`Tag [FOTO: ${m.name}] berhasil disalin.`);
+                            }}
+                            title="Salin Tag Pembungkus"
+                            style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '2px' }}
+                          >
+                            <Copy size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const tagRegex = new RegExp(`\\[(?:FOTO|GAMBAR|MEDIA_FOTO):\\s*.*?\\s*\\|\\s*id=["']${m.id}["']\\]`, 'gi');
+                              setLesContent((prev) => prev.replace(tagRegex, '').replace(/\n\s*\n\s*\n/g, '\n\n'));
+                              setEmbeddedMediaList((prev) => prev.filter((item) => item.id !== m.id));
+                              notify(`Media "${m.name}" dihapus.`);
+                            }}
+                            title="Hapus Media dari Naskah"
+                            style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '2px' }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Textarea */}
                 <textarea
@@ -2437,143 +2646,144 @@ export const AdminMateriView: React.FC = () => {
                   onChange={(e) => setLesContent(e.target.value)}
                 />
 
+                {/* Bar Info Modul & Tombol Toggle Panduan Format Naskah */}
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginTop: '0.45rem',
-                  fontSize: '0.72rem',
-                  color: 'var(--text-dim)',
+                  marginTop: '0.6rem',
+                  padding: '0.4rem 0.6rem',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  flexWrap: 'wrap',
+                  gap: '0.5rem',
                 }}>
-                  <span>Tip: Video dan foto yang disisipkan akan muncul tepat di posisi kursor tersebut.</span>
-                  <span>Markdown didukung: ## Subjudul, - List, &gt; Tips</span>
-                </div>
-              </div>
-
-              {/* Seksi 3: Koleksi Video YouTube Tersemat Bab Ini */}
-              <div style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                borderRadius: 'var(--radius-md)',
-                padding: '1rem',
-                marginBottom: '1.25rem',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <Film size={14} color="var(--gold-accent)" />
-                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#FFF' }}>
-                      Video YouTube Terdaftar Bab Ini
-                    </span>
-                    <span style={{
-                      fontSize: '0.7rem',
-                      padding: '1px 6px',
-                      borderRadius: '10px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                      color: 'var(--text-secondary)',
-                    }}>
-                      {lesUrls.length} Video
-                    </span>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '0.74rem',
+                    color: 'var(--text-secondary)',
+                  }}>
+                    <BookOpen size={13} color="var(--gold-accent)" />
+                    <span>Modul Induk: <strong style={{ color: '#fff' }}>{selectedModule?.title || 'Dasar-Dasar Forex'}</strong></span>
                   </div>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>
-                    Video yang belum disisipkan ke naskah akan tampil di header atas bab.
-                  </span>
-                </div>
 
-                {/* Quick Add URL Box */}
-                <div style={{ display: 'flex', gap: '0.45rem', marginBottom: lesUrls.length > 0 ? '0.75rem' : 0 }}>
-                  <input
-                    type="url"
-                    className="pfx-input"
-                    placeholder="Tempel URL YouTube (https://youtu.be/... atau watch?v=...)"
-                    value={inputUrl}
-                    onChange={(e) => setInputUrl(e.target.value)}
-                    style={{ fontSize: '0.82rem' }}
-                  />
                   <button
                     type="button"
-                    onClick={handleAddVideoUrl}
-                    className="btn-secondary"
-                    style={{ whiteSpace: 'nowrap', fontSize: '0.78rem', padding: '0.45rem 0.85rem' }}
+                    onClick={() => setShowNaskahGuide((prev) => !prev)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: showNaskahGuide ? 'var(--gold-accent)' : 'var(--text-dim)',
+                      fontSize: '0.73rem',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      cursor: 'pointer',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: showNaskahGuide ? 'rgba(227, 182, 79, 0.12)' : 'transparent',
+                      transition: 'all 0.15s ease',
+                      fontWeight: showNaskahGuide ? 600 : 400,
+                    }}
                   >
-                    <Plus size={14} />
-                    <span>Tambah Video</span>
+                    <HelpCircle size={13} />
+                    <span>{showNaskahGuide ? 'Tutup Panduan Format' : 'Panduan Format Naskah & Media'}</span>
                   </button>
                 </div>
 
-                {/* Daftar Video Tersemat */}
-                {lesUrls.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    {lesUrls.map((url, idx) => {
-                      const ytid = extractYouTubeId(url);
-                      const isPlacedInContent = ytid ? lesContent.includes(ytid) : lesContent.includes(url);
-                      return (
-                        <div
-                          key={idx}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '0.5rem 0.75rem',
-                            borderRadius: 'var(--radius-sm)',
-                            backgroundColor: 'rgba(255, 255, 255, 0.035)',
-                            border: '1px solid rgba(255, 255, 255, 0.07)',
-                            fontSize: '0.8rem',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
-                            <Film size={13} color="var(--info)" style={{ flexShrink: 0 }} />
-                            <span style={{ color: 'var(--text-secondary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '340px' }}>
-                              Video #{idx + 1}: {url}
-                            </span>
-                            {isPlacedInContent ? (
-                              <span style={{
-                                fontSize: '0.68rem',
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: 'rgba(52, 211, 153, 0.14)',
-                                color: '#34D399',
-                                border: '1px solid rgba(52, 211, 153, 0.25)',
-                                whiteSpace: 'nowrap',
-                              }}>
-                                ✓ Di Naskah
-                              </span>
-                            ) : (
-                              <span style={{
-                                fontSize: '0.68rem',
-                                padding: '1px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: 'rgba(56, 189, 248, 0.12)',
-                                color: '#38BDF8',
-                                border: '1px solid rgba(56, 189, 248, 0.2)',
-                                whiteSpace: 'nowrap',
-                              }}>
-                                📌 Header Atas
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
-                            <button
-                              type="button"
-                              onClick={() => insertAtCursor(`\n\n${url}\n\n`)}
-                              className="btn-secondary"
-                              style={{ fontSize: '0.72rem', padding: '0.22rem 0.55rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
-                              title="Sisipkan video ini langsung ke posisi kursor di naskah"
-                            >
-                              <Plus size={11} />
-                              <span>{isPlacedInContent ? 'Sisipkan Lagi' : 'Sisipkan ke Naskah'}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveVideoUrl(idx)}
-                              style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '3px' }}
-                              title="Hapus Video Ini"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
+                {/* Kotak Panduan Format Naskah & Pembungkus Media (Collapsible) */}
+                {showNaskahGuide && (
+                  <div
+                    style={{
+                      marginTop: '0.65rem',
+                      padding: '0.85rem',
+                      borderRadius: 'var(--radius-sm)',
+                      backgroundColor: 'rgba(227, 182, 79, 0.05)',
+                      border: '1px solid rgba(227, 182, 79, 0.25)',
+                      animation: 'fadeIn 0.2s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <HelpCircle size={15} color="var(--gold-accent)" />
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--gold-accent)' }}>
+                          Panduan Penulisan Naskah &amp; Pembungkus Media Ringkas
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize: '0.68rem',
+                        padding: '2px 7px',
+                        borderRadius: '3px',
+                        backgroundColor: 'rgba(227, 182, 79, 0.15)',
+                        color: 'var(--gold-accent)',
+                        fontWeight: 600,
+                      }}>
+                        VIP Mobile Ready
+                      </span>
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                      gap: '0.85rem',
+                      fontSize: '0.73rem',
+                      color: 'var(--text-secondary)',
+                      lineHeight: 1.55,
+                    }}>
+                      {/* Kolom 1: Pembungkus Media Ringkas */}
+                      <div style={{
+                        padding: '0.75rem',
+                        borderRadius: '6px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                      }}>
+                        <div style={{ fontWeight: 600, color: '#fff', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Camera size={13} color="var(--gold-accent)" />
+                          <span>Pembungkus Media Ringkas</span>
                         </div>
-                      );
-                    })}
+                        <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+                          <li style={{ marginBottom: '0.35rem' }}>
+                            <strong>Sisipkan Foto / Drag &amp; Drop:</strong> Gunakan toolbar atau seret file gambar langsung ke editor. Foto otomatis dikompres dan diringkas jadi token <code>[FOTO: nama | id="..."]</code> agar naskah tidak dibanjiri kode base64 panjang.
+                          </li>
+                          <li style={{ marginBottom: '0.35rem' }}>
+                            <strong>Sisipkan Video YouTube:</strong> Gunakan tombol <strong>+ Sisipkan Video</strong> untuk menyematkan token <code>[VIDEO: judul | id="..."]</code>.
+                          </li>
+                          <li>
+                            <strong>Posisi Bebas:</strong> Token media dapat dipindah/cut-paste ke mana saja (di paling atas, tengah antar alinea, atau di akhir). Tampilan di aplikasi mobile akan persis mengikuti posisi token tersebut.
+                          </li>
+                        </ul>
+                      </div>
+
+                      {/* Kolom 2: Format Teks Markdown */}
+                      <div style={{
+                        padding: '0.75rem',
+                        borderRadius: '6px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                      }}>
+                        <div style={{ fontWeight: 600, color: '#fff', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <FileText size={13} color="var(--gold-accent)" />
+                          <span>Format Teks Markdown yang Didukung</span>
+                        </div>
+                        <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
+                          <li style={{ marginBottom: '0.35rem' }}>
+                            <code>## Subjudul Materi</code> &mdash; Menampilkan subjudul dengan aksen garis vertikal emas khas VIP.
+                          </li>
+                          <li style={{ marginBottom: '0.35rem' }}>
+                            <code>- Butir Poin</code> &mdash; Membuat daftar poin berurutan dengan penanda titik emas.
+                          </li>
+                          <li style={{ marginBottom: '0.35rem' }}>
+                            <code>&gt; Kotak Catatan / Insight</code> &mdash; Membungkus ringkasan penting dalam kotak berlatar elegan.
+                          </li>
+                          <li>
+                            <code>**Tebal**</code>, <code>*Miring*</code>, dan <code>`Istilah Teknis`</code> untuk penekanan teks.
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2586,8 +2796,9 @@ export const AdminMateriView: React.FC = () => {
                 paddingTop: '1rem',
                 borderTop: '1px solid rgba(255, 255, 255, 0.08)',
               }}>
-                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
-                  Modul: {selectedModule?.title}
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <Check size={13} color="var(--gold-accent)" />
+                  <span>Media otomatis dikonversi ke format standar saat disimpan</span>
                 </span>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button type="button" onClick={() => setShowLesModal(false)} className="btn-cancel">
@@ -2988,7 +3199,7 @@ export const AdminMateriView: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                /* ─── FULL TEXT PURE READER MODE ─── */
+                /* ─── FULL TEXT PURE READER MODE DENGAN CONTAINER EMBED ─── */
                 <div>
                   <h1 style={{
                     fontSize: '1.4rem',
@@ -3002,14 +3213,102 @@ export const AdminMateriView: React.FC = () => {
                     {previewLesson.title}
                   </h1>
 
-                  <div style={{
-                    fontSize: '0.92rem',
-                    lineHeight: 1.85,
-                    color: 'var(--text-primary)',
-                    whiteSpace: 'pre-wrap',
-                    fontFamily: 'var(--font-sans)',
-                  }}>
-                    {previewLesson.content || 'Belum ada konten tertulis untuk bab ini.'}
+                  <div>
+                    {(() => {
+                      const raw = previewLesson.content || '';
+                      if (!raw.trim()) {
+                        return <div style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>Belum ada konten tertulis untuk bab ini.</div>;
+                      }
+                      const lines = raw.split('\n');
+                      const elements: React.ReactNode[] = [];
+                      let textBuffer: string[] = [];
+
+                      const flushText = (k: string) => {
+                        if (textBuffer.length > 0) {
+                          elements.push(
+                            <div key={k} style={{ marginBottom: '14px', lineHeight: 1.85, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                              {textBuffer.join('\n')}
+                            </div>
+                          );
+                          textBuffer = [];
+                        }
+                      };
+
+                      lines.forEach((line, idx) => {
+                        const trimmed = line.trim();
+                        const imgMdMatch = trimmed.match(/^!\[(.*?)\]\((.*?)\)$/);
+                        const imgTagMatch = trimmed.match(/^\[(?:foto|gambar|media_foto):\s*(.*?)(?:\s*\|\s*id=["'](.*?)["'])?\]$/i);
+                        const isDirectBase64 = /^data:image\/[a-zA-Z0-9+.-]+;base64,/i.test(trimmed);
+
+                        if (imgMdMatch || imgTagMatch || isDirectBase64) {
+                          flushText(`tb-${idx}`);
+                          const cap = imgMdMatch ? imgMdMatch[1] : imgTagMatch ? imgTagMatch[1] : 'Foto Materi';
+                          elements.push(
+                            <div
+                              key={`pure-img-${idx}`}
+                              style={{
+                                margin: '14px 0',
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                backgroundColor: 'rgba(227, 182, 79, 0.05)',
+                                border: '1px solid rgba(227, 182, 79, 0.22)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                              }}
+                            >
+                              <ImageIcon size={16} color="var(--gold-accent)" />
+                              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#F5F2EA' }}>
+                                  Container Foto: {cap || 'Ilustrasi Materi'}
+                                </span>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--gold-accent)', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(227, 182, 79, 0.12)' }}>
+                                  Media Tersemat
+                                </span>
+                              </div>
+                            </div>
+                          );
+                          return;
+                        }
+
+                        const ytId = extractYouTubeId(trimmed);
+                        const isYtTag = /^\[video(?::|\s+)(.*?)\]$/i.test(trimmed);
+                        if (ytId && (isYtTag || trimmed.startsWith('http://') || trimmed.startsWith('https://'))) {
+                          flushText(`tb-${idx}`);
+                          elements.push(
+                            <div
+                              key={`pure-yt-${idx}`}
+                              style={{
+                                margin: '14px 0',
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                backgroundColor: 'rgba(235, 87, 87, 0.05)',
+                                border: '1px solid rgba(235, 87, 87, 0.22)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                              }}
+                            >
+                              <Film size={16} color="#EB5757" />
+                              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#F5F2EA' }}>
+                                  Container Video: {trimmed}
+                                </span>
+                                <span style={{ fontSize: '0.7rem', color: '#EB5757', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(235, 87, 87, 0.12)' }}>
+                                  Video YouTube
+                                </span>
+                              </div>
+                            </div>
+                          );
+                          return;
+                        }
+
+                        textBuffer.push(line);
+                      });
+
+                      flushText('tb-end');
+                      return elements;
+                    })()}
                   </div>
                 </div>
               )}
@@ -3125,8 +3424,13 @@ export const AdminMateriView: React.FC = () => {
                 padding: '6px 16px',
                 borderRadius: '20px',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
               }}>
-                📸 {lightboxImg.caption}
+                <Camera size={14} color="#E3B64F" />
+                <span>{lightboxImg.caption}</span>
               </div>
             )}
           </div>
@@ -3210,24 +3514,48 @@ export const AdminMateriView: React.FC = () => {
 
                 <div
                   onClick={() => document.getElementById('pfx-img-file-input')?.click()}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingImg(true);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingImg(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingImg(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingImg(false);
+                    const files = e.dataTransfer.files;
+                    if (files && files.length > 0) {
+                      processImageFile(files[0]);
+                    }
+                  }}
                   style={{
                     padding: '1.75rem',
                     borderRadius: 'var(--radius-sm)',
-                    border: '2px dashed rgba(255, 255, 255, 0.15)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    border: isDraggingImg ? '2px dashed var(--gold-accent)' : '2px dashed rgba(255, 255, 255, 0.15)',
+                    backgroundColor: isDraggingImg ? 'rgba(227, 182, 79, 0.12)' : 'rgba(255, 255, 255, 0.02)',
                     textAlign: 'center',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
+                    boxShadow: isDraggingImg ? '0 0 20px rgba(227, 182, 79, 0.25)' : 'none',
+                    transform: isDraggingImg ? 'scale(1.01)' : 'scale(1)',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--gold-accent)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)')}
                 >
-                  <Camera size={28} color="var(--gold-accent)" style={{ margin: '0 auto 0.6rem', opacity: 0.8 }} />
-                  <div style={{ color: '#FFF', fontSize: '0.86rem', fontWeight: 500, marginBottom: '0.25rem' }}>
-                    {imgCompressing ? 'Memproses berkas foto...' : 'Klik untuk memilih berkas dari komputer / HP'}
+                  <Camera size={28} color="var(--gold-accent)" style={{ margin: '0 auto 0.6rem', opacity: isDraggingImg ? 1 : 0.85 }} />
+                  <div style={{ color: isDraggingImg ? 'var(--gold-accent)' : '#FFF', fontSize: '0.88rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                    {imgCompressing ? 'Memproses berkas foto...' : isDraggingImg ? 'Lepaskan berkas foto di sini!' : 'Drag & Drop berkas foto ke sini atau Klik untuk memilih'}
                   </div>
                   <div style={{ color: 'var(--text-dim)', fontSize: '0.74rem' }}>
-                    Mendukung semua format gambar (PNG, JPG, JPEG, WEBP, GIF, SVG, BMP, AVIF)
+                    Bisa langsung drag and drop dari folder atau klik buka file explorer (PNG, JPG, WEBP, GIF, SVG, BMP, AVIF)
                   </div>
                 </div>
 
@@ -3264,7 +3592,7 @@ export const AdminMateriView: React.FC = () => {
               </div>
             )}
 
-            <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ marginBottom: '1.25rem' }}>
               <label className="pfx-label">Keterangan / Caption Gambar (Opsional)</label>
               <input
                 type="text"
@@ -3273,6 +3601,84 @@ export const AdminMateriView: React.FC = () => {
                 value={imgCaptionInput}
                 onChange={(e) => setImgCaptionInput(e.target.value)}
               />
+            </div>
+
+            {/* Pilihan Posisi Peletakan Foto */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                <label className="pfx-label" style={{ margin: 0 }}>Posisi Peletakan di Naskah</label>
+                <span style={{ fontSize: '0.72rem', color: 'var(--gold-accent)', fontWeight: 500 }}>
+                  {imgInsertPosition === 'cursor' ? 'Posisi Kursor' : imgInsertPosition === 'top' ? 'Paling Atas' : 'Paling Bawah'}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setImgInsertPosition('cursor')}
+                  style={{
+                    padding: '0.55rem 0.5rem',
+                    borderRadius: '8px',
+                    border: imgInsertPosition === 'cursor' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
+                    backgroundColor: imgInsertPosition === 'cursor' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
+                    color: imgInsertPosition === 'cursor' ? 'var(--gold-accent)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    fontWeight: imgInsertPosition === 'cursor' ? 600 : 500,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <MousePointer size={14} />
+                  <span>Posisi Kursor</span>
+                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Sesuai titik edit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImgInsertPosition('top')}
+                  style={{
+                    padding: '0.55rem 0.5rem',
+                    borderRadius: '8px',
+                    border: imgInsertPosition === 'top' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
+                    backgroundColor: imgInsertPosition === 'top' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
+                    color: imgInsertPosition === 'top' ? 'var(--gold-accent)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    fontWeight: imgInsertPosition === 'top' ? 600 : 500,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <ArrowUp size={14} />
+                  <span>Paling Atas</span>
+                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Awal naskah</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImgInsertPosition('bottom')}
+                  style={{
+                    padding: '0.55rem 0.5rem',
+                    borderRadius: '8px',
+                    border: imgInsertPosition === 'bottom' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
+                    backgroundColor: imgInsertPosition === 'bottom' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
+                    color: imgInsertPosition === 'bottom' ? 'var(--gold-accent)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    fontWeight: imgInsertPosition === 'bottom' ? 600 : 500,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <ArrowDown size={14} />
+                  <span>Paling Bawah</span>
+                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Akhir naskah</span>
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
@@ -3347,6 +3753,84 @@ export const AdminMateriView: React.FC = () => {
                   );
                 }
               })()}
+            </div>
+
+            {/* Pilihan Posisi Peletakan Video */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                <label className="pfx-label" style={{ margin: 0 }}>Posisi Peletakan di Naskah</label>
+                <span style={{ fontSize: '0.72rem', color: 'var(--gold-accent)', fontWeight: 500 }}>
+                  {videoInsertPosition === 'cursor' ? 'Posisi Kursor' : videoInsertPosition === 'top' ? 'Paling Atas' : 'Paling Bawah'}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setVideoInsertPosition('cursor')}
+                  style={{
+                    padding: '0.55rem 0.5rem',
+                    borderRadius: '8px',
+                    border: videoInsertPosition === 'cursor' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
+                    backgroundColor: videoInsertPosition === 'cursor' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
+                    color: videoInsertPosition === 'cursor' ? 'var(--gold-accent)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    fontWeight: videoInsertPosition === 'cursor' ? 600 : 500,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <MousePointer size={14} />
+                  <span>Posisi Kursor</span>
+                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Sesuai titik edit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVideoInsertPosition('top')}
+                  style={{
+                    padding: '0.55rem 0.5rem',
+                    borderRadius: '8px',
+                    border: videoInsertPosition === 'top' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
+                    backgroundColor: videoInsertPosition === 'top' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
+                    color: videoInsertPosition === 'top' ? 'var(--gold-accent)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    fontWeight: videoInsertPosition === 'top' ? 600 : 500,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <ArrowUp size={14} />
+                  <span>Paling Atas</span>
+                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Awal naskah</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVideoInsertPosition('bottom')}
+                  style={{
+                    padding: '0.55rem 0.5rem',
+                    borderRadius: '8px',
+                    border: videoInsertPosition === 'bottom' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
+                    backgroundColor: videoInsertPosition === 'bottom' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
+                    color: videoInsertPosition === 'bottom' ? 'var(--gold-accent)' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    fontWeight: videoInsertPosition === 'bottom' ? 600 : 500,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <ArrowDown size={14} />
+                  <span>Paling Bawah</span>
+                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Akhir naskah</span>
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>

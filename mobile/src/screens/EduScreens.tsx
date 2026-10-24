@@ -1,12 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Image,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { AnimatedBar, FadeIn, ProgressRing, tap } from '../components/motion';
 import { Card, Chip, GoldButton, IconBadge, Screen } from '../components/ui';
 import { YouTubePlayer } from '../components/YouTubePlayer';
 import { useEdu } from '../context/EduContext';
 import { Module } from '../data/modules';
+import { extractYouTubeId } from '../lib/eduService';
 import { useStore } from '../lib/store';
 import { useNav } from '../nav';
 import { colors, fonts } from '../theme';
@@ -487,6 +498,17 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
   const next = m.lessons[idx + 1];
   const done = !!completed[lesson.id];
 
+  // Deteksi video YouTube yang BELUM disisipkan di dalam teks naskah
+  const unplacedVideos = useMemo(() => {
+    if (!lesson.youtubeUrls || lesson.youtubeUrls.length === 0) return [];
+    const content = lesson.content || '';
+    return lesson.youtubeUrls.filter((url) => {
+      const ytid = extractYouTubeId(url);
+      if (!ytid) return false;
+      return !content.includes(ytid) && !content.includes(url);
+    });
+  }, [lesson.youtubeUrls, lesson.content]);
+
   return (
     <Screen title={lesson.title} eyebrow={`${m.title.toUpperCase()} · BAB ${idx + 1}/${m.lessons.length}`}>
       {/* ── Meta ── */}
@@ -501,22 +523,22 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
         </View>
       </FadeIn>
 
-      {/* ── YouTube Player (Bila ada video) ── */}
-      {lesson.youtubeUrls && lesson.youtubeUrls.length > 0 ? (
+      {/* ── YouTube Player Top Section (HANYA bila ada video legacy yang BELUM disisipkan di dalam naskah) ── */}
+      {unplacedVideos.length > 0 ? (
         <FadeIn delay={120}>
           <View style={{ marginBottom: 14 }}>
-            {lesson.youtubeUrls.map((url, vIdx) => (
+            {unplacedVideos.map((url, vIdx) => (
               <YouTubePlayer
                 key={vIdx}
                 url={url}
-                title={lesson.youtubeUrls!.length > 1 ? `Video Penjelasan ${vIdx + 1}` : 'Video Penjelasan Materi'}
+                title={unplacedVideos.length > 1 ? `Video Penjelasan ${vIdx + 1}` : 'Video Penjelasan Materi'}
               />
             ))}
           </View>
         </FadeIn>
       ) : null}
 
-      {/* ── Teks Materi Berformat ── */}
+      {/* ── Teks Materi Berformat Terintegrasi dengan Foto & Video Inline Sesuai Peletakan ── */}
       <FadeIn delay={160}>
         <RichText content={lesson.content} />
       </FadeIn>
@@ -554,45 +576,123 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   4. RICH TEXT PARSER (Render Heading, Bullet, Catatan Emas)
+   4. RICH TEXT PARSER (Render Heading, Bullet, Catatan Emas, Foto & Video Inline)
    ═══════════════════════════════════════════════════════════════════════ */
+
+function formatInlineTextRN(text: string, baseStyle?: any) {
+  if (!text) return null;
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(
+        <Text key={`t-${lastIndex}`} style={baseStyle}>
+          {text.slice(lastIndex, match.index)}
+        </Text>
+      );
+    }
+    const token = match[0];
+    const key = `m-${match.index}`;
+
+    if (token.startsWith('**') && token.endsWith('**')) {
+      parts.push(
+        <Text key={key} style={[baseStyle, { fontFamily: fonts.bold, color: colors.text }]}>
+          {token.slice(2, -2)}
+        </Text>
+      );
+    } else if (token.startsWith('*') && token.endsWith('*')) {
+      parts.push(
+        <Text key={key} style={[baseStyle, { fontFamily: fonts.medium, fontStyle: 'italic', color: colors.goldLight }]}>
+          {token.slice(1, -1)}
+        </Text>
+      );
+    } else if (token.startsWith('`') && token.endsWith('`')) {
+      parts.push(
+        <Text
+          key={key}
+          style={[
+            baseStyle,
+            {
+              fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+              color: colors.gold,
+              backgroundColor: 'rgba(237,193,58,0.12)',
+              fontSize: 14,
+            },
+          ]}
+        >
+          {` ${token.slice(1, -1)} `}
+        </Text>
+      );
+    } else if (token.startsWith('[') && token.includes('](')) {
+      const linkMatch = token.match(/^\[(.*?)\]\((.*?)\)$/);
+      if (linkMatch) {
+        const linkText = linkMatch[1];
+        const linkUrl = linkMatch[2];
+        parts.push(
+          <Text
+            key={key}
+            onPress={() => Linking.openURL(linkUrl).catch(() => {})}
+            style={[baseStyle, { color: colors.gold, textDecorationLine: 'underline', fontFamily: fonts.semi }]}
+          >
+            {linkText}
+          </Text>
+        );
+      } else {
+        parts.push(<Text key={key} style={baseStyle}>{token}</Text>);
+      }
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(
+      <Text key={`t-${lastIndex}`} style={baseStyle}>
+        {text.slice(lastIndex)}
+      </Text>
+    );
+  }
+
+  return parts.length > 0 ? parts : <Text style={baseStyle}>{text}</Text>;
+}
+
 export function RichText({ content }: { content: string }) {
+  const [lightboxImg, setLightboxImg] = useState<{ url: string; caption?: string } | null>(null);
+
+  if (!content || !content.trim()) {
+    return (
+      <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+        <Text style={{ color: colors.muted, fontStyle: 'italic', fontFamily: fonts.medium }}>
+          Belum ada materi tertulis.
+        </Text>
+      </View>
+    );
+  }
+
   const blocks: React.ReactNode[] = [];
   let para: string[] = [];
-  const flush = (key: string) => {
+  let tipLines: string[] = [];
+  let inCodeBlock = false;
+  let codeLines: string[] = [];
+
+  const flushPara = (key: string) => {
     if (para.length) {
       blocks.push(
         <Text key={key} style={st.p}>
-          {para.join(' ')}
+          {formatInlineTextRN(para.join(' '), st.p)}
         </Text>
       );
       para = [];
     }
   };
-  content.split('\n').forEach((raw, i) => {
-    const line = raw.trim();
-    if (!line) return flush('p' + i);
-    if (line.startsWith('## ')) {
-      flush('p' + i);
-      blocks.push(
-        <View key={i} style={st.h2Row}>
-          <View style={st.h2Bar} />
-          <Text style={st.h2}>{line.slice(3)}</Text>
-        </View>
-      );
-    } else if (line.startsWith('- ')) {
-      flush('p' + i);
-      blocks.push(
-        <View key={i} style={st.bulletRow}>
-          <View style={st.bullet} />
-          <Text style={[st.p, { flex: 1, marginBottom: 8 }]}>{line.slice(2)}</Text>
-        </View>
-      );
-    } else if (line.startsWith('> ')) {
-      flush('p' + i);
+
+  const flushTip = (key: string) => {
+    if (tipLines.length) {
       blocks.push(
         <LinearGradient
-          key={i}
+          key={key}
           colors={['rgba(237,193,58,0.16)', 'rgba(237,193,58,0.04)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -601,17 +701,270 @@ export function RichText({ content }: { content: string }) {
           <View style={st.tipIcon}>
             <Ionicons name="bulb" size={16} color={colors.ink} />
           </View>
-          <Text style={[st.p, { flex: 1, marginBottom: 0, color: colors.text, fontFamily: fonts.medium }]}>
-            {line.slice(2)}
-          </Text>
+          <View style={{ flex: 1, gap: 4 }}>
+            {tipLines.map((tLine, tIdx) => (
+              <Text key={tIdx} style={[st.p, { marginBottom: 0, color: colors.text, fontFamily: fonts.medium }]}>
+                {formatInlineTextRN(tLine, { color: colors.text, fontFamily: fonts.medium })}
+              </Text>
+            ))}
+          </View>
         </LinearGradient>
       );
-    } else {
-      para.push(line);
+      tipLines = [];
     }
+  };
+
+  const flushCode = (key: string) => {
+    if (codeLines.length) {
+      blocks.push(
+        <View key={key} style={st.codeBox}>
+          <Text style={st.codeText}>{codeLines.join('\n')}</Text>
+        </View>
+      );
+      codeLines = [];
+    }
+  };
+
+  const flushAll = (keyPrefix: string) => {
+    flushPara(keyPrefix + '-p');
+    flushTip(keyPrefix + '-tip');
+    flushCode(keyPrefix + '-code');
+  };
+
+  const lines = content.split('\n');
+
+  lines.forEach((raw, i) => {
+    const trimmed = raw.trim();
+
+    // 1. Blok Kode ```
+    if (trimmed.startsWith('```')) {
+      if (inCodeBlock) {
+        inCodeBlock = false;
+        flushCode('code-' + i);
+      } else {
+        flushAll('before-code-' + i);
+        inCodeBlock = true;
+      }
+      return;
+    }
+
+    if (inCodeBlock) {
+      codeLines.push(raw);
+      return;
+    }
+
+    // 2. Baris Kosong
+    if (!trimmed) {
+      flushAll('blank-' + i);
+      return;
+    }
+
+    // 3. Catatan / Tips (> )
+    if (trimmed.startsWith('> ')) {
+      flushPara('pre-tip-' + i);
+      tipLines.push(trimmed.slice(2).trim());
+      return;
+    } else if (tipLines.length > 0) {
+      flushTip('tip-' + i);
+    }
+
+    // 4. Garis Pembatas (--- atau ***)
+    if (trimmed === '---' || trimmed === '***') {
+      flushAll('div-' + i);
+      blocks.push(<View key={'div-' + i} style={st.dividerLine} />);
+      return;
+    }
+
+    // 5. Foto / Gambar Inline
+    // Format: ![caption](url) atau [foto: url] atau [gambar: url] atau data:image atau direct image link
+    const imgMdMatch = trimmed.match(/^!\[(.*?)\]\((.*?)\)$/);
+    const imgTagMatch = trimmed.match(/^\[(?:foto|gambar|image|img)(?::|\s+)(.*?)\]$/i);
+    const isDirectImgUrl =
+      /^(https?:\/\/.*?\.(?:png|jpg|jpeg|webp|gif|svg|avif|bmp)(?:\?.*)?)$/i.test(trimmed) ||
+      /^data:image\/(?:png|jpeg|jpg|webp|gif|svg\+xml|bmp|avif);base64,/i.test(trimmed);
+
+    let imgSrc: string | null = null;
+    let imgCaption = '';
+
+    if (imgMdMatch) {
+      imgCaption = imgMdMatch[1].trim();
+      imgSrc = imgMdMatch[2].trim();
+    } else if (imgTagMatch) {
+      imgSrc = imgTagMatch[1].trim();
+    } else if (isDirectImgUrl) {
+      imgSrc = trimmed;
+    }
+
+    if (imgSrc) {
+      flushAll('img-pre-' + i);
+      const currentSrc = imgSrc;
+      const currentCaption = imgCaption;
+      blocks.push(
+        <View key={'inline-img-' + i} style={st.imageCard}>
+          <Pressable
+            onPress={() => setLightboxImg({ url: currentSrc, caption: currentCaption })}
+            style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+          >
+            <Image
+              source={{ uri: currentSrc }}
+              style={st.imageImg}
+              resizeMode="contain"
+            />
+          </Pressable>
+          {currentCaption ? (
+            <Pressable
+              onPress={() => setLightboxImg({ url: currentSrc, caption: currentCaption })}
+              style={st.imageCaptionRow}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                <Ionicons name="camera-outline" size={14} color={colors.gold} />
+                <Text style={st.imageCaptionText} numberOfLines={2}>
+                  {currentCaption}
+                </Text>
+              </View>
+              <Text style={st.zoomHintText}>Perbesar</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => setLightboxImg({ url: currentSrc, caption: currentCaption })}
+              style={[st.imageCaptionRow, { justifyContent: 'flex-end' }]}
+            >
+              <Text style={st.zoomHintText}>Ketuk untuk perbesar</Text>
+            </Pressable>
+          )}
+        </View>
+      );
+      return;
+    }
+
+    // 6. Video YouTube Inline
+    // Format: [video: url] atau [video](url) atau URL YouTube langsung
+    const ytTagMatch =
+      trimmed.match(/^\[video(?::|\s+)(.*?)\]$/i) ||
+      trimmed.match(/^!?\[(?:video|youtube)\]\((.*?)\)$/i);
+    const potentialYtUrl = ytTagMatch ? ytTagMatch[1].trim() : trimmed;
+    const inlineYtId = extractYouTubeId(potentialYtUrl);
+
+    if (inlineYtId && (ytTagMatch || potentialYtUrl.startsWith('http://') || potentialYtUrl.startsWith('https://'))) {
+      flushAll('yt-pre-' + i);
+      blocks.push(
+        <View key={'inline-yt-' + i} style={{ marginVertical: 8 }}>
+          <YouTubePlayer url={potentialYtUrl} title="Video Pembelajaran Materi" />
+        </View>
+      );
+      return;
+    }
+
+    // 7. Heading 1 (# Judul)
+    if (trimmed.startsWith('# ')) {
+      flushAll('h1-pre-' + i);
+      blocks.push(
+        <View key={i} style={st.h1Row}>
+          <View style={st.h1Bar} />
+          <Text style={st.h1}>{trimmed.slice(2)}</Text>
+        </View>
+      );
+      return;
+    }
+
+    // 8. Heading 2 (## Subjudul)
+    if (trimmed.startsWith('## ')) {
+      flushAll('h2-pre-' + i);
+      blocks.push(
+        <View key={i} style={st.h2Row}>
+          <View style={st.h2Bar} />
+          <Text style={st.h2}>{trimmed.slice(3)}</Text>
+        </View>
+      );
+      return;
+    }
+
+    // 9. Heading 3 (### Subjudul Kecil)
+    if (trimmed.startsWith('### ')) {
+      flushAll('h3-pre-' + i);
+      blocks.push(
+        <Text key={i} style={st.h3}>
+          {trimmed.slice(4)}
+        </Text>
+      );
+      return;
+    }
+
+    // 10. Numbered List (1. Poin)
+    const numMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
+    if (numMatch) {
+      flushAll('num-pre-' + i);
+      blocks.push(
+        <View key={i} style={st.bulletRow}>
+          <View style={st.numBadge}>
+            <Text style={st.numBadgeText}>{numMatch[1]}</Text>
+          </View>
+          <Text style={[st.p, { flex: 1, marginBottom: 8 }]}>
+            {formatInlineTextRN(numMatch[2], st.p)}
+          </Text>
+        </View>
+      );
+      return;
+    }
+
+    // 11. Bullet List (- Poin atau * Poin)
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      flushAll('bullet-pre-' + i);
+      blocks.push(
+        <View key={i} style={st.bulletRow}>
+          <View style={st.bullet} />
+          <Text style={[st.p, { flex: 1, marginBottom: 8 }]}>
+            {formatInlineTextRN(trimmed.slice(2), st.p)}
+          </Text>
+        </View>
+      );
+      return;
+    }
+
+    // Default: Baris teks paragraf biasa
+    para.push(trimmed);
   });
-  flush('end');
-  return <View>{blocks}</View>;
+
+  flushAll('end');
+
+  return (
+    <View>
+      {blocks}
+
+      {/* Lightbox Modal (Zoom Foto Layar Penuh) */}
+      {lightboxImg && (
+        <Modal
+          visible={true}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setLightboxImg(null)}
+        >
+          <View style={st.lightboxBackdrop}>
+            <Pressable
+              style={st.lightboxCloseBtn}
+              onPress={() => setLightboxImg(null)}
+              hitSlop={12}
+            >
+              <Ionicons name="close" size={24} color="#FFF" />
+            </Pressable>
+            <View style={st.lightboxCenter}>
+              <Image
+                source={{ uri: lightboxImg.url }}
+                style={st.lightboxImg}
+                resizeMode="contain"
+              />
+              {lightboxImg.caption ? (
+                <View style={st.lightboxCaptionBox}>
+                  <Ionicons name="camera-outline" size={16} color={colors.gold} style={{ marginRight: 6 }} />
+                  <Text style={st.lightboxCaptionText}>{lightboxImg.caption}</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </Modal>
+      )}
+    </View>
+  );
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -749,5 +1102,121 @@ const st = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+  },
+  h1Row: { flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 12 },
+  h1Bar: { width: 5, height: 24, borderRadius: 2.5, backgroundColor: colors.gold, marginRight: 10 },
+  h1: { color: colors.text, fontFamily: fonts.display, fontSize: 22, letterSpacing: -0.3, flex: 1 },
+  h3: { color: colors.goldLight, fontFamily: fonts.bold, fontSize: 16, marginTop: 16, marginBottom: 8 },
+  numBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(237,193,58,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(237,193,58,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    marginTop: 3,
+  },
+  numBadgeText: { color: colors.gold, fontFamily: fonts.bold, fontSize: 11 },
+  codeBox: {
+    backgroundColor: '#0a0d14',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    padding: 12,
+    marginVertical: 10,
+  },
+  codeText: {
+    color: colors.goldLight,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  dividerLine: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginVertical: 18,
+  },
+  imageCard: {
+    marginVertical: 14,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#07090E',
+    borderWidth: 1,
+    borderColor: 'rgba(227, 182, 79, 0.25)',
+  },
+  imageImg: {
+    width: '100%',
+    height: 230,
+    backgroundColor: '#05070A',
+  },
+  imageCaptionRow: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: 'rgba(18, 22, 32, 0.95)',
+    borderTopWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  imageCaptionText: {
+    color: colors.textDim,
+    fontFamily: fonts.medium,
+    fontStyle: 'italic',
+    fontSize: 12,
+    flex: 1,
+  },
+  zoomHintText: {
+    color: colors.muted,
+    fontFamily: fonts.semi,
+    fontSize: 11,
+    marginLeft: 8,
+  },
+  lightboxBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.94)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  lightboxCloseBtn: {
+    position: 'absolute',
+    top: 48,
+    right: 20,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lightboxCenter: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lightboxImg: {
+    width: '100%',
+    height: 380,
+  },
+  lightboxCaptionBox: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    maxWidth: '90%',
+  },
+  lightboxCaptionText: {
+    color: '#FFF',
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    textAlign: 'center',
   },
 });
