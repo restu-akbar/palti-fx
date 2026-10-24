@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeStats } from '../src/lib/store';
+import { computeStats } from '../src/core/domain/trade';
 
 const t = (pl: number, date = '2026-01-01', id = Math.random().toString()) => ({
   id,
