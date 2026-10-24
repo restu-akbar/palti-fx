@@ -28,7 +28,9 @@ import {
   Search,
   MousePointer,
   Layers,
-  HelpCircle
+  HelpCircle,
+  List,
+  RotateCcw
 } from 'lucide-react';
 import type { EduLesson, EduModule } from '../../types/admin';
 import { AdminMateriService, extractYouTubeId } from '../../lib/adminMateri';
@@ -237,6 +239,59 @@ export function expandMediaContent(
     const cap = item.caption || label || '';
     return cap ? `![${cap}](${item.src})` : `![](${item.src})`;
   });
+}
+
+/**
+ * Estimasi waktu baca (menit) dari jumlah kata naskah, dengan kecepatan 200 kata per menit.
+ * Token media dan tautan tidak dihitung sebagai kata.
+ */
+export function estimateReadingMinutes(content: string): number {
+  const text = (content || '')
+    .replace(/\[(?:FOTO|GAMBAR|MEDIA_FOTO|VIDEO):[^\]]*\]/gi, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[#>*`]/g, ' ');
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(words / 200));
+}
+
+/* ─── Draft Bab (localStorage) ─── */
+export interface LessonDraft {
+  title: string;
+  minutes: number;
+  content: string;
+  media: EmbeddedMediaItem[];
+  savedAt: number;
+}
+
+export const getLessonDraftKey = (moduleId: string, lessonId?: string | null) =>
+  `pfx-lesson-draft:${moduleId}:${lessonId || 'new'}`;
+
+export function readLessonDraft(key: string): LessonDraft | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as LessonDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeLessonDraft(key: string, draft: LessonDraft): boolean {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(draft));
+    return true;
+  } catch {
+    // Kuota localStorage penuh atau akses diblokir: abaikan tanpa mengganggu penulisan
+    return false;
+  }
+}
+
+export function clearLessonDraft(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    /* abaikan */
+  }
 }
 
 /**
@@ -956,6 +1011,9 @@ export const AdminMateriView: React.FC = () => {
   const [videoInsertPosition, setVideoInsertPosition] = useState<'cursor' | 'top' | 'bottom'>('cursor');
   const [embeddedMediaList, setEmbeddedMediaList] = useState<EmbeddedMediaItem[]>([]);
   const [showNaskahGuide, setShowNaskahGuide] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<LessonDraft | null>(null);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const lessonBaselineRef = useRef<{ title: string; minutes: number; content: string }>({ title: '', minutes: 5, content: '' });
 
   // Lightbox Modal State
   const [lightboxImg, setLightboxImg] = useState<{ url: string; caption?: string } | null>(null);
@@ -1121,6 +1179,38 @@ export const AdminMateriView: React.FC = () => {
   };
 
   /* ─── Handlers Bab ─── */
+  const lessonDraftKey = selectedModule ? getLessonDraftKey(selectedModule.id, editingLesson?.id) : null;
+
+  // Menyiapkan kondisi awal modal dan menawarkan pemulihan bila ada draft yang belum disimpan
+  const prepareLessonDraft = (lessonId: string | null, base: { title: string; minutes: number; content: string }) => {
+    lessonBaselineRef.current = base;
+    setDraftSavedAt(null);
+    if (!selectedModule) {
+      setPendingDraft(null);
+      return;
+    }
+    const key = getLessonDraftKey(selectedModule.id, lessonId);
+    const draft = readLessonDraft(key);
+    const differs = !!draft && (draft.title !== base.title || draft.minutes !== base.minutes || draft.content !== base.content);
+    if (draft && !differs) clearLessonDraft(key);
+    setPendingDraft(differs ? draft : null);
+  };
+
+  const handleRestoreDraft = () => {
+    if (!pendingDraft) return;
+    setLesTitle(pendingDraft.title);
+    setLesMinutes(pendingDraft.minutes);
+    setLesContent(pendingDraft.content);
+    setEmbeddedMediaList(pendingDraft.media || []);
+    setPendingDraft(null);
+    notify('Draft berhasil dipulihkan.');
+  };
+
+  const handleDiscardDraft = () => {
+    if (lessonDraftKey) clearLessonDraft(lessonDraftKey);
+    setPendingDraft(null);
+  };
+
   const handleOpenAddLesson = () => {
     if (!selectedModule) return;
     setEditingLesson(null);
@@ -1130,6 +1220,7 @@ export const AdminMateriView: React.FC = () => {
     setInputUrl('');
     setLesContent('');
     setEmbeddedMediaList([]);
+    prepareLessonDraft(null, { title: '', minutes: 5, content: '' });
     setShowLesModal(true);
   };
 
@@ -1143,6 +1234,7 @@ export const AdminMateriView: React.FC = () => {
     const { cleanContent, mediaList } = collapseMediaContent(les.content || '');
     setLesContent(cleanContent);
     setEmbeddedMediaList(mediaList);
+    prepareLessonDraft(les.id, { title: les.title, minutes: les.minutes, content: cleanContent });
     setShowLesModal(true);
   };
 
@@ -1299,6 +1391,26 @@ export const AdminMateriView: React.FC = () => {
     return matches ? matches.length : embeddedMediaList.length;
   }, [lesContent, embeddedMediaList]);
 
+  // Auto-draft senyap ke localStorage: hanya menulis bila isi berbeda dari kondisi awal modal,
+  // dan ditunda 3 detik setelah ketikan terakhir agar tidak membebani browser.
+  useEffect(() => {
+    if (!showLesModal || !lessonDraftKey || pendingDraft) return;
+    const base = lessonBaselineRef.current;
+    const dirty = lesTitle !== base.title || lesMinutes !== base.minutes || lesContent !== base.content;
+    if (!dirty) return;
+    const timer = window.setTimeout(() => {
+      const ok = writeLessonDraft(lessonDraftKey, {
+        title: lesTitle,
+        minutes: lesMinutes,
+        content: lesContent,
+        media: embeddedMediaList,
+        savedAt: Date.now(),
+      });
+      if (ok) setDraftSavedAt(Date.now());
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [showLesModal, lessonDraftKey, pendingDraft, lesTitle, lesMinutes, lesContent, embeddedMediaList]);
+
   const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedModule || !lesTitle.trim()) {
@@ -1336,6 +1448,7 @@ export const AdminMateriView: React.FC = () => {
       });
       if (res.success) {
         notify(`Bab "${lesTitle.trim()}" berhasil diperbarui.`);
+        if (lessonDraftKey) clearLessonDraft(lessonDraftKey);
         setShowLesModal(false);
         setEditingLesson(null);
         fetchModules();
@@ -1351,6 +1464,7 @@ export const AdminMateriView: React.FC = () => {
       });
       if (res.success) {
         notify('Bab materi baru berhasil ditambahkan.');
+        if (lessonDraftKey) clearLessonDraft(lessonDraftKey);
         setShowLesModal(false);
         fetchModules();
       } else {
@@ -2311,6 +2425,47 @@ export const AdminMateriView: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveLesson}>
+              {/* Banner pemulihan draft yang belum disimpan */}
+              {pendingDraft && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  flexWrap: 'wrap',
+                  marginBottom: '1rem',
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(227, 182, 79, 0.06)',
+                  border: '1px solid rgba(227, 182, 79, 0.28)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                    <RotateCcw size={14} color="var(--gold-accent)" />
+                    <span>
+                      Ditemukan draft yang belum disimpan ({new Date(pendingDraft.savedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}). Pulihkan draft ini?
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button type="button" className="btn-cancel" onClick={handleDiscardDraft} style={{ fontSize: '0.74rem', padding: '0.3rem 0.7rem' }}>
+                      Buang
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={handleRestoreDraft}
+                      style={{
+                        fontSize: '0.74rem',
+                        padding: '0.3rem 0.7rem',
+                        borderColor: 'rgba(227, 182, 79, 0.4)',
+                        color: 'var(--gold-accent)',
+                      }}
+                    >
+                      Pulihkan Draft
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Seksi 1: Identitas Bab (Judul Bab & Estimasi Waktu Baca) */}
               <div style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.02)',
@@ -2406,6 +2561,28 @@ export const AdminMateriView: React.FC = () => {
                         </button>
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      disabled={!lesContent.trim()}
+                      onClick={() => setLesMinutes(estimateReadingMinutes(lesContent))}
+                      title="Hitung estimasi waktu baca dari jumlah kata naskah (200 kata per menit)"
+                      style={{
+                        marginTop: '0.4rem',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        fontSize: '0.72rem',
+                        color: 'var(--gold-accent)',
+                        cursor: lesContent.trim() ? 'pointer' : 'default',
+                        opacity: lesContent.trim() ? 1 : 0.4,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <Clock size={11} />
+                      <span>Hitung otomatis ({estimateReadingMinutes(lesContent)} menit)</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2507,10 +2684,14 @@ export const AdminMateriView: React.FC = () => {
                           fontSize: '0.72rem',
                           padding: '3px 7px',
                           cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
                         }}
                         title="Poin Daftar"
                       >
-                        • List
+                        <List size={12} />
+                        <span>Poin</span>
                       </button>
                       <button
                         type="button"
@@ -2798,7 +2979,11 @@ export const AdminMateriView: React.FC = () => {
               }}>
                 <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                   <Check size={13} color="var(--gold-accent)" />
-                  <span>Media otomatis dikonversi ke format standar saat disimpan</span>
+                  <span>
+                    {draftSavedAt
+                      ? `Draft tersimpan otomatis di browser pukul ${new Date(draftSavedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`
+                      : 'Media otomatis dikonversi ke format standar saat disimpan'}
+                  </span>
                 </span>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button type="button" onClick={() => setShowLesModal(false)} className="btn-cancel">
@@ -3260,7 +3445,7 @@ export const AdminMateriView: React.FC = () => {
                               <ImageIcon size={16} color="var(--gold-accent)" />
                               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#F5F2EA' }}>
-                                  Container Foto: {cap || 'Ilustrasi Materi'}
+                                  Foto: {cap || 'Ilustrasi Materi'}
                                 </span>
                                 <span style={{ fontSize: '0.7rem', color: 'var(--gold-accent)', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(227, 182, 79, 0.12)' }}>
                                   Media Tersemat
@@ -3292,7 +3477,7 @@ export const AdminMateriView: React.FC = () => {
                               <Film size={16} color="#EB5757" />
                               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#F5F2EA' }}>
-                                  Container Video: {trimmed}
+                                  Video: {ytId}
                                 </span>
                                 <span style={{ fontSize: '0.7rem', color: '#EB5757', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(235, 87, 87, 0.12)' }}>
                                   Video YouTube

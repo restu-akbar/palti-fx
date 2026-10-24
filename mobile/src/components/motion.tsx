@@ -1,18 +1,21 @@
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  Modal,
   Platform,
   Pressable,
   StyleProp,
+  StyleSheet,
   Text,
   TextStyle,
   View,
   ViewStyle,
 } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { colors } from '../theme';
+import { colors, fonts } from '../theme';
 
 const native = Platform.OS !== 'web';
 
@@ -26,6 +29,84 @@ export function tap(kind: 'light' | 'select' | 'success' = 'light') {
     /* haptics tidak tersedia */
   }
 }
+
+/**
+ * Penanda singkat bahwa sebuah aksi selesai: lingkaran emas dengan centang membesar halus,
+ * lalu memudar. `onDone` dipanggil setelah animasi usai sehingga navigasi bisa menyusul.
+ */
+export function CompletionPulse({
+  visible,
+  label,
+  onDone,
+}: {
+  visible: boolean;
+  label?: string;
+  onDone?: () => void;
+}) {
+  const v = useRef(new Animated.Value(0)).current;
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    if (!visible) return;
+    v.setValue(0);
+    Animated.sequence([
+      Animated.spring(v, { toValue: 1, useNativeDriver: native, speed: 20, bounciness: 8 }),
+      Animated.delay(180),
+      Animated.timing(v, { toValue: 2, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: native }),
+    ]).start(({ finished }) => {
+      if (finished) onDoneRef.current?.();
+    });
+  }, [visible, v]);
+
+  if (!visible) return null;
+
+  const scale = v.interpolate({ inputRange: [0, 1, 2], outputRange: [0.5, 1, 1.06] });
+  const opacity = v.interpolate({ inputRange: [0, 0.5, 1, 2], outputRange: [0, 1, 1, 0] });
+
+  return (
+    <Modal transparent visible animationType="none" statusBarTranslucent>
+      <View style={pulseStyles.backdrop} pointerEvents="none">
+        <Animated.View style={[pulseStyles.card, { opacity, transform: [{ scale }] }]}>
+          <View style={pulseStyles.badge}>
+            <Ionicons name="checkmark" size={34} color={colors.ink} />
+          </View>
+          {label ? <Text style={pulseStyles.label}>{label}</Text> : null}
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+const pulseStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.38)',
+  },
+  card: { alignItems: 'center' },
+  badge: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.gold,
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
+  },
+  label: {
+    marginTop: 14,
+    color: colors.text,
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    letterSpacing: 0.3,
+  },
+});
 
 /** Muncul dengan fade + geser, bisa diberi delay untuk efek berurutan (stagger). */
 export function FadeIn({

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   Linking,
@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { AnimatedBar, FadeIn, ProgressRing, tap } from '../components/motion';
+import { AnimatedBar, CompletionPulse, FadeIn, ProgressRing, tap } from '../components/motion';
 import { Card, Chip, GoldButton, IconBadge, Screen } from '../components/ui';
 import { YouTubePlayer } from '../components/YouTubePlayer';
 import { useEdu } from '../context/EduContext';
@@ -485,6 +485,28 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
   const { completed, toggleLesson } = useStore();
   const { findLesson } = useEdu();
 
+  // Indikator selesai singkat sebelum berpindah layar; aksi navigasi ditahan sampai animasi usai
+  const [pulse, setPulse] = useState<{ visible: boolean; label: string }>({ visible: false, label: '' });
+  const pendingAction = useRef<(() => void) | null>(null);
+
+  const finishThen = (celebrate: boolean, label: string, action: () => void) => {
+    if (pulse.visible) return;
+    tap('success');
+    if (!celebrate) {
+      action();
+      return;
+    }
+    pendingAction.current = action;
+    setPulse({ visible: true, label });
+  };
+
+  const handlePulseDone = () => {
+    const action = pendingAction.current;
+    pendingAction.current = null;
+    setPulse({ visible: false, label: '' });
+    action?.();
+  };
+
   const found = findLesson(moduleId, lessonId);
   if (!found) {
     return (
@@ -549,28 +571,32 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
           <GoldButton
             title={done ? 'Materi berikutnya' : 'Selesai & lanjut'}
             icon="arrow-forward"
-            onPress={() => {
-              tap('success');
-              toggleLesson(lesson.id, true);
-              nav.pop();
-              nav.push({ name: 'lesson', params: { moduleId: m.id, lessonId: next.id } });
-            }}
+            onPress={() =>
+              finishThen(!done, 'Bab selesai', () => {
+                toggleLesson(lesson.id, true);
+                nav.pop();
+                nav.push({ name: 'lesson', params: { moduleId: m.id, lessonId: next.id } });
+              })
+            }
           />
         ) : (
           !done && (
             <GoldButton
               title="Tandai modul selesai"
               icon="trophy"
-              onPress={() => {
-                tap('success');
-                toggleLesson(lesson.id, true);
-                nav.pop();
-              }}
+              onPress={() =>
+                finishThen(true, 'Modul selesai', () => {
+                  toggleLesson(lesson.id, true);
+                  nav.pop();
+                })
+              }
             />
           )
         )}
         {done ? <GoldButton title="Tandai belum selesai" variant="outline" onPress={() => toggleLesson(lesson.id, false)} /> : null}
       </View>
+
+      <CompletionPulse visible={pulse.visible} label={pulse.label} onDone={handlePulseDone} />
     </Screen>
   );
 }
@@ -656,6 +682,32 @@ function formatInlineTextRN(text: string, baseStyle?: any) {
   }
 
   return parts.length > 0 ? parts : <Text style={baseStyle}>{text}</Text>;
+}
+
+/**
+ * Foto materi dengan rasio mengikuti gambar asli. Rasio dibatasi 1:1 sampai 2:1 agar foto tegak
+ * tidak terlalu tinggi dan foto sangat lebar tidak terlalu pipih, tanpa ruang kosong mencolok.
+ */
+function AdaptiveImage({ uri }: { uri: string }) {
+  const [ratio, setRatio] = useState(16 / 9);
+
+  useEffect(() => {
+    let alive = true;
+    Image.getSize(
+      uri,
+      (w, h) => {
+        if (alive && w > 0 && h > 0) setRatio(Math.min(2, Math.max(1, w / h)));
+      },
+      () => {
+        /* gagal membaca ukuran: pertahankan rasio bawaan */
+      }
+    );
+    return () => {
+      alive = false;
+    };
+  }, [uri]);
+
+  return <Image source={{ uri }} style={[st.imageImg, { aspectRatio: ratio }]} resizeMode="contain" />;
 }
 
 export function RichText({ content }: { content: string }) {
@@ -805,11 +857,7 @@ export function RichText({ content }: { content: string }) {
             onPress={() => setLightboxImg({ url: currentSrc, caption: currentCaption })}
             style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
           >
-            <Image
-              source={{ uri: currentSrc }}
-              style={st.imageImg}
-              resizeMode="contain"
-            />
+            <AdaptiveImage uri={currentSrc} />
           </Pressable>
           {currentCaption ? (
             <Pressable
@@ -1149,7 +1197,6 @@ const st = StyleSheet.create({
   },
   imageImg: {
     width: '100%',
-    height: 230,
     backgroundColor: '#05070A',
   },
   imageCaptionRow: {

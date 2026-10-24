@@ -33,7 +33,7 @@ export interface IconPresetItem {
 }
 
 export const IONICON_PRESETS: IconPresetItem[] = [
-  // 📈 Grafik & Analisis Pasar
+  // Grafik & Analisis Pasar
   { id: 'trending-up-outline', name: 'Tren Naik (Bullish)', category: 'trading', keywords: 'trend up naik bull bullish chart grafik profit' },
   { id: 'trending-down-outline', name: 'Tren Turun (Bearish)', category: 'trading', keywords: 'trend down turun bear bearish chart grafik' },
   { id: 'analytics-outline', name: 'Analisis Pasar', category: 'trading', keywords: 'analytics analisis market chart data teknikal' },
@@ -43,7 +43,7 @@ export const IONICON_PRESETS: IconPresetItem[] = [
   { id: 'pulse-outline', name: 'Volatilitas & Denyut', category: 'trading', keywords: 'pulse sinyal signal volatilitas denyut' },
   { id: 'speedometer-outline', name: 'Indikator & Momentum', category: 'trading', keywords: 'speedometer indikator rsi momentum cepat' },
 
-  // 📚 Edukasi & Pembelajaran
+  // Edukasi & Pembelajaran
   { id: 'school-outline', name: 'Akademi & Silabus', category: 'edu', keywords: 'school sekolah akademi silabus kurikulum belajar' },
   { id: 'book-outline', name: 'Buku Materi Dasar', category: 'edu', keywords: 'book buku bacaan dasar materi bab' },
   { id: 'library-outline', name: 'Koleksi Modul Lengkap', category: 'edu', keywords: 'library perpustakaan koleksi kumpulan arsip' },
@@ -52,7 +52,7 @@ export const IONICON_PRESETS: IconPresetItem[] = [
   { id: 'bulb-outline', name: 'Tips & Ide Trading', category: 'edu', keywords: 'bulb lampu ide tips trik insight wawasan' },
   { id: 'document-text-outline', name: 'Jurnal & Trading Plan', category: 'edu', keywords: 'document dokumen jurnal plan aturan catatan' },
 
-  // 🛡️ Manajemen Risiko & Finansial
+  // Manajemen Risiko & Finansial
   { id: 'shield-checkmark-outline', name: 'Proteksi & Stop Loss', category: 'finance', keywords: 'shield proteksi aman stop loss risk manajemen risiko' },
   { id: 'wallet-outline', name: 'Dompet & Saldo Akun', category: 'finance', keywords: 'wallet dompet saldo balance dana equity' },
   { id: 'cash-outline', name: 'Profit & Uang Tunai', category: 'finance', keywords: 'cash uang tunai profit cuan withdraw tarik' },
@@ -61,7 +61,7 @@ export const IONICON_PRESETS: IconPresetItem[] = [
   { id: 'pricetag-outline', name: 'Instrumen & Pair Forex', category: 'finance', keywords: 'pricetag harga pair simbol mata uang eurusd xauusd' },
   { id: 'lock-closed-outline', name: 'Keamanan & Psikologi', category: 'finance', keywords: 'lock kunci disiplin psikologi aman proteksi' },
 
-  // ⚡ Strategi & Eksekusi
+  // Strategi & Eksekusi
   { id: 'flash-outline', name: 'Eksekusi Cepat (Scalping)', category: 'strategy', keywords: 'flash kilat petir scalping eksekusi cepat order' },
   { id: 'compass-outline', name: 'Arah & Bias Harian', category: 'strategy', keywords: 'compass kompas arah navigasi bias harian tren' },
   { id: 'time-outline', name: 'Sesi Trading & Waktu', category: 'strategy', keywords: 'time waktu jam sesi london newyork tokyo sydney' },
@@ -196,7 +196,7 @@ export function IoniconsPicker({
           }}
         >
           <HelpCircle size={13} />
-          <span>{showGuide ? 'Tutup Panduan' : 'Panduan Cari Ikon ↗'}</span>
+          <span>{showGuide ? 'Tutup Panduan' : 'Panduan Cari Ikon'}</span>
         </button>
       </div>
 
