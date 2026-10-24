@@ -5,7 +5,7 @@ import { EduService } from '../lib/eduService';
 type EduContextValue = {
   modules: Module[];
   loading: boolean;
-  refresh: () => Promise<void>;
+  refresh: (force?: boolean) => Promise<void>;
   findModule: (id: string) => Module | undefined;
   findLesson: (
     moduleId: string,
@@ -19,9 +19,9 @@ export function EduProvider({ children }: { children: React.ReactNode }) {
   const [modules, setModules] = useState<Module[]>(MODULES);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
     try {
-      const data = await EduService.getModules();
+      const data = await EduService.getModules(force);
       if (data && data.length > 0) {
         setModules(data);
       }

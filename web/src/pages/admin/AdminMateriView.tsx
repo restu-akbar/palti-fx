@@ -187,24 +187,35 @@ export interface EmbeddedMediaItem {
 }
 
 /**
- * Mengubah markdown foto base64/URL panjang menjadi wrapper token ringkas:
- * ![Caption](data:image/...) -> [FOTO: Caption | id="foto_1"]
- * Menjaga naskah editor tetap bersih, ringan, dan mudah di-scroll tanpa banjir base64.
+ * Mengubah markdown foto base64/URL panjang dan video YouTube menjadi wrapper token ringkas:
+ * Foto: ![Caption](data:image/...) -> [FOTO: Caption | id="foto_1"]
+ * Video: https://www.youtube.com/... -> [VIDEO: Video YouTube (ID) | url="..." | id="video_1"]
+ * Menjaga naskah editor tetap bersih, ringan, dan mudah di-scroll tanpa banjir base64 atau URL panjang.
  */
-export function collapseMediaContent(rawContent: string): {
+export function collapseMediaContent(
+  rawContent: string,
+  existingYoutubeUrls: string[] = []
+): {
   cleanContent: string;
   mediaList: EmbeddedMediaItem[];
 } {
-  if (!rawContent) return { cleanContent: '', mediaList: [] };
-  const mediaList: EmbeddedMediaItem[] = [];
-  let counter = 1;
+  if (!rawContent && (!existingYoutubeUrls || existingYoutubeUrls.length === 0)) {
+    return { cleanContent: '', mediaList: [] };
+  }
 
+  const mediaList: EmbeddedMediaItem[] = [];
+  let imgCounter = 1;
+  let videoCounter = 1;
+
+  let content = rawContent || '';
+
+  // 1. Ubah markdown foto biasa ![caption](src) menjadi token [FOTO: ... | id="..."]
   const imgRegex = /!\[(.*?)\]\((.*?)\)/g;
-  const cleanContent = rawContent.replace(imgRegex, (_, caption, src) => {
+  content = content.replace(imgRegex, (_, caption, src) => {
     const trimmedSrc = (src || '').trim();
     const trimmedCaption = (caption || '').trim();
-    const mediaId = `foto_${counter++}`;
-    const displayName = trimmedCaption || `Foto #${mediaList.length + 1}`;
+    const mediaId = `foto_${imgCounter++}`;
+    const displayName = trimmedCaption || `Foto #${mediaList.filter((m) => m.type === 'image').length + 1}`;
 
     mediaList.push({
       id: mediaId,
@@ -217,12 +228,109 @@ export function collapseMediaContent(rawContent: string): {
     return `[FOTO: ${displayName} | id="${mediaId}"]`;
   });
 
-  return { cleanContent, mediaList };
+  // 2. Tangani token [VIDEO: ... | url="..." | id="..."] yang sudah ada
+  const existingVideoTokenRegex = /\[(?:VIDEO|video):\s*(.*?)(?:\s*\|\s*url=["'](.*?)["'])?(?:\s*\|\s*id=["'](.*?)["'])?\]/gi;
+  content = content.replace(existingVideoTokenRegex, (match, label, urlAttr, idAttr) => {
+    const cleanUrl = (urlAttr || '').trim();
+    const mediaId = (idAttr || '').trim() || `video_${videoCounter++}`;
+    const ytid = extractYouTubeId(cleanUrl) || extractYouTubeId(label);
+    const displayName = (label || '').trim() || (ytid ? `Video YouTube (${ytid})` : `Video #${videoCounter}`);
+
+    if (cleanUrl) {
+      if (!mediaList.some((m) => m.id === mediaId)) {
+        mediaList.push({
+          id: mediaId,
+          type: 'video',
+          src: cleanUrl,
+          name: displayName,
+        });
+      }
+      return `[VIDEO: ${displayName} | url="${cleanUrl}" | id="${mediaId}"]`;
+    }
+    return match;
+  });
+
+  // 3. Ubah URL YouTube langsung atau format [video: url] / [video](url) menjadi token [VIDEO: ...]
+  const lines = content.split('\n');
+  const processedLines = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+
+    // Lewati jika baris ini sudah merupakan token FOTO atau VIDEO
+    if (/^\[(?:FOTO|GAMBAR|MEDIA_FOTO|VIDEO):\s*.*?\]$/i.test(trimmed)) {
+      return line;
+    }
+
+    // Cek tag markdown [video: url] atau [video](url)
+    const ytTagMatch =
+      trimmed.match(/^\[video(?::|\s+)(.*?)\]$/i) ||
+      trimmed.match(/^!?\[(?:video|youtube)\]\((.*?)\)$/i);
+    const candidateUrl = ytTagMatch ? ytTagMatch[1].trim() : trimmed;
+    const ytid = extractYouTubeId(candidateUrl);
+
+    if (
+      ytid &&
+      (ytTagMatch ||
+        candidateUrl.startsWith('http://') ||
+        candidateUrl.startsWith('https://') ||
+        candidateUrl.startsWith('www.youtube.') ||
+        candidateUrl.startsWith('youtu.be/'))
+    ) {
+      const fullUrl = candidateUrl.startsWith('http') ? candidateUrl : `https://${candidateUrl}`;
+      const mediaId = `video_${videoCounter++}`;
+      const displayName = `Video YouTube (${ytid})`;
+
+      if (!mediaList.some((m) => m.src === fullUrl || extractYouTubeId(m.src) === ytid)) {
+        mediaList.push({
+          id: mediaId,
+          type: 'video',
+          src: fullUrl,
+          name: displayName,
+        });
+      }
+      return `[VIDEO: ${displayName} | url="${fullUrl}" | id="${mediaId}"]`;
+    }
+
+    return line;
+  });
+  content = processedLines.join('\n');
+
+  // 4. Integrasikan video dari existingYoutubeUrls yang belum tersemat di dalam naskah
+  if (Array.isArray(existingYoutubeUrls) && existingYoutubeUrls.length > 0) {
+    const unplaced: string[] = [];
+    existingYoutubeUrls.forEach((u) => {
+      const cleanU = (u || '').trim();
+      const ytid = extractYouTubeId(cleanU);
+      if (ytid && !content.includes(ytid) && !mediaList.some((m) => extractYouTubeId(m.src) === ytid)) {
+        unplaced.push(cleanU.startsWith('http') ? cleanU : `https://${cleanU}`);
+      }
+    });
+
+    if (unplaced.length > 0) {
+      const addedTokens: string[] = [];
+      unplaced.forEach((u) => {
+        const ytid = extractYouTubeId(u)!;
+        const mediaId = `video_${videoCounter++}`;
+        const displayName = `Video YouTube (${ytid})`;
+        mediaList.push({
+          id: mediaId,
+          type: 'video',
+          src: u,
+          name: displayName,
+        });
+        addedTokens.push(`[VIDEO: ${displayName} | url="${u}" | id="${mediaId}"]`);
+      });
+      content = content.trim() ? content + '\n\n' + addedTokens.join('\n\n') : addedTokens.join('\n\n');
+    }
+  }
+
+  return { cleanContent: content, mediaList };
 }
 
 /**
- * Mengubah kembali wrapper token ringkas menjadi markdown foto asli sebelum disimpan ke database:
+ * Mengubah kembali wrapper token ringkas menjadi markdown lengkap sebelum disimpan ke database:
  * [FOTO: ... | id="foto_1"] -> ![Caption](src_asli)
+ * [VIDEO: ... | url="..." | id="video_1"] -> \n\n${url}\n\n
  */
 export function expandMediaContent(
   cleanContent: string,
@@ -232,13 +340,35 @@ export function expandMediaContent(
   const mediaMap = new Map<string, EmbeddedMediaItem>();
   mediaList.forEach((m) => mediaMap.set(m.id, m));
 
-  const tagRegex = /\[(?:FOTO|GAMBAR|MEDIA_FOTO):\s*(.*?)\s*\|\s*id=["'](.*?)["']\]/gi;
-  return cleanContent.replace(tagRegex, (match, label, id) => {
+  // 1. Expand FOTO
+  const photoTagRegex = /\[(?:FOTO|GAMBAR|MEDIA_FOTO):\s*(.*?)\s*\|\s*id=["'](.*?)["']\]/gi;
+  let expanded = cleanContent.replace(photoTagRegex, (match, label, id) => {
     const item = mediaMap.get(id);
     if (!item) return match;
     const cap = item.caption || label || '';
     return cap ? `![${cap}](${item.src})` : `![](${item.src})`;
   });
+
+  // 2. Expand VIDEO
+  const videoTagRegex = /\[(?:VIDEO|video):\s*(.*?)(?:\s*\|\s*url=["'](.*?)["'])?(?:\s*\|\s*id=["'](.*?)["'])?\]/gi;
+  expanded = expanded.replace(videoTagRegex, (_match, label, urlAttr, idAttr) => {
+    if (urlAttr && urlAttr.trim()) {
+      return `\n\n${urlAttr.trim()}\n\n`;
+    }
+    if (idAttr) {
+      const item = mediaMap.get(idAttr);
+      if (item && item.src) {
+        return `\n\n${item.src.trim()}\n\n`;
+      }
+    }
+    const inlineYt = extractYouTubeId(label);
+    if (inlineYt) {
+      return `\n\nhttps://www.youtube.com/watch?v=${inlineYt}\n\n`;
+    }
+    return '';
+  });
+
+  return expanded.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
@@ -568,14 +698,20 @@ const MobileRichText: React.FC<{
     }
 
     // 2. Cek Video YouTube Inline (Bisa diletakkan di posisi mana saja dalam naskah)
-    // Format: URL langsung (https://youtu.be/... atau https://youtube.com/...)
-    // atau tag: [video: url] atau [video](url) atau ![video](url)
+    // Format: [VIDEO: ... | url="..." | id="..."], URL langsung, [video: url], atau [video](url)
+    const videoEmbedMatch = trimmed.match(/^\[(?:VIDEO|video):\s*(.*?)(?:\s*\|\s*url=["'](.*?)["'])?(?:\s*\|\s*id=["'](.*?)["'])?\]$/i);
     const ytTagMatch = trimmed.match(/^\[video(?::|\s+)(.*?)\]$/i) || 
                        trimmed.match(/^!?\[(?:video|youtube)\]\((.*?)\)$/i);
-    const potentialYtUrl = ytTagMatch ? ytTagMatch[1].trim() : trimmed;
+    const potentialYtUrl = videoEmbedMatch && videoEmbedMatch[2]
+      ? videoEmbedMatch[2].trim()
+      : videoEmbedMatch && videoEmbedMatch[1] && (videoEmbedMatch[1].startsWith('http') || extractYouTubeId(videoEmbedMatch[1]))
+      ? videoEmbedMatch[1].trim()
+      : ytTagMatch
+      ? ytTagMatch[1].trim()
+      : trimmed;
     const inlineYtId = extractYouTubeId(potentialYtUrl);
 
-    if (inlineYtId && (ytTagMatch || potentialYtUrl.startsWith('http://') || potentialYtUrl.startsWith('https://'))) {
+    if (inlineYtId && (videoEmbedMatch || ytTagMatch || potentialYtUrl.startsWith('http://') || potentialYtUrl.startsWith('https://'))) {
       flushAll('yt-pre-' + i);
       blocks.push(
         <div
@@ -991,8 +1127,6 @@ export const AdminMateriView: React.FC = () => {
   const [editingLesson, setEditingLesson] = useState<EduLesson | null>(null);
   const [lesTitle, setLesTitle] = useState('');
   const [lesMinutes, setLesMinutes] = useState(5);
-  const [lesUrls, setLesUrls] = useState<string[]>([]);
-  const [inputUrl, setInputUrl] = useState('');
   const [lesContent, setLesContent] = useState('');
 
   // Media Insertion State
@@ -1216,8 +1350,6 @@ export const AdminMateriView: React.FC = () => {
     setEditingLesson(null);
     setLesTitle('');
     setLesMinutes(5);
-    setLesUrls([]);
-    setInputUrl('');
     setLesContent('');
     setEmbeddedMediaList([]);
     prepareLessonDraft(null, { title: '', minutes: 5, content: '' });
@@ -1228,29 +1360,12 @@ export const AdminMateriView: React.FC = () => {
     setEditingLesson(les);
     setLesTitle(les.title);
     setLesMinutes(les.minutes);
-    setLesUrls([...(les.youtube_urls || [])]);
-    setInputUrl('');
-    // Otomatis bungkus data URL foto panjang menjadi tag container ringkas [FOTO: ... | id="..."]
-    const { cleanContent, mediaList } = collapseMediaContent(les.content || '');
+    // Otomatis bungkus foto dan video menjadi tag container ringkas [FOTO: ... | id="..."] & [VIDEO: ... | url="..." | id="..."]
+    const { cleanContent, mediaList } = collapseMediaContent(les.content || '', les.youtube_urls || []);
     setLesContent(cleanContent);
     setEmbeddedMediaList(mediaList);
     prepareLessonDraft(les.id, { title: les.title, minutes: les.minutes, content: cleanContent });
     setShowLesModal(true);
-  };
-
-  const handleAddVideoUrl = () => {
-    if (!inputUrl.trim()) return;
-    const ytid = extractYouTubeId(inputUrl);
-    if (!ytid) {
-      notify('Tautan YouTube tidak valid. Pastikan format link benar (contoh: https://youtu.be/... atau watch?v=...)', true);
-      return;
-    }
-    setLesUrls([...lesUrls, inputUrl.trim()]);
-    setInputUrl('');
-  };
-
-  const handleRemoveVideoUrl = (idx: number) => {
-    setLesUrls(lesUrls.filter((_, i) => i !== idx));
   };
 
   const insertMediaContent = (markdownToInsert: string, position: 'cursor' | 'top' | 'bottom' = 'cursor') => {
@@ -1368,13 +1483,25 @@ export const AdminMateriView: React.FC = () => {
       notify('Tautan YouTube tidak valid. Pastikan format link benar (contoh: https://youtu.be/... atau watch?v=...)', true);
       return;
     }
-    insertMediaContent(`\n\n${url}\n\n`, videoInsertPosition);
-    if (!lesUrls.some((u) => extractYouTubeId(u) === ytid)) {
-      setLesUrls((prev) => [...prev, url]);
-    }
+    const mediaId = `video_${Date.now()}`;
+    const displayName = `Video YouTube (${ytid})`;
+    const tagMarkdown = `\n\n[VIDEO: ${displayName} | url="${url}" | id="${mediaId}"]\n\n`;
+
+    insertMediaContent(tagMarkdown, videoInsertPosition);
+
+    setEmbeddedMediaList((prev) => [
+      ...prev,
+      {
+        id: mediaId,
+        type: 'video',
+        src: url,
+        name: displayName,
+      },
+    ]);
+
     setShowInsertVideoModal(false);
     setVideoModalUrl('');
-    notify('Video YouTube berhasil disisipkan ke dalam naskah.');
+    notify('Video YouTube berhasil disisipkan dengan pembungkus container ringkas.');
   };
 
   const contentVideoCount = useMemo(() => {
@@ -1385,10 +1512,10 @@ export const AdminMateriView: React.FC = () => {
   }, [lesContent]);
 
   const contentImageCount = useMemo(() => {
-    if (!lesContent) return embeddedMediaList.length;
+    if (!lesContent) return embeddedMediaList.filter((m) => m.type === 'image').length;
     const imgRegex = /!\[.*?\]\(.*?\)|\[(?:foto|gambar|image|img|media_foto).*?\]/gi;
     const matches = lesContent.match(imgRegex);
-    return matches ? matches.length : embeddedMediaList.length;
+    return matches ? matches.length : embeddedMediaList.filter((m) => m.type === 'image').length;
   }, [lesContent, embeddedMediaList]);
 
   // Auto-draft senyap ke localStorage: hanya menulis bila isi berbeda dari kondisi awal modal,
@@ -1422,28 +1549,24 @@ export const AdminMateriView: React.FC = () => {
     // Expand media wrappers kembali ke format markdown lengkap dengan data URL / src asli sebelum dikirim ke database
     const expandedContent = expandMediaContent(lesContent, embeddedMediaList);
 
-    // Otomatis sinkronkan seluruh video YouTube yang ada di dalam naskah ke daftar youtubeUrls
-    const contentUrls: string[] = [];
+    // Otomatis sinkronkan seluruh video YouTube yang benar-benar aktif di dalam naskah bab ini
+    const finalYoutubeUrls: string[] = [];
     const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi;
     let ytMatch;
     while ((ytMatch = ytRegex.exec(expandedContent)) !== null) {
       const full = ytMatch[0];
       const norm = full.startsWith('http') ? full : `https://${full}`;
-      if (!contentUrls.includes(norm)) contentUrls.push(norm);
-    }
-    const combinedUrls = [...lesUrls];
-    contentUrls.forEach((u) => {
-      const id = extractYouTubeId(u);
-      if (id && !combinedUrls.some((existing) => extractYouTubeId(existing) === id)) {
-        combinedUrls.push(u);
+      const id = extractYouTubeId(norm);
+      if (id && !finalYoutubeUrls.some((existing) => extractYouTubeId(existing) === id)) {
+        finalYoutubeUrls.push(norm);
       }
-    });
+    }
 
     if (editingLesson) {
       const res = await AdminMateriService.updateLesson(editingLesson.id, {
         title: lesTitle,
         minutes: lesMinutes,
-        youtubeUrls: combinedUrls,
+        youtubeUrls: finalYoutubeUrls,
         content: expandedContent,
       });
       if (res.success) {
@@ -1459,7 +1582,7 @@ export const AdminMateriView: React.FC = () => {
       const res = await AdminMateriService.createLesson(selectedModule.id, {
         title: lesTitle,
         minutes: lesMinutes,
-        youtubeUrls: combinedUrls,
+        youtubeUrls: finalYoutubeUrls,
         content: expandedContent,
       });
       if (res.success) {
@@ -2763,29 +2886,54 @@ export const AdminMateriView: React.FC = () => {
                             padding: '5px 10px',
                             borderRadius: '6px',
                             backgroundColor: 'rgba(0, 0, 0, 0.35)',
-                            border: '1px solid rgba(227, 182, 79, 0.25)',
+                            border: m.type === 'video'
+                              ? '1px solid rgba(235, 87, 87, 0.35)'
+                              : '1px solid rgba(227, 182, 79, 0.25)',
                             fontSize: '0.75rem',
                             flexShrink: 0,
                           }}
                         >
-                          <img
-                            src={m.src}
-                            alt={m.name}
-                            style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }}
-                          />
+                          {m.type === 'video' ? (
+                            <div style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '4px',
+                              backgroundColor: 'rgba(235, 87, 87, 0.16)',
+                              border: '1px solid rgba(235, 87, 87, 0.3)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}>
+                              <Film size={14} color="#EB5757" />
+                            </div>
+                          ) : (
+                            <img
+                              src={m.src}
+                              alt={m.name}
+                              style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }}
+                            />
+                          )}
                           <div style={{ maxWidth: '160px', overflow: 'hidden' }}>
                             <div style={{ fontWeight: 600, color: '#FFF', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                               {m.name}
                             </div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--gold-accent)', fontFamily: 'monospace' }}>
-                              [FOTO: {m.name}]
+                            <div style={{
+                              fontSize: '0.68rem',
+                              color: m.type === 'video' ? '#EB5757' : 'var(--gold-accent)',
+                              fontFamily: 'monospace'
+                            }}>
+                              [{m.type === 'video' ? 'VIDEO' : 'FOTO'}: {m.name}]
                             </div>
                           </div>
                           <button
                             type="button"
                             onClick={() => {
-                              navigator.clipboard.writeText(`[FOTO: ${m.name} | id="${m.id}"]`);
-                              notify(`Tag [FOTO: ${m.name}] berhasil disalin.`);
+                              const tag = m.type === 'video'
+                                ? `[VIDEO: ${m.name} | url="${m.src}" | id="${m.id}"]`
+                                : `[FOTO: ${m.name} | id="${m.id}"]`;
+                              navigator.clipboard.writeText(tag);
+                              notify(`Tag [${m.type === 'video' ? 'VIDEO' : 'FOTO'}: ${m.name}] berhasil disalin.`);
                             }}
                             title="Salin Tag Pembungkus"
                             style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '2px' }}
@@ -2795,10 +2943,17 @@ export const AdminMateriView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => {
-                              const tagRegex = new RegExp(`\\[(?:FOTO|GAMBAR|MEDIA_FOTO):\\s*.*?\\s*\\|\\s*id=["']${m.id}["']\\]`, 'gi');
-                              setLesContent((prev) => prev.replace(tagRegex, '').replace(/\n\s*\n\s*\n/g, '\n\n'));
-                              setEmbeddedMediaList((prev) => prev.filter((item) => item.id !== m.id));
-                              notify(`Media "${m.name}" dihapus.`);
+                              if (m.type === 'video') {
+                                const tagRegex = new RegExp(`\\[(?:VIDEO|video):\\s*.*?\\s*\\|\\s*(?:url=["'].*?["']\\s*\\|\\s*)?id=["']${m.id}["']\\]`, 'gi');
+                                setLesContent((prev) => prev.replace(tagRegex, '').split(m.src).join('').replace(/\n\s*\n\s*\n/g, '\n\n'));
+                                setEmbeddedMediaList((prev) => prev.filter((item) => item.id !== m.id));
+                                notify(`Video "${m.name}" berhasil dihapus dari naskah.`);
+                              } else {
+                                const tagRegex = new RegExp(`\\[(?:FOTO|GAMBAR|MEDIA_FOTO):\\s*.*?\\s*\\|\\s*id=["']${m.id}["']\\]`, 'gi');
+                                setLesContent((prev) => prev.replace(tagRegex, '').replace(/\n\s*\n\s*\n/g, '\n\n'));
+                                setEmbeddedMediaList((prev) => prev.filter((item) => item.id !== m.id));
+                                notify(`Foto "${m.name}" berhasil dihapus dari naskah.`);
+                              }
                             }}
                             title="Hapus Media dari Naskah"
                             style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '2px' }}
@@ -3456,9 +3611,17 @@ export const AdminMateriView: React.FC = () => {
                           return;
                         }
 
-                        const ytId = extractYouTubeId(trimmed);
+                        const videoEmbedMatch = trimmed.match(/^\[(?:VIDEO|video):\s*(.*?)(?:\s*\|\s*url=["'](.*?)["'])?(?:\s*\|\s*id=["'](.*?)["'])?\]$/i);
                         const isYtTag = /^\[video(?::|\s+)(.*?)\]$/i.test(trimmed);
-                        if (ytId && (isYtTag || trimmed.startsWith('http://') || trimmed.startsWith('https://'))) {
+                        const potentialYtUrl = videoEmbedMatch && videoEmbedMatch[2]
+                          ? videoEmbedMatch[2].trim()
+                          : videoEmbedMatch && videoEmbedMatch[1] && (videoEmbedMatch[1].startsWith('http') || extractYouTubeId(videoEmbedMatch[1]))
+                          ? videoEmbedMatch[1].trim()
+                          : isYtTag
+                          ? trimmed.replace(/^\[video(?::|\s+)(.*?)\]$/i, '$1').trim()
+                          : trimmed;
+                        const ytId = extractYouTubeId(potentialYtUrl);
+                        if (ytId && (videoEmbedMatch || isYtTag || potentialYtUrl.startsWith('http://') || potentialYtUrl.startsWith('https://'))) {
                           flushText(`tb-${idx}`);
                           elements.push(
                             <div

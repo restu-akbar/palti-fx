@@ -58,7 +58,7 @@ export function searchEduLessons(modules: Module[], rawQuery: string): MatchedLe
       const lesTitle = les.title || '';
       const lesContent = les.content || '';
       const lesMinutes = les.minutes || 0;
-      const hasVideo = !!(les.youtubeUrls && les.youtubeUrls.length > 0);
+      const hasVideo = !!((les.youtubeUrls && les.youtubeUrls.length > 0) || extractYouTubeId(lesContent));
 
       // 1. Cek Judul Bab
       if (lesTitle.toLowerCase().includes(query)) {
@@ -422,7 +422,7 @@ export function ModuleScreen({ moduleId }: { moduleId: string }) {
           const done = !!completed[l.id];
           const isNext = originalIdx === nextIdx;
           const last = i === displayedLessons.length - 1;
-          const hasVideo = l.youtubeUrls && l.youtubeUrls.length > 0;
+          const hasVideo = !!((l.youtubeUrls && l.youtubeUrls.length > 0) || extractYouTubeId(l.content || ''));
 
           return (
             <FadeIn key={l.id} delay={80 + i * 70} from="right">
@@ -886,14 +886,21 @@ export function RichText({ content }: { content: string }) {
     }
 
     // 6. Video YouTube Inline
-    // Format: [video: url] atau [video](url) atau URL YouTube langsung
+    // Format: [VIDEO: ... | url="..." | id="..."], [video: url], [video](url), atau URL YouTube langsung
+    const videoEmbedMatch = trimmed.match(/^\[(?:VIDEO|video):\s*(.*?)(?:\s*\|\s*url=["'](.*?)["'])?(?:\s*\|\s*id=["'](.*?)["'])?\]$/i);
     const ytTagMatch =
       trimmed.match(/^\[video(?::|\s+)(.*?)\]$/i) ||
       trimmed.match(/^!?\[(?:video|youtube)\]\((.*?)\)$/i);
-    const potentialYtUrl = ytTagMatch ? ytTagMatch[1].trim() : trimmed;
+    const potentialYtUrl = videoEmbedMatch && videoEmbedMatch[2]
+      ? videoEmbedMatch[2].trim()
+      : videoEmbedMatch && videoEmbedMatch[1] && (videoEmbedMatch[1].startsWith('http') || extractYouTubeId(videoEmbedMatch[1]))
+      ? videoEmbedMatch[1].trim()
+      : ytTagMatch
+      ? ytTagMatch[1].trim()
+      : trimmed;
     const inlineYtId = extractYouTubeId(potentialYtUrl);
 
-    if (inlineYtId && (ytTagMatch || potentialYtUrl.startsWith('http://') || potentialYtUrl.startsWith('https://'))) {
+    if (inlineYtId && (videoEmbedMatch || ytTagMatch || potentialYtUrl.startsWith('http://') || potentialYtUrl.startsWith('https://'))) {
       flushAll('yt-pre-' + i);
       blocks.push(
         <View key={'inline-yt-' + i} style={{ marginVertical: 8 }}>

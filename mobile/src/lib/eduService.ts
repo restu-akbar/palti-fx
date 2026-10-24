@@ -2,12 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Lesson, Module, MODULES } from '../data/modules';
 import { supabase } from './supabase';
 
-const EDU_CACHE_KEY = 'pfx.edu_modules.cache.v2';
+const EDU_CACHE_KEY = 'pfx.edu_modules.cache.v3';
 
 export interface EduCacheData {
   modules: Module[];
   totalModules: number;
   totalLessons: number;
+  lastLessonUpdate?: string | null;
+  lastModuleUpdate?: string | null;
   cachedAt: number;
 }
 
@@ -22,7 +24,7 @@ export function extractYouTubeId(url: string): string | null {
 
 export class EduService {
   /**
-   * Mengambil data cache lokal beserta metadata jumlah modul dan bab.
+   * Mengambil data cache lokal beserta metadata jumlah modul, bab, dan waktu pembaruan server.
    */
   static async getCachedData(): Promise<EduCacheData | null> {
     try {
@@ -42,28 +44,60 @@ export class EduService {
   }
 
   /**
+   * Menghapus cache offline modul edukasi di perangkat.
+   */
+  static async clearCache(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(EDU_CACHE_KEY);
+    } catch {
+      /* abaikan */
+    }
+  }
+
+  /**
    * Mengambil materi edukasi:
    * 1. Cek cache lokal di perangkat.
-   * 2. Bila cache ada, jalankan pengecekan ringan (HTTP HEAD count) ke Supabase.
-   * 3. Selama tidak ada penambahan materi di server (jumlah modul & bab sama),
-   *    langsung gunakan cache lokal (0ms & 0 byte transfer konten).
-   * 4. Bila terdeteksi ada materi tambahan atau belum ada cache, unduh penuh sekali dan simpan.
+   * 2. Bila cache ada dan forceRefresh=false, lakukan verifikasi ringan (jumlah modul, bab, dan timestamp update terbaru).
+   * 3. Jika tidak ada perubahan data di server, langsung gunakan cache lokal (0ms & 0 byte transfer konten).
+   * 4. Bila terdeteksi ada materi baru, pengeditan/penghapusan video atau konten, atau belum ada cache, unduh penuh dan simpan ke cache.
    */
-  static async getModules(): Promise<Module[]> {
+  static async getModules(forceRefresh = false): Promise<Module[]> {
     const cached = await this.getCachedData();
 
-    // Jika sudah ada cache, cek apakah ada tambahan materi di server secara efisien (HEAD request)
-    if (cached && cached.modules && cached.modules.length > 0) {
+    // Jika sudah ada cache dan bukan paksa refresh, cek apakah ada perubahan materi di server secara efisien
+    if (!forceRefresh && cached && cached.modules && cached.modules.length > 0) {
       try {
-        const [{ count: moduleCount, error: modErr }, { count: lessonCount, error: lesErr }] =
-          await Promise.all([
-            supabase.from('edu_modules').select('*', { count: 'exact', head: true }),
-            supabase.from('edu_lessons').select('*', { count: 'exact', head: true }),
-          ]);
+        const [
+          { count: moduleCount, error: modErr },
+          { count: lessonCount, error: lesErr },
+          { data: latestLes },
+          { data: latestMod },
+        ] = await Promise.all([
+          supabase.from('edu_modules').select('*', { count: 'exact', head: true }),
+          supabase.from('edu_lessons').select('*', { count: 'exact', head: true }),
+          supabase
+            .from('edu_lessons')
+            .select('updated_at, created_at')
+            .order('updated_at', { ascending: false, nullsFirst: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from('edu_modules')
+            .select('updated_at, created_at')
+            .order('updated_at', { ascending: false, nullsFirst: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
         if (!modErr && !lesErr && moduleCount !== null && lessonCount !== null) {
-          // "selama gaada tambahan materi gaakan berubah"
-          if (moduleCount === cached.totalModules && lessonCount === cached.totalLessons) {
+          const serverLatestLesTime = latestLes?.updated_at || latestLes?.created_at || null;
+          const serverLatestModTime = latestMod?.updated_at || latestMod?.created_at || null;
+
+          const countsMatch = moduleCount === cached.totalModules && lessonCount === cached.totalLessons;
+          const lessonsMatch = !serverLatestLesTime || serverLatestLesTime === cached.lastLessonUpdate;
+          const modulesMatch = !serverLatestModTime || serverLatestModTime === cached.lastModuleUpdate;
+
+          if (countsMatch && lessonsMatch && modulesMatch) {
             return cached.modules;
           }
         }
@@ -73,7 +107,7 @@ export class EduService {
       }
     }
 
-    // Ambil materi penuh dari server (karena belum ada cache atau ada materi baru ditambahkan)
+    // Ambil materi penuh dari server (karena belum ada cache, data server diperbarui, atau force refresh)
     try {
       const { data: dbMods, error: modErr } = await supabase
         .from('edu_modules')
@@ -92,6 +126,8 @@ export class EduService {
         .order('created_at', { ascending: true });
 
       const lessonsByMod: Record<string, Lesson[]> = {};
+      let latestLesTimestamp: string | null = null;
+
       (dbLessons || []).forEach((l: any) => {
         const item: Lesson = {
           id: l.id,
@@ -104,23 +140,37 @@ export class EduService {
         };
         if (!lessonsByMod[l.module_id]) lessonsByMod[l.module_id] = [];
         lessonsByMod[l.module_id].push(item);
+
+        const t = l.updated_at || l.created_at;
+        if (t && (!latestLesTimestamp || t > latestLesTimestamp)) {
+          latestLesTimestamp = t;
+        }
       });
 
-      const modules: Module[] = dbMods.map((m: any) => ({
-        id: m.id,
-        title: m.title,
-        subtitle: m.subtitle || '',
-        level: m.level || 'Pemula',
-        icon: m.icon || 'school-outline',
-        sortOrder: m.sort_order ?? 0,
-        lessons: lessonsByMod[m.id] || [],
-      }));
+      let latestModTimestamp: string | null = null;
+      const modules: Module[] = dbMods.map((m: any) => {
+        const t = m.updated_at || m.created_at;
+        if (t && (!latestModTimestamp || t > latestModTimestamp)) {
+          latestModTimestamp = t;
+        }
+        return {
+          id: m.id,
+          title: m.title,
+          subtitle: m.subtitle || '',
+          level: m.level || 'Pemula',
+          icon: m.icon || 'school-outline',
+          sortOrder: m.sort_order ?? 0,
+          lessons: lessonsByMod[m.id] || [],
+        };
+      });
 
-      // Simpan materi beserta metadata jumlah ke cache offline
+      // Simpan materi beserta metadata jumlah & waktu ke cache offline
       const cachePayload: EduCacheData = {
         modules,
         totalModules: dbMods.length,
         totalLessons: (dbLessons || []).length,
+        lastLessonUpdate: latestLesTimestamp,
+        lastModuleUpdate: latestModTimestamp,
         cachedAt: Date.now(),
       };
       await AsyncStorage.setItem(EDU_CACHE_KEY, JSON.stringify(cachePayload)).catch(() => {});
