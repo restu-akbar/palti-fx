@@ -253,7 +253,9 @@ Logout dapat dipicu dari dua lokasi:
 
 ---
 
-## 8. Draf Kontrak API Backend
+## 8. Draf Kontrak API Backend (Arsip)
+
+> Catatan: draf ini tidak dipakai implementasi saat ini. Aplikasi mobile dan web admin berkomunikasi langsung dengan Supabase (Auth, PostgREST, RPC); tidak ada server REST terpisah.
 
 ### 8.1 Login (`POST /api/v1/auth/login`)
 **Request Body:**
