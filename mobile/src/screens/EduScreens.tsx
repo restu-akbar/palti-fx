@@ -16,9 +16,10 @@ import {
 import { AnimatedBar, CompletionPulse, FadeIn, ProgressRing, tap } from '../components/motion';
 import { Card, Chip, GoldButton, IconBadge, Screen } from '../components/ui';
 import { YouTubePlayer } from '../components/YouTubePlayer';
+import { VideoFilePlayer } from '../components/VideoFilePlayer';
 import { useEdu } from '../context/EduContext';
 import { Module } from '../data/modules';
-import { extractYouTubeId } from '../lib/eduService';
+import { extractYouTubeId, isDirectVideoUrl } from '../lib/eduService';
 import { useStore } from '../lib/store';
 import { useNav } from '../nav';
 import { colors, fonts } from '../theme';
@@ -59,7 +60,7 @@ export function searchEduLessons(modules: Module[], rawQuery: string): MatchedLe
       const lesTitle = les.title || '';
       const lesContent = les.content || '';
       const lesMinutes = les.minutes || 0;
-      const hasVideo = !!((les.youtubeUrls && les.youtubeUrls.length > 0) || extractYouTubeId(lesContent));
+      const hasVideo = !!((les.youtubeUrls && les.youtubeUrls.length > 0) || extractYouTubeId(lesContent) || lesContent.split('\n').some(isDirectVideoUrl));
 
       // 1. Cek Judul Bab
       if (lesTitle.toLowerCase().includes(query)) {
@@ -459,7 +460,7 @@ export function ModuleScreen({ moduleId }: { moduleId: string }) {
           const done = !!completed[l.id];
           const isNext = originalIdx === nextIdx;
           const last = i === displayedLessons.length - 1;
-          const hasVideo = !!((l.youtubeUrls && l.youtubeUrls.length > 0) || extractYouTubeId(l.content || ''));
+          const hasVideo = !!((l.youtubeUrls && l.youtubeUrls.length > 0) || extractYouTubeId(l.content || '') || (l.content || '').split('\n').some(isDirectVideoUrl));
 
           return (
             <FadeIn key={l.id} delay={80 + i * 70} from="right">
@@ -941,6 +942,17 @@ export function RichText({ content }: { content: string }) {
       ? ytTagMatch[1].trim()
       : trimmed;
     const inlineYtId = extractYouTubeId(potentialYtUrl);
+
+    // Video berkas unggahan admin (MP4/WebM)
+    if (isDirectVideoUrl(potentialYtUrl)) {
+      flushAll('vf-pre-' + i);
+      blocks.push(
+        <View key={'inline-vf-' + i} style={{ marginVertical: 8 }}>
+          <VideoFilePlayer url={potentialYtUrl} title="Video Pembelajaran Materi" />
+        </View>
+      );
+      return;
+    }
 
     if (inlineYtId && (videoEmbedMatch || ytTagMatch || potentialYtUrl.startsWith('http://') || potentialYtUrl.startsWith('https://'))) {
       flushAll('yt-pre-' + i);

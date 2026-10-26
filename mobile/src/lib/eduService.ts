@@ -24,6 +24,11 @@ export function extractYouTubeId(url: string): string | null {
   return match && match[1] ? match[1] : null;
 }
 
+/** True bila URL menunjuk langsung ke berkas video yang diunggah (MP4/WebM), bukan YouTube. */
+export function isDirectVideoUrl(url: string): boolean {
+  return /^https?:\/\/\S+\.(?:mp4|webm)(?:\?\S*)?$/i.test((url || '').trim());
+}
+
 export class EduService {
   /**
    * Mengambil data cache lokal beserta metadata jumlah modul, bab, dan waktu pembaruan server.
