@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { EduModule } from '../types/admin';
 import { mapEduRows } from './eduMapper';
+import { MediaCleanup, extractContentUrls } from './mediaStorage';
 
 export function extractYouTubeId(url: string): string | null {
   if (!url) return null;
@@ -8,6 +9,12 @@ export function extractYouTubeId(url: string): string | null {
   const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
   const match = clean.match(regExp);
   return match && match[1] ? match[1] : null;
+}
+
+/** URL media di `before` yang tidak ada lagi di `after`, ditambah `extra` (unggahan sesi ini) yang tidak dipakai di `after`. */
+function droppedMediaUrls(before: string, after: string, extra: string[] = []): string[] {
+  const kept = new Set(extractContentUrls(after));
+  return [...new Set([...extractContentUrls(before), ...extra])].filter((u) => !kept.has(u));
 }
 
 export class AdminMateriService {
@@ -130,10 +137,16 @@ export class AdminMateriService {
 
   static async deleteModule(id: string): Promise<{ success: boolean; error?: string }> {
     try {
+      // Catat isi bab dulu agar media-nya bisa dibersihkan dari storage setelah modul terhapus
+      const { data: doomed } = await supabase.from('edu_lessons').select('content').eq('module_id', id);
+      const mediaUrls = (Array.isArray(doomed) ? doomed : []).flatMap((l: { content?: string }) => extractContentUrls(l.content || ''));
+
       // Hapus seluruh bab di dalam modul terlebih dahulu untuk menghindari pelanggaran foreign key
       await supabase.from('edu_lessons').delete().eq('module_id', id);
       const { error } = await supabase.from('edu_modules').delete().eq('id', id);
       if (error) return { success: false, error: error.message };
+
+      await MediaCleanup.removeUnreferenced(mediaUrls);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Gagal menghapus modul.' };
@@ -188,7 +201,8 @@ export class AdminMateriService {
       minutes: number;
       youtubeUrls: string[];
       content: string;
-    }
+    },
+    opts: { uploadedUrls?: string[] } = {}
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const { data: lastItem } = await supabase
@@ -212,6 +226,9 @@ export class AdminMateriService {
       });
 
       if (error) return { success: false, error: error.message };
+
+      // Unggahan sesi ini yang ternyata dibuang dari naskah sebelum disimpan
+      await MediaCleanup.removeUnreferenced(droppedMediaUrls('', input.content, opts.uploadedUrls));
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Gagal membuat bab edukasi.' };
@@ -225,7 +242,8 @@ export class AdminMateriService {
       minutes?: number;
       youtubeUrls?: string[];
       content?: string;
-    }
+    },
+    opts: { uploadedUrls?: string[] } = {}
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // 1. Ambil data bab existing terlebih dahulu
@@ -265,6 +283,10 @@ export class AdminMateriService {
         return { success: false, error: insErr.message || 'Gagal menyimpan pembaruan bab.' };
       }
 
+      // Media yang dibuang dari naskah (atau diunggah sesi ini lalu dibuang) ikut dihapus dari storage
+      await MediaCleanup.removeUnreferenced(
+        droppedMediaUrls(existingLesson.content || '', updatedLesson.content || '', opts.uploadedUrls)
+      );
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Gagal memperbarui bab materi.' };
@@ -273,8 +295,12 @@ export class AdminMateriService {
 
   static async deleteLesson(id: string): Promise<{ success: boolean; error?: string }> {
     try {
+      const { data: doomed } = await supabase.from('edu_lessons').select('content').eq('id', id).maybeSingle();
+
       const { error } = await supabase.from('edu_lessons').delete().eq('id', id);
       if (error) return { success: false, error: error.message };
+
+      await MediaCleanup.removeUnreferenced(extractContentUrls(doomed?.content || ''));
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Gagal menghapus bab edukasi.' };

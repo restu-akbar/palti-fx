@@ -1,0 +1,114 @@
+/* Editor materi bergaya dokumen. Tipografi dibuat dekat dengan tampilan di aplikasi mobile. */
+.pfx-editor { display: flex; flex-direction: column; }
+
+.pfx-toolbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 2px;
+  padding: 6px 8px; margin-bottom: 14px;
+  background: rgba(13, 17, 24, 0.94);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+}
+.pfx-tool {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; min-width: 32px; padding: 0 8px;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: var(--text-secondary); font-size: 0.8rem; cursor: pointer;
+}
+.pfx-tool:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.pfx-tool:disabled { opacity: 0.35; cursor: default; }
+.pfx-tool.is-active { background: rgba(227, 182, 79, 0.18); border-color: rgba(227, 182, 79, 0.4); color: var(--gold-accent); }
+.pfx-tool-wide { padding: 0 10px; font-weight: 600; color: var(--gold-accent); }
+.pfx-tool-sep { width: 1px; height: 20px; margin: 0 6px; background: rgba(255, 255, 255, 0.1); }
+.pfx-tool-select {
+  height: 32px; padding: 0 8px; border-radius: 6px; font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.05); color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer;
+  color-scheme: dark; /* daftar pilihan bawaan browser ikut tema gelap */
+}
+/* Daftar pilihan (popup) memakai warna panel agar selaras, bukan putih bawaan browser */
+.pfx-tool-select option { background: #0d1118; color: #f5f2ea; }
+.pfx-tool-select option:checked { background: #2a2417; color: var(--gold-accent); }
+
+.pfx-paper {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 36px clamp(18px, 5vw, 56px) 56px;
+  min-height: 60vh;
+}
+
+.pfx-doc { outline: none; color: var(--text-primary); font-size: 1rem; line-height: 1.8; min-height: 50vh; word-break: break-word; }
+.pfx-doc > * + * { margin-top: 0.9em; }
+.pfx-doc p { margin: 0; }
+.pfx-doc p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: var(--text-dim);
+}
+.pfx-doc h1, .pfx-doc h2, .pfx-doc h3 { color: #fff; font-weight: 700; line-height: 1.3; margin: 1.4em 0 0.2em; }
+.pfx-doc h1 { font-size: 1.7rem; padding-left: 14px; border-left: 4px solid var(--gold-accent); }
+.pfx-doc h2 { font-size: 1.35rem; padding-left: 12px; border-left: 3px solid var(--gold-accent); }
+.pfx-doc h3 { font-size: 1.1rem; color: var(--gold-accent); }
+.pfx-doc strong { color: #fff; }
+.pfx-doc em { color: #f0d98a; }
+.pfx-doc a { color: var(--gold-accent); text-decoration: underline; cursor: text; }
+.pfx-doc code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em;
+  color: var(--gold-accent); background: rgba(227, 182, 79, 0.12); padding: 1px 5px; border-radius: 4px;
+}
+.pfx-doc pre { background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
+.pfx-doc pre code { background: none; padding: 0; color: #e6e2d6; }
+.pfx-doc ul, .pfx-doc ol { margin: 0; padding-left: 1.5em; }
+.pfx-doc li { margin: 0.25em 0; }
+.pfx-doc li::marker { color: var(--gold-accent); }
+.pfx-doc blockquote {
+  margin: 0; padding: 12px 16px 12px 48px; position: relative; border-radius: 10px;
+  background: linear-gradient(135deg, rgba(237, 193, 58, 0.16), rgba(237, 193, 58, 0.04));
+  border: 1px solid rgba(237, 193, 58, 0.28);
+}
+.pfx-doc blockquote::before { content: '💡'; position: absolute; left: 14px; top: 12px; font-size: 1.1rem; }
+.pfx-doc blockquote p + p { margin-top: 0.4em; }
+.pfx-doc hr { border: none; height: 1px; background: rgba(255, 255, 255, 0.15); margin: 1.6em 0; }
+
+.pfx-media { border-radius: 12px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.3); margin: 1.1em 0; }
+.pfx-doc.ProseMirror-focused .pfx-media.ProseMirror-selectednode { border-color: var(--gold-accent); box-shadow: 0 0 0 2px rgba(227, 182, 79, 0.35); }
+.pfx-media-bar {
+  display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 4px 12px;
+  font-size: 0.72rem; color: var(--text-dim); background: rgba(0, 0, 0, 0.35);
+}
+.pfx-media-label { letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; }
+.pfx-media-del {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; cursor: pointer;
+  color: var(--danger); background: rgba(235, 87, 87, 0.08); border: 1px solid rgba(235, 87, 87, 0.3); font-size: 0.72rem;
+}
+.pfx-media-img { display: block; width: 100%; max-height: 520px; object-fit: contain; background: #000; }
+.pfx-media-caption {
+  width: 100%; padding: 8px 12px; border: none; border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: transparent; color: var(--text-secondary); font-size: 0.85rem; text-align: center; outline: none;
+}
+.pfx-media-caption:focus { background: rgba(255, 255, 255, 0.04); color: #fff; }
+.pfx-media-embed { position: relative; padding-bottom: 56.25%; height: 0; background: #000; }
+.pfx-media-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.pfx-media-video { display: block; width: 100%; max-height: 480px; background: #000; }
+.pfx-media-broken { padding: 14px; color: var(--danger); font-size: 0.85rem; display: flex; gap: 8px; align-items: center; }
+
+.pfx-insert { max-width: 460px; padding: 1.5rem; }
+.pfx-insert-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.pfx-insert-head h2 { margin: 0; font-size: 1.1rem; color: #fff; font-weight: 600; }
+.pfx-insert-x { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 4px; }
+.pfx-insert-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 1rem; }
+.pfx-insert-tabs button {
+  padding: 8px; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: 600;
+  background: transparent; color: var(--text-secondary); border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.pfx-insert-tabs button.is-active { background: rgba(227, 182, 79, 0.16); border-color: var(--gold-accent); color: var(--gold-accent); }
+.pfx-insert-drop {
+  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 1.6rem 1rem; cursor: pointer;
+  border: 2px dashed rgba(255, 255, 255, 0.18); border-radius: 10px; background: rgba(255, 255, 255, 0.02);
+  color: var(--gold-accent); text-align: center;
+}
+.pfx-insert-drop strong { color: #fff; font-size: 0.9rem; }
+.pfx-insert-drop span { color: var(--text-dim); font-size: 0.76rem; }
+.pfx-insert-drop:hover { border-color: var(--gold-accent); }
+.pfx-insert-hint { margin: 0.8rem 0 0; font-size: 0.76rem; color: var(--text-dim); }
+.pfx-insert-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }

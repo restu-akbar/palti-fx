@@ -42,6 +42,7 @@ class QueryBuilder implements PromiseLike<QueryResult> {
   eq(column: string, value: unknown) { this.rec.filters.push({ type: 'eq', column, value }); return this; }
   neq(column: string, value: unknown) { this.rec.filters.push({ type: 'neq', column, value }); return this; }
   in(column: string, value: unknown) { this.rec.filters.push({ type: 'in', column, value }); return this; }
+  ilike(column: string, value: unknown) { this.rec.filters.push({ type: 'ilike', column, value }); return this; }
   order(column: string, options?: unknown) { this.rec.orders.push({ column, options }); return this; }
   limit(n: number) { this.rec.limit = n; return this; }
   single() { this.rec.single = true; return this; }
@@ -55,8 +56,19 @@ class QueryBuilder implements PromiseLike<QueryResult> {
   }
 }
 
+export interface RecordedStorageCall {
+  bucket: string;
+  op: 'upload' | 'remove';
+  path?: string;
+  paths?: string[];
+  body?: unknown;
+  options?: unknown;
+}
+
 export function createFakeSupabase() {
   const queries: RecordedQuery[] = [];
+  const storageCalls: RecordedStorageCall[] = [];
+  let storageError: { message: string } | null = null;
   const handlers = new Map<string, TableHandler>();
   const rpcHandlers = new Map<string, (args: unknown) => QueryResult | Promise<QueryResult>>();
 
@@ -81,8 +93,27 @@ export function createFakeSupabase() {
     })),
   };
 
+  const storage = {
+    from: (bucket: string) => ({
+      upload: vi.fn(async (path: string, body: unknown, options?: unknown) => {
+        storageCalls.push({ bucket, op: 'upload', path, body, options });
+        return storageError ? { data: null, error: storageError } : { data: { path }, error: null };
+      }),
+      remove: vi.fn(async (paths: string[]) => {
+        storageCalls.push({ bucket, op: 'remove', paths });
+        return storageError ? { data: null, error: storageError } : { data: [], error: null };
+      }),
+      getPublicUrl: (path: string) => ({
+        data: { publicUrl: `https://fake.supabase.co/storage/v1/object/public/${bucket}/${path}` },
+      }),
+    }),
+  };
+
   return {
     auth,
+    storage,
+    storageCalls,
+    failStorage(message: string | null) { storageError = message ? { message } : null; },
     from: vi.fn((table: string) => new QueryBuilder(table, run)),
     rpc: vi.fn(async (name: string, args?: unknown) => {
       const h = rpcHandlers.get(name);
@@ -97,6 +128,8 @@ export function createFakeSupabase() {
     },
     reset() {
       queries.length = 0;
+      storageCalls.length = 0;
+      storageError = null;
       handlers.clear();
       rpcHandlers.clear();
       Object.values(auth).forEach((fn) => fn.mockClear());

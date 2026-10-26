@@ -2,6 +2,7 @@ import React from 'react';
 import { Film, Lightbulb, Camera } from 'lucide-react';
 import type { EmbeddedMediaItem } from '../../lib/materiContent';
 import { extractYouTubeId } from '../../lib/adminMateri';
+import { isVideoFileUrl } from '../../lib/materiContent';
 
 /**
  * MobileRichText - Replikasi 1:1 parser dan styling RichText dari aplikasi mobile PALTI FX (src/screens/EduScreens.tsx)
@@ -358,6 +359,28 @@ export const MobileRichText: React.FC<{
               )}
             </div>
           )}
+        </div>
+      );
+      return;
+    }
+
+    // 2a. Video berkas unggahan (MP4/WebM): token [VIDEO: ... | url="..."] atau URL polos
+    const fileVideoUrl = (trimmed.match(/^\[(?:VIDEO|video):.*?\|\s*url=["'](.*?)["']/)?.[1] ?? trimmed).trim();
+    if (isVideoFileUrl(fileVideoUrl)) {
+      flushAll('vf-pre-' + i);
+      blocks.push(
+        <div
+          key={'inline-vf-' + i}
+          style={{
+            margin: '22px 0',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            backgroundColor: '#000',
+            border: '1px solid rgba(227, 182, 79, 0.28)',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.65)',
+          }}
+        >
+          <video src={fileVideoUrl} controls playsInline preload="metadata" style={{ width: '100%', display: 'block', maxHeight: '420px' }} />
         </div>
       );
       return;
