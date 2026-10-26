@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Module, MODULES } from '../data/modules';
 import { mapEduRows } from './eduMapper';
 import { supabase } from './supabase';
+import { NetworkService } from './networkService';
 
 const EDU_CACHE_KEY = 'pfx.edu_modules.cache.v3';
 
@@ -139,6 +140,7 @@ export class EduService {
       };
       await AsyncStorage.setItem(EDU_CACHE_KEY, JSON.stringify(cachePayload)).catch(() => {});
 
+      NetworkService.notifyOnline();
       return modules;
     } catch (err) {
       console.warn('[EduService.getModules] Fallback to cache/static:', err);

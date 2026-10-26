@@ -7,6 +7,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -175,8 +176,13 @@ export function searchEduLessons(modules: Module[], rawQuery: string): MatchedLe
 export function EduScreen() {
   const nav = useNav();
   const { completed } = useStore();
-  const { modules } = useEdu();
+  const { modules, refreshing, refresh } = useEdu();
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Otomatis refresh seketika saat user masuk ke halaman edukasi
+  useEffect(() => {
+    refresh(true);
+  }, [refresh]);
 
   // Hitung total lesson secara dinamis
   const allLessons = modules.flatMap((m) => m.lessons);
@@ -188,7 +194,20 @@ export function EduScreen() {
   }, [modules, searchQuery]);
 
   return (
-    <Screen title="Edukasi" eyebrow="AKADEMI PALTI FX" subtitle="Belajar bertahap dari dasar sampai mahir">
+    <Screen
+      title="Edukasi"
+      eyebrow="AKADEMI PALTI FX"
+      subtitle="Belajar bertahap dari dasar sampai mahir"
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => refresh(true)}
+          tintColor={colors.gold}
+          colors={[colors.gold]}
+          progressBackgroundColor={colors.card}
+        />
+      }
+    >
       {/* ── Progress Card ── */}
       <FadeIn delay={60}>
         <Card gold style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -363,8 +382,13 @@ export function EduScreen() {
 export function ModuleScreen({ moduleId }: { moduleId: string }) {
   const nav = useNav();
   const { completed } = useStore();
-  const { findModule } = useEdu();
+  const { findModule, refreshing, refresh } = useEdu();
   const [moduleSearch, setModuleSearch] = useState('');
+
+  // Otomatis refresh saat user masuk ke halaman modul / daftar bab
+  useEffect(() => {
+    refresh(true);
+  }, [refresh]);
 
   const m = findModule(moduleId);
 
@@ -390,7 +414,20 @@ export function ModuleScreen({ moduleId }: { moduleId: string }) {
   }, [m.lessons, moduleSearch]);
 
   return (
-    <Screen title={m.title} eyebrow={m.level.toUpperCase()} subtitle={m.subtitle}>
+    <Screen
+      title={m.title}
+      eyebrow={m.level.toUpperCase()}
+      subtitle={m.subtitle}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => refresh(true)}
+          tintColor={colors.gold}
+          colors={[colors.gold]}
+          progressBackgroundColor={colors.card}
+        />
+      }
+    >
       {/* ── Search Bar Input dalam Modul jika bab >= 3 ── */}
       {m.lessons.length >= 3 && (
         <FadeIn delay={60}>
@@ -483,7 +520,12 @@ export function ModuleScreen({ moduleId }: { moduleId: string }) {
 export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonId: string }) {
   const nav = useNav();
   const { completed, toggleLesson } = useStore();
-  const { findLesson } = useEdu();
+  const { findLesson, refresh } = useEdu();
+
+  // Otomatis refresh saat user masuk ke bab materi agar subbab & konten selalu terupdate
+  useEffect(() => {
+    refresh(true);
+  }, [refresh]);
 
   // Indikator selesai singkat sebelum berpindah layar; aksi navigasi ditahan sampai animasi usai
   const [pulse, setPulse] = useState<{ visible: boolean; label: string }>({ visible: false, label: '' });
