@@ -39,6 +39,7 @@ export function Screen({
   eyebrow,
   floating,
   bottomPad = 120,
+  refreshControl,
 }: {
   title: string;
   subtitle?: string;
@@ -48,6 +49,7 @@ export function Screen({
   /** Elemen melayang di atas konten (mis. tombol aksi utama) */
   floating?: React.ReactNode;
   bottomPad?: number;
+  refreshControl?: React.ReactElement<any>;
 }) {
   const nav = useNav();
   const insets = useSafeAreaInsets();
@@ -64,6 +66,7 @@ export function Screen({
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], { useNativeDriver: native })}
       >
         <Animated.View style={{ opacity: titleFade, transform: [{ translateY: titleShift }], marginBottom: 18 }}>

@@ -5,6 +5,7 @@
   },
   "exclude": [
     "tests",
+    "supabase",
     "dist",
     "node_modules"
   ]

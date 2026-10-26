@@ -30,6 +30,7 @@ import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { ToolScreen, ToolsScreen } from './src/screens/ToolScreens';
 import { AchievementsScreen } from './src/screens/AchievementsScreen';
 import { AchievementWatcher } from './src/components/AchievementWatcher';
+import { NetworkBanner } from './src/components/NetworkBanner';
 import { colors, fonts, goldGradient } from './src/theme';
 
 const native = Platform.OS !== 'web';
@@ -356,6 +357,7 @@ function MainApp() {
       <View style={st.app}>
         <StatusBar style="light" />
         {renderContent()}
+        <NetworkBanner />
         {!splashFinished && (
           <Splash onFinish={() => setSplashFinished(true)} />
         )}

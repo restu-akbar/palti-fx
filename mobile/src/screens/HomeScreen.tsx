@@ -11,7 +11,7 @@ import { AnimatedBar, CountUp, FadeIn, Float, PressScale, ProgressRing, Shimmer,
 import { Card, Chip, GoldButton, IconBadge, IconName, SectionTitle, Sheet } from '../components/ui';
 import { Medal, useAchievements } from '../components/Medal';
 import { StreakChip } from '../components/Streak';
-import { ALL_LESSONS, MODULES } from '../data/modules';
+import { useEdu } from '../context/EduContext';
 import { pct, signedUsd } from '../lib/format';
 import { greeting } from '../lib/sessions';
 import { computeStats, useStore } from '../lib/store';
@@ -53,9 +53,14 @@ export function HomeScreen() {
     .sort((x, y) => (x.unlocked !== y.unlocked ? (x.unlocked ? -1 : 1) : (y.at ?? 0) - (x.at ?? 0)))
     .slice(0, 5);
   const stats = useMemo(() => computeStats(trades), [trades]);
-  const doneCount = ALL_LESSONS.filter((l) => completed[l.id]).length;
-  const progress = ALL_LESSONS.length ? doneCount / ALL_LESSONS.length : 0;
-  const nextLesson = ALL_LESSONS.find((l) => !completed[l.id]);
+  const { modules } = useEdu();
+  const allLessons = useMemo(
+    () => modules.flatMap((m) => m.lessons.map((l) => ({ ...l, moduleId: m.id }))),
+    [modules]
+  );
+  const doneCount = allLessons.filter((l) => completed[l.id]).length;
+  const progress = allLessons.length ? doneCount / allLessons.length : 0;
+  const nextLesson = allLessons.find((l) => !completed[l.id]);
   const now = new Date();
   const [heroW, setHeroW] = useState(360);
   const tip = TIPS[now.getDate() % TIPS.length];
@@ -161,7 +166,7 @@ export function HomeScreen() {
                   {nextLesson ? nextLesson.title : 'Ulangi materi kapan saja'}
                 </Text>
                 <Text style={st.heroMeta}>
-                  {doneCount}/{ALL_LESSONS.length} materi · {MODULES.length} modul
+                  {doneCount}/{allLessons.length} materi · {modules.length} modul
                 </Text>
               </View>
             </View>
@@ -277,7 +282,7 @@ export function HomeScreen() {
         snapToInterval={232}
         decelerationRate="fast"
       >
-        {MODULES.map((m, i) => {
+        {modules.map((m, i) => {
           const d = m.lessons.filter((l) => completed[l.id]).length;
           return (
             <FadeIn key={m.id} delay={520 + i * 80} from="right">
