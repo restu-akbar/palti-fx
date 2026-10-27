@@ -17,6 +17,8 @@
     "build:mobile": "npm run build:release --workspace=mobile",
     "android": "npm run android --workspace=mobile",
     "ios": "npm run ios --workspace=mobile",
+    "prebuild:ios": "npm run prebuild:ios --workspace=mobile",
+    "build:ios": "npm run build:ios --workspace=mobile",
     "lint": "npm run lint --workspace=mobile",
     "lint:mobile": "npm run lint --workspace=mobile",
     "test": "npm run test --workspaces --if-present",

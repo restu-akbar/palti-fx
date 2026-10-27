@@ -40,6 +40,8 @@
     "dev": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "prebuild:ios": "expo prebuild --platform ios",
+    "build:ios": "expo run:ios --configuration Release",
     "web": "expo start --web",
     "test": "vitest run",
     "lint": "expo lint",
