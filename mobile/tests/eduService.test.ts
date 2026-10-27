@@ -17,7 +17,7 @@ vi.mock('../src/lib/supabase', async () => {
 
 import { MODULES } from '../src/data/modules';
 import { supabase as client } from '../src/lib/supabase';
-import { EduService, extractYouTubeId } from '../src/lib/eduService';
+import { EduService, extractYouTubeId, isDirectVideoUrl } from '../src/lib/eduService';
 
 const supabase = client as unknown as FakeSupabase;
 const CACHE_KEY = 'pfx.edu_modules.cache.v3';
@@ -213,5 +213,20 @@ describe('EduService CRUD admin', () => {
     expect(mods.map((q) => q.payload)).toEqual([{ sort_order: 1 }, { sort_order: 2 }]);
     expect(mods.map((q) => q.filters[0].value)).toEqual(['b', 'a']);
     expect(supabase.queriesFor('edu_lessons', 'update').map((q) => q.filters[0].value)).toEqual(['y', 'x']);
+  });
+});
+
+describe('isDirectVideoUrl', () => {
+  it('mengenali URL MP4/WebM, dengan atau tanpa query', () => {
+    expect(isDirectVideoUrl('https://x.supabase.co/storage/v1/object/public/lesson-videos/a.mp4')).toBe(true);
+    expect(isDirectVideoUrl('https://cdn.test/a.WEBM?t=1')).toBe(true);
+    expect(isDirectVideoUrl('  https://cdn.test/a.mp4  ')).toBe(true);
+  });
+
+  it('menolak YouTube, gambar, skema non-http, dan string kosong', () => {
+    expect(isDirectVideoUrl('https://youtu.be/dQw4w9WgXcQ')).toBe(false);
+    expect(isDirectVideoUrl('https://cdn.test/a.png')).toBe(false);
+    expect(isDirectVideoUrl('javascript:alert(1)//a.mp4')).toBe(false);
+    expect(isDirectVideoUrl('')).toBe(false);
   });
 });

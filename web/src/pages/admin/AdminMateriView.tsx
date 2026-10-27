@@ -1,13 +1,14 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { Plus, Trash2, Pencil, ArrowUp, ArrowDown, Video, Clock, Eye, X, Check, AlertTriangle, Play, Film, BookOpen, Smartphone, FileText, ChevronDown, ChevronUp, Copy, CheckCheck, ArrowRight, Image as ImageIcon, Upload, Camera, Search, MousePointer, Layers, HelpCircle, List, RotateCcw } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Plus, Trash2, Pencil, ArrowUp, ArrowDown, Video, Clock, Eye, X, Check, AlertTriangle, Play, Film, BookOpen, Smartphone, FileText, Copy, CheckCheck, ArrowRight, Image as ImageIcon, Camera, Search, GripVertical } from 'lucide-react';
 import type { EduLesson, EduModule } from '../../types/admin';
 import { AdminMateriService, extractYouTubeId } from '../../lib/adminMateri';
 import { IoniconsPicker, IonIconPreview } from '../../components/admin/IoniconsPicker';
 
-import { compressImageFile, collapseMediaContent, expandMediaContent, estimateReadingMinutes, getLessonDraftKey, readLessonDraft, writeLessonDraft, clearLessonDraft } from '../../lib/materiContent';
-import type { EmbeddedMediaItem, LessonDraft } from '../../lib/materiContent';
+import { isVideoFileUrl } from '../../lib/materiContent';
 import { searchEduLessons } from '../../lib/materiSearch';
 import { MobileRichText } from '../../components/admin/MobileRichText';
+import { LessonEditorPage } from '../../components/admin/LessonEditorPage';
+import { moveItem, useDragReorder } from '../../lib/dragReorder';
 
 export const AdminMateriView: React.FC = () => {
   const [modules, setModules] = useState<EduModule[]>([]);
@@ -25,29 +26,6 @@ export const AdminMateriView: React.FC = () => {
 
   const [showLesModal, setShowLesModal] = useState(false);
   const [editingLesson, setEditingLesson] = useState<EduLesson | null>(null);
-  const [lesTitle, setLesTitle] = useState('');
-  const [lesMinutes, setLesMinutes] = useState(5);
-  const [lesContent, setLesContent] = useState('');
-
-  // Media Insertion State
-  const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const [showInsertImgModal, setShowInsertImgModal] = useState(false);
-  const [imgTab, setImgTab] = useState<'upload' | 'url'>('upload');
-  const [imgUrlInput, setImgUrlInput] = useState('');
-  const [imgCaptionInput, setImgCaptionInput] = useState('');
-  const [imgPreviewData, setImgPreviewData] = useState<string | null>(null);
-  const [imgCompressing, setImgCompressing] = useState(false);
-  const [isDraggingImg, setIsDraggingImg] = useState(false);
-  const [imgInsertPosition, setImgInsertPosition] = useState<'cursor' | 'top' | 'bottom'>('cursor');
-
-  const [showInsertVideoModal, setShowInsertVideoModal] = useState(false);
-  const [videoModalUrl, setVideoModalUrl] = useState('');
-  const [videoInsertPosition, setVideoInsertPosition] = useState<'cursor' | 'top' | 'bottom'>('cursor');
-  const [embeddedMediaList, setEmbeddedMediaList] = useState<EmbeddedMediaItem[]>([]);
-  const [showNaskahGuide, setShowNaskahGuide] = useState(false);
-  const [pendingDraft, setPendingDraft] = useState<LessonDraft | null>(null);
-  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
-  const lessonBaselineRef = useRef<{ title: string; minutes: number; content: string }>({ title: '', minutes: 5, content: '' });
 
   // Lightbox Modal State
   const [lightboxImg, setLightboxImg] = useState<{ url: string; caption?: string } | null>(null);
@@ -198,322 +176,64 @@ export const AdminMateriView: React.FC = () => {
     setActionLoading(false);
   };
 
-  const handleMoveModule = async (index: number, direction: 'up' | 'down') => {
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= modules.length) return;
+  // Garis penanda posisi jatuh saat menyeret baris
+  const dropShadow = (edge: 'top' | 'bottom' | null) =>
+    edge === 'top' ? 'inset 0 2px 0 var(--gold-accent)' : edge === 'bottom' ? 'inset 0 -2px 0 var(--gold-accent)' : undefined;
 
-    const reordered = [...modules];
-    const temp = reordered[index];
-    reordered[index] = reordered[targetIdx];
-    reordered[targetIdx] = temp;
+  // Mengubah urutan modul (seret-lepas atau tombol panah); kembali ke urutan server bila gagal disimpan
+  const handleReorderModules = async (from: number, to: number) => {
+    const reordered = moveItem(modules, from, to);
+    if (reordered === modules) return;
     setModules(reordered);
 
-    const orderedIds = reordered.map((m) => m.id);
-    await AdminMateriService.reorderModules(orderedIds);
+    const res = await AdminMateriService.reorderModules(reordered.map((m) => m.id));
+    if (!res.success) {
+      notify(res.error || 'Gagal menyimpan urutan modul.', true);
+      fetchModules();
+    }
   };
 
   /* ─── Handlers Bab ─── */
-  const lessonDraftKey = selectedModule ? getLessonDraftKey(selectedModule.id, editingLesson?.id) : null;
-
-  // Menyiapkan kondisi awal modal dan menawarkan pemulihan bila ada draft yang belum disimpan
-  const prepareLessonDraft = (lessonId: string | null, base: { title: string; minutes: number; content: string }) => {
-    lessonBaselineRef.current = base;
-    setDraftSavedAt(null);
-    if (!selectedModule) {
-      setPendingDraft(null);
-      return;
-    }
-    const key = getLessonDraftKey(selectedModule.id, lessonId);
-    const draft = readLessonDraft(key);
-    const differs = !!draft && (draft.title !== base.title || draft.minutes !== base.minutes || draft.content !== base.content);
-    if (draft && !differs) clearLessonDraft(key);
-    setPendingDraft(differs ? draft : null);
-  };
-
-  const handleRestoreDraft = () => {
-    if (!pendingDraft) return;
-    setLesTitle(pendingDraft.title);
-    setLesMinutes(pendingDraft.minutes);
-    setLesContent(pendingDraft.content);
-    setEmbeddedMediaList(pendingDraft.media || []);
-    setPendingDraft(null);
-    notify('Draft berhasil dipulihkan.');
-  };
-
-  const handleDiscardDraft = () => {
-    if (lessonDraftKey) clearLessonDraft(lessonDraftKey);
-    setPendingDraft(null);
-  };
-
+  // Editor bab berupa halaman penuh (LessonEditorPage); di sini hanya mengatur kapan ia dibuka/ditutup
   const handleOpenAddLesson = () => {
     if (!selectedModule) return;
     setEditingLesson(null);
-    setLesTitle('');
-    setLesMinutes(5);
-    setLesContent('');
-    setEmbeddedMediaList([]);
-    prepareLessonDraft(null, { title: '', minutes: 5, content: '' });
     setShowLesModal(true);
   };
 
   const handleOpenEditLesson = (les: EduLesson) => {
     setEditingLesson(les);
-    setLesTitle(les.title);
-    setLesMinutes(les.minutes);
-    // Otomatis bungkus foto dan video menjadi tag container ringkas [FOTO: ... | id="..."] & [VIDEO: ... | url="..." | id="..."]
-    const { cleanContent, mediaList } = collapseMediaContent(les.content || '', les.youtube_urls || []);
-    setLesContent(cleanContent);
-    setEmbeddedMediaList(mediaList);
-    prepareLessonDraft(les.id, { title: les.title, minutes: les.minutes, content: cleanContent });
     setShowLesModal(true);
   };
 
-  const insertMediaContent = (markdownToInsert: string, position: 'cursor' | 'top' | 'bottom' = 'cursor') => {
-    const textarea = contentTextareaRef.current;
-    const current = lesContent || '';
-
-    if (position === 'top') {
-      const trimmedMarkdown = markdownToInsert.trim();
-      const newContent = current.trim() ? trimmedMarkdown + '\n\n' + current.trimStart() : trimmedMarkdown;
-      setLesContent(newContent);
-      return;
-    }
-
-    if (position === 'bottom') {
-      const trimmedMarkdown = markdownToInsert.trim();
-      const newContent = current.trim() ? current.trimEnd() + '\n\n' + trimmedMarkdown : trimmedMarkdown;
-      setLesContent(newContent);
-      return;
-    }
-
-    // Default: 'cursor'
-    if (!textarea) {
-      setLesContent((prev) => (prev ? prev + '\n\n' + markdownToInsert : markdownToInsert));
-      return;
-    }
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const prev = lesContent;
-    const newContent = prev.substring(0, start) + markdownToInsert + prev.substring(end);
-    setLesContent(newContent);
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + markdownToInsert.length, start + markdownToInsert.length);
-    }, 50);
+  const handleCloseLessonEditor = () => {
+    setShowLesModal(false);
+    setEditingLesson(null);
   };
 
-  const insertAtCursor = (textToInsert: string) => {
-    insertMediaContent(textToInsert, 'cursor');
+  const handleLessonSaved = () => {
+    handleCloseLessonEditor();
+    fetchModules();
   };
 
-  const processImageFile = async (file: File) => {
-    if (!file) return;
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/svg+xml', 'image/bmp', 'image/avif'];
-    const validExtensions = /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i;
-
-    if (!validTypes.includes(file.type) && !validExtensions.test(file.name)) {
-      notify('Format berkas tidak didukung. Harap pilih gambar (PNG, JPG, WEBP, GIF, SVG, BMP, AVIF).', true);
-      return;
-    }
-
-    setImgCompressing(true);
-    try {
-      const compressedDataUrl = await compressImageFile(file);
-      setImgPreviewData(compressedDataUrl);
-      if (!imgCaptionInput.trim()) {
-        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-        setImgCaptionInput(cleanName);
-      }
-      notify(`Berkas "${file.name}" siap disisipkan.`);
-    } catch (err) {
-      console.error(err);
-      notify('Gagal memproses berkas gambar.', true);
-    } finally {
-      setImgCompressing(false);
-    }
-  };
-
-  const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      await processImageFile(file);
-    }
-    e.target.value = '';
-  };
-
-  const handleConfirmInsertImage = () => {
-    const src = imgTab === 'upload' ? imgPreviewData : imgUrlInput.trim();
-    if (!src) {
-      notify('Pilih berkas foto atau masukkan tautan URL terlebih dahulu.', true);
-      return;
-    }
-    const caption = imgCaptionInput.trim();
-    const mediaId = `foto_${Date.now()}`;
-    const displayName = caption || `Foto #${embeddedMediaList.length + 1}`;
-
-    // Simpan ke embeddedMediaList untuk manajemen container pembungkus
-    setEmbeddedMediaList((prev) => [
-      ...prev,
-      {
-        id: mediaId,
-        type: 'image',
-        src,
-        caption,
-        name: displayName,
-      },
-    ]);
-
-    // Masukkan tag ringkas ke naskah (clean looks, tanpa ribuan karakter base64)
-    const tagMarkdown = `\n\n[FOTO: ${displayName} | id="${mediaId}"]\n\n`;
-    insertMediaContent(tagMarkdown, imgInsertPosition);
-
-    setShowInsertImgModal(false);
-    setImgPreviewData(null);
-    setImgUrlInput('');
-    setImgCaptionInput('');
-    setIsDraggingImg(false);
-    notify('Foto berhasil disisipkan dengan pembungkus container ringkas.');
-  };
-
-  const handleConfirmInsertVideo = () => {
-    const url = videoModalUrl.trim();
-    if (!url) return;
-    const ytid = extractYouTubeId(url);
-    if (!ytid) {
-      notify('Tautan YouTube tidak valid. Pastikan format link benar (contoh: https://youtu.be/... atau watch?v=...)', true);
-      return;
-    }
-    const mediaId = `video_${Date.now()}`;
-    const displayName = `Video YouTube (${ytid})`;
-    const tagMarkdown = `\n\n[VIDEO: ${displayName} | url="${url}" | id="${mediaId}"]\n\n`;
-
-    insertMediaContent(tagMarkdown, videoInsertPosition);
-
-    setEmbeddedMediaList((prev) => [
-      ...prev,
-      {
-        id: mediaId,
-        type: 'video',
-        src: url,
-        name: displayName,
-      },
-    ]);
-
-    setShowInsertVideoModal(false);
-    setVideoModalUrl('');
-    notify('Video YouTube berhasil disisipkan dengan pembungkus container ringkas.');
-  };
-
-  const contentVideoCount = useMemo(() => {
-    if (!lesContent) return 0;
-    const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi;
-    const matches = lesContent.match(ytRegex);
-    return matches ? matches.length : 0;
-  }, [lesContent]);
-
-  const contentImageCount = useMemo(() => {
-    if (!lesContent) return embeddedMediaList.filter((m) => m.type === 'image').length;
-    const imgRegex = /!\[.*?\]\(.*?\)|\[(?:foto|gambar|image|img|media_foto).*?\]/gi;
-    const matches = lesContent.match(imgRegex);
-    return matches ? matches.length : embeddedMediaList.filter((m) => m.type === 'image').length;
-  }, [lesContent, embeddedMediaList]);
-
-  // Auto-draft senyap ke localStorage: hanya menulis bila isi berbeda dari kondisi awal modal,
-  // dan ditunda 3 detik setelah ketikan terakhir agar tidak membebani browser.
-  useEffect(() => {
-    if (!showLesModal || !lessonDraftKey || pendingDraft) return;
-    const base = lessonBaselineRef.current;
-    const dirty = lesTitle !== base.title || lesMinutes !== base.minutes || lesContent !== base.content;
-    if (!dirty) return;
-    const timer = window.setTimeout(() => {
-      const ok = writeLessonDraft(lessonDraftKey, {
-        title: lesTitle,
-        minutes: lesMinutes,
-        content: lesContent,
-        media: embeddedMediaList,
-        savedAt: Date.now(),
-      });
-      if (ok) setDraftSavedAt(Date.now());
-    }, 3000);
-    return () => window.clearTimeout(timer);
-  }, [showLesModal, lessonDraftKey, pendingDraft, lesTitle, lesMinutes, lesContent, embeddedMediaList]);
-
-  const handleSaveLesson = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedModule || !lesTitle.trim()) {
-      notify('Judul bab wajib diisi.', true);
-      return;
-    }
-    setActionLoading(true);
-
-    // Expand media wrappers kembali ke format markdown lengkap dengan data URL / src asli sebelum dikirim ke database
-    const expandedContent = expandMediaContent(lesContent, embeddedMediaList);
-
-    // Otomatis sinkronkan seluruh video YouTube yang benar-benar aktif di dalam naskah bab ini
-    const finalYoutubeUrls: string[] = [];
-    const ytRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi;
-    let ytMatch;
-    while ((ytMatch = ytRegex.exec(expandedContent)) !== null) {
-      const full = ytMatch[0];
-      const norm = full.startsWith('http') ? full : `https://${full}`;
-      const id = extractYouTubeId(norm);
-      if (id && !finalYoutubeUrls.some((existing) => extractYouTubeId(existing) === id)) {
-        finalYoutubeUrls.push(norm);
-      }
-    }
-
-    if (editingLesson) {
-      const res = await AdminMateriService.updateLesson(editingLesson.id, {
-        title: lesTitle,
-        minutes: lesMinutes,
-        youtubeUrls: finalYoutubeUrls,
-        content: expandedContent,
-      });
-      if (res.success) {
-        notify(`Bab "${lesTitle.trim()}" berhasil diperbarui.`);
-        if (lessonDraftKey) clearLessonDraft(lessonDraftKey);
-        setShowLesModal(false);
-        setEditingLesson(null);
-        fetchModules();
-      } else {
-        notify(res.error || 'Gagal memperbarui bab.', true);
-      }
-    } else {
-      const res = await AdminMateriService.createLesson(selectedModule.id, {
-        title: lesTitle,
-        minutes: lesMinutes,
-        youtubeUrls: finalYoutubeUrls,
-        content: expandedContent,
-      });
-      if (res.success) {
-        notify('Bab materi baru berhasil ditambahkan.');
-        if (lessonDraftKey) clearLessonDraft(lessonDraftKey);
-        setShowLesModal(false);
-        fetchModules();
-      } else {
-        notify(res.error || 'Gagal membuat bab.', true);
-      }
-    }
-    setActionLoading(false);
-  };
-
-  const handleMoveLesson = async (index: number, direction: 'up' | 'down') => {
+  // Mengubah urutan bab di modul terpilih (seret-lepas atau tombol panah)
+  const handleReorderLessons = async (from: number, to: number) => {
     if (!selectedModule) return;
     const lessons = selectedModule.lessons || [];
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= lessons.length) return;
+    const reordered = moveItem(lessons, from, to);
+    if (reordered === lessons) return;
 
-    const reordered = [...lessons];
-    const temp = reordered[index];
-    reordered[index] = reordered[targetIdx];
-    reordered[targetIdx] = temp;
+    setModules(modules.map((m) => (m.id === selectedModule.id ? { ...m, lessons: reordered } : m)));
 
-    const updatedModules = modules.map((m) => (m.id === selectedModule.id ? { ...m, lessons: reordered } : m));
-    setModules(updatedModules);
-
-    const orderedIds = reordered.map((l) => l.id);
-    await AdminMateriService.reorderLessons(orderedIds);
+    const res = await AdminMateriService.reorderLessons(reordered.map((l) => l.id));
+    if (!res.success) {
+      notify(res.error || 'Gagal menyimpan urutan bab.', true);
+      fetchModules();
+    }
   };
+
+  const moduleDnd = useDragReorder(handleReorderModules);
+  const lessonDnd = useDragReorder(handleReorderLessons);
 
   /* ─── Delete Execution ─── */
   const executeDelete = async () => {
@@ -540,6 +260,37 @@ export const AdminMateriView: React.FC = () => {
     setActionLoading(false);
     setDeleteConfirm(null);
   };
+
+  // Editor bab tampil sebagai halaman penuh, menggantikan daftar silabus
+  if (showLesModal && selectedModule) {
+    return (
+      <>
+        <LessonEditorPage
+          key={editingLesson?.id ?? 'new'}
+          moduleId={selectedModule.id}
+          moduleTitle={selectedModule.title}
+          lesson={editingLesson}
+          onClose={handleCloseLessonEditor}
+          onSaved={handleLessonSaved}
+          notify={notify}
+        />
+        {feedbackMsg && (
+          <div
+            role="status"
+            style={{
+              position: 'fixed', left: '50%', bottom: '1.5rem', transform: 'translateX(-50%)', zIndex: 1500, maxWidth: '90vw',
+              padding: '0.75rem 1.1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.84rem', boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+              backgroundColor: feedbackMsg.error ? 'var(--danger-bg)' : 'var(--success-bg)',
+              border: `1px solid ${feedbackMsg.error ? 'var(--danger-border)' : 'var(--success-border)'}`,
+              color: feedbackMsg.error ? '#FDA4AF' : '#6EE7B7',
+            }}
+          >
+            {feedbackMsg.text}
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <div style={{ maxWidth: '1180px', margin: '0 auto', paddingBottom: '3.5rem' }}>
@@ -886,7 +637,10 @@ export const AdminMateriView: React.FC = () => {
                   <div
                     key={mod.id}
                     onClick={() => setSelectedModId(mod.id)}
+                    {...moduleDnd.rowProps(modIdx)}
+                    title="Seret untuk mengubah urutan modul"
                     style={{
+                      opacity: moduleDnd.dragIndex === modIdx ? 0.4 : 1,
                       padding: '0.75rem 0.85rem',
                       borderRadius: 'var(--radius-sm)',
                       backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.045)' : 'transparent',
@@ -897,11 +651,14 @@ export const AdminMateriView: React.FC = () => {
                       gap: '0.65rem',
                       transition: 'all 0.15s ease',
                       border: isSelected ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid transparent',
-                      boxShadow: isSelected ? 'inset 0 1px 0 rgba(255, 255, 255, 0.08)' : 'none',
+                      boxShadow: dropShadow(moduleDnd.dropEdge(modIdx)) ?? (isSelected ? 'inset 0 1px 0 rgba(255, 255, 255, 0.08)' : 'none'),
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.2rem' }}>
+                        <span aria-hidden style={{ display: 'inline-flex', cursor: 'grab', color: 'var(--text-dim)', marginLeft: '-4px' }}>
+                          <GripVertical size={12} />
+                        </span>
                         <span style={{
                           fontSize: '0.68rem',
                           fontWeight: 600,
@@ -954,7 +711,7 @@ export const AdminMateriView: React.FC = () => {
                         <Pencil size={12} />
                       </button>
                       <button
-                        onClick={() => handleMoveModule(modIdx, 'up')}
+                        onClick={() => handleReorderModules(modIdx, modIdx - 1)}
                         disabled={modIdx === 0}
                         style={{
                           background: 'none',
@@ -969,7 +726,7 @@ export const AdminMateriView: React.FC = () => {
                         <ArrowUp size={12} />
                       </button>
                       <button
-                        onClick={() => handleMoveModule(modIdx, 'down')}
+                        onClick={() => handleReorderModules(modIdx, modIdx + 1)}
                         disabled={modIdx === modules.length - 1}
                         style={{
                           background: 'none',
@@ -1142,7 +899,10 @@ export const AdminMateriView: React.FC = () => {
                     return (
                       <div
                         key={les.id}
+                        {...lessonDnd.rowProps(lesIdx)}
                         style={{
+                          opacity: lessonDnd.dragIndex === lesIdx ? 0.4 : 1,
+                          boxShadow: dropShadow(lessonDnd.dropEdge(lesIdx)),
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
@@ -1153,6 +913,9 @@ export const AdminMateriView: React.FC = () => {
                       >
                         {/* Sisi Kiri: Nomor + Judul + Metadata */}
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.25rem', flex: 1, minWidth: 0, paddingRight: '1rem' }}>
+                          <span title="Seret untuk mengubah urutan" aria-hidden style={{ cursor: 'grab', color: 'var(--text-dim)', display: 'inline-flex', paddingTop: '3px', marginRight: '-0.6rem' }}>
+                            <GripVertical size={16} />
+                          </span>
                           <div style={{
                             fontFamily: 'var(--font-display)',
                             fontSize: '0.95rem',
@@ -1205,7 +968,7 @@ export const AdminMateriView: React.FC = () => {
                           {/* Order arrow buttons */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginRight: '0.35rem' }}>
                             <button
-                              onClick={() => handleMoveLesson(lesIdx, 'up')}
+                              onClick={() => handleReorderLessons(lesIdx, lesIdx - 1)}
                               disabled={lesIdx === 0}
                               style={{
                                 background: 'none',
@@ -1220,7 +983,7 @@ export const AdminMateriView: React.FC = () => {
                               <ArrowUp size={12} />
                             </button>
                             <button
-                              onClick={() => handleMoveLesson(lesIdx, 'down')}
+                              onClick={() => handleReorderLessons(lesIdx, lesIdx + 1)}
                               disabled={lesIdx === selectedModule.lessons!.length - 1}
                               style={{
                                 background: 'none',
@@ -1411,641 +1174,6 @@ export const AdminMateriView: React.FC = () => {
                   </button>
                   <button type="submit" className="btn-primary" disabled={actionLoading}>
                     <span>{actionLoading ? 'Menyimpan...' : editingModule ? 'Simpan Perubahan' : 'Simpan Modul'}</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ─── MODAL: Tambah / Edit Bab Materi (Tata Letak Ergonomis & Rapih) ─── */}
-      {showLesModal && (
-        <div className="pfx-modal-backdrop" onClick={() => setShowLesModal(false)}>
-          <div
-            className="pfx-modal-panel"
-            style={{ maxWidth: '820px', width: '100%', position: 'relative' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header Modal dengan Close Button */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-              <div>
-                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--gold-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Bab Pembelajaran • {selectedModule?.title} {editingLesson ? '• Ubah Bab' : '• Bab Baru'}
-                </span>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#FFF', margin: '0.2rem 0 0' }}>
-                  {editingLesson ? 'Edit Bab Pembelajaran' : 'Tambah Bab Baru'}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowLesModal(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '4px', borderRadius: '4px' }}
-                title="Tutup Modal"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveLesson}>
-              {/* Banner pemulihan draft yang belum disimpan */}
-              {pendingDraft && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem',
-                  flexWrap: 'wrap',
-                  marginBottom: '1rem',
-                  padding: '0.65rem 0.85rem',
-                  borderRadius: 'var(--radius-sm)',
-                  backgroundColor: 'rgba(227, 182, 79, 0.06)',
-                  border: '1px solid rgba(227, 182, 79, 0.28)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                    <RotateCcw size={14} color="var(--gold-accent)" />
-                    <span>
-                      Ditemukan draft yang belum disimpan ({new Date(pendingDraft.savedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}). Pulihkan draft ini?
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <button type="button" className="btn-cancel" onClick={handleDiscardDraft} style={{ fontSize: '0.74rem', padding: '0.3rem 0.7rem' }}>
-                      Buang
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={handleRestoreDraft}
-                      style={{
-                        fontSize: '0.74rem',
-                        padding: '0.3rem 0.7rem',
-                        borderColor: 'rgba(227, 182, 79, 0.4)',
-                        color: 'var(--gold-accent)',
-                      }}
-                    >
-                      Pulihkan Draft
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Seksi 1: Identitas Bab (Judul Bab & Estimasi Waktu Baca) */}
-              <div style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                borderRadius: 'var(--radius-md)',
-                padding: '1rem',
-                marginBottom: '1rem',
-              }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 170px', gap: '1rem', alignItems: 'flex-start' }}>
-                  <div>
-                    <label className="pfx-label">
-                      Judul Bab <span style={{ color: 'var(--gold-accent)' }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="pfx-input"
-                      placeholder="Contoh: Sesi London Breakout & Validasi Entry"
-                      value={lesTitle}
-                      onChange={(e) => setLesTitle(e.target.value)}
-                      required
-                      autoFocus
-                    />
-                  </div>
-
-                  <div>
-                    <label className="pfx-label">Estimasi Waktu</label>
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                      <input
-                        type="number"
-                        min="1"
-                        className="pfx-input"
-                        value={lesMinutes}
-                        onChange={(e) => setLesMinutes(Math.max(1, Number(e.target.value) || 1))}
-                        required
-                        style={{ paddingRight: '4.5rem' }}
-                      />
-                      <span style={{
-                        position: 'absolute',
-                        right: '32px',
-                        fontSize: '0.78rem',
-                        color: 'var(--text-dim)',
-                        pointerEvents: 'none',
-                      }}>
-                        menit
-                      </span>
-                      <div style={{
-                        position: 'absolute',
-                        right: '4px',
-                        top: '4px',
-                        bottom: '4px',
-                        width: '22px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '2px',
-                      }}>
-                        <button
-                          type="button"
-                          onClick={() => setLesMinutes((prev) => prev + 1)}
-                          style={{
-                            flex: 1,
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: '1px solid rgba(255, 255, 255, 0.09)',
-                            borderRadius: '3px',
-                            color: 'var(--text-secondary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            padding: 0,
-                          }}
-                          title="Tambah 1 menit"
-                        >
-                          <ChevronUp size={11} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setLesMinutes((prev) => Math.max(1, prev - 1))}
-                          style={{
-                            flex: 1,
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: '1px solid rgba(255, 255, 255, 0.09)',
-                            borderRadius: '3px',
-                            color: 'var(--text-secondary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            padding: 0,
-                          }}
-                          title="Kurang 1 menit"
-                        >
-                          <ChevronDown size={11} />
-                        </button>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={!lesContent.trim()}
-                      onClick={() => setLesMinutes(estimateReadingMinutes(lesContent))}
-                      title="Hitung estimasi waktu baca dari jumlah kata naskah (200 kata per menit)"
-                      style={{
-                        marginTop: '0.4rem',
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        fontSize: '0.72rem',
-                        color: 'var(--gold-accent)',
-                        cursor: lesContent.trim() ? 'pointer' : 'default',
-                        opacity: lesContent.trim() ? 1 : 0.4,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      <Clock size={11} />
-                      <span>Hitung otomatis ({estimateReadingMinutes(lesContent)} menit)</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Seksi 2: Workspace Naskah Silabus & Media Toolbar (Pusat Aktivitas) */}
-              <div style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                borderRadius: 'var(--radius-md)',
-                padding: '1rem',
-                marginBottom: '1rem',
-              }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '0.65rem',
-                  flexWrap: 'wrap',
-                  gap: '0.6rem',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-                  paddingBottom: '0.65rem',
-                }}>
-                  {/* Media Insert Buttons */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowInsertVideoModal(true)}
-                      className="btn-secondary"
-                      style={{
-                        fontSize: '0.76rem',
-                        padding: '0.35rem 0.75rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        borderColor: 'rgba(227, 182, 79, 0.3)',
-                        backgroundColor: 'rgba(227, 182, 79, 0.08)',
-                        color: 'var(--gold-accent)',
-                      }}
-                      title="Sisipkan Video YouTube ke Posisi Kursor di Naskah"
-                    >
-                      <Film size={13} color="var(--gold-accent)" />
-                      <span>+ Sisipkan Video</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setImgPreviewData(null);
-                        setImgCaptionInput('');
-                        setImgUrlInput('');
-                        setShowInsertImgModal(true);
-                      }}
-                      className="btn-secondary"
-                      style={{
-                        fontSize: '0.76rem',
-                        padding: '0.35rem 0.75rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        borderColor: 'rgba(56, 189, 248, 0.3)',
-                        backgroundColor: 'rgba(56, 189, 248, 0.08)',
-                        color: '#38BDF8',
-                      }}
-                      title="Sisipkan Foto / Gambar ke Posisi Kursor (Semua Format: PNG, JPG, WEBP, GIF, SVG, BMP, AVIF)"
-                    >
-                      <ImageIcon size={13} color="#38BDF8" />
-                      <span>+ Sisipkan Foto</span>
-                    </button>
-
-                    {/* Separator */}
-                    <div style={{ width: '1px', height: '18px', backgroundColor: 'rgba(255, 255, 255, 0.1)', margin: '0 0.15rem' }} />
-
-                    {/* Quick Markdown Formats */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <button
-                        type="button"
-                        onClick={() => insertAtCursor('\n\n## Judul Sub-bab\n')}
-                        style={{
-                          background: 'rgba(255, 255, 255, 0.04)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          borderRadius: '4px',
-                          color: 'var(--text-secondary)',
-                          fontSize: '0.72rem',
-                          padding: '3px 7px',
-                          cursor: 'pointer',
-                        }}
-                        title="Sub-bab H2"
-                      >
-                        H2
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => insertAtCursor('\n- Poin materi')}
-                        style={{
-                          background: 'rgba(255, 255, 255, 0.04)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          borderRadius: '4px',
-                          color: 'var(--text-secondary)',
-                          fontSize: '0.72rem',
-                          padding: '3px 7px',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                        title="Poin Daftar"
-                      >
-                        <List size={12} />
-                        <span>Poin</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => insertAtCursor('\n> Catatan penting / tips edukasi\n')}
-                        style={{
-                          background: 'rgba(255, 255, 255, 0.04)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          borderRadius: '4px',
-                          color: 'var(--gold-accent)',
-                          fontSize: '0.72rem',
-                          padding: '3px 7px',
-                          cursor: 'pointer',
-                        }}
-                        title="Tips Emas"
-                      >
-                        Tips
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Real-time Counters */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.74rem' }}>
-                    <span style={{ color: 'var(--text-dim)' }}>
-                      {lesContent.trim().split(/\s+/).filter(Boolean).length} kata
-                    </span>
-                    <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>•</span>
-                    <span style={{
-                      color: contentVideoCount > 0 ? 'var(--gold-accent)' : 'var(--text-dim)',
-                      fontWeight: contentVideoCount > 0 ? 600 : 400,
-                    }}>
-                      {contentVideoCount} Video
-                    </span>
-                    <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>•</span>
-                    <span style={{
-                      color: contentImageCount > 0 ? '#38BDF8' : 'var(--text-dim)',
-                      fontWeight: contentImageCount > 0 ? 600 : 400,
-                    }}>
-                      {contentImageCount} Foto
-                    </span>
-                  </div>
-                </div>
-
-                {/* ─── CONTAINER PEMBUNGKUS MEDIA TERSEMAT ─── */}
-                {embeddedMediaList.length > 0 && (
-                  <div style={{
-                    margin: '0.65rem 0',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '8px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.025)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                      <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--gold-accent)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                        <Layers size={13} />
-                        <span>Pembungkus Media Tersemat ({embeddedMediaList.length})</span>
-                      </span>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
-                        Media dibungkus tag ringkas agar naskah bersih &amp; mudah di-scroll
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '4px' }}>
-                      {embeddedMediaList.map((m) => (
-                        <div
-                          key={m.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '5px 10px',
-                            borderRadius: '6px',
-                            backgroundColor: 'rgba(0, 0, 0, 0.35)',
-                            border: m.type === 'video'
-                              ? '1px solid rgba(235, 87, 87, 0.35)'
-                              : '1px solid rgba(227, 182, 79, 0.25)',
-                            fontSize: '0.75rem',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {m.type === 'video' ? (
-                            <div style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '4px',
-                              backgroundColor: 'rgba(235, 87, 87, 0.16)',
-                              border: '1px solid rgba(235, 87, 87, 0.3)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0,
-                            }}>
-                              <Film size={14} color="#EB5757" />
-                            </div>
-                          ) : (
-                            <img
-                              src={m.src}
-                              alt={m.name}
-                              style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }}
-                            />
-                          )}
-                          <div style={{ maxWidth: '160px', overflow: 'hidden' }}>
-                            <div style={{ fontWeight: 600, color: '#FFF', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                              {m.name}
-                            </div>
-                            <div style={{
-                              fontSize: '0.68rem',
-                              color: m.type === 'video' ? '#EB5757' : 'var(--gold-accent)',
-                              fontFamily: 'monospace'
-                            }}>
-                              [{m.type === 'video' ? 'VIDEO' : 'FOTO'}: {m.name}]
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const tag = m.type === 'video'
-                                ? `[VIDEO: ${m.name} | url="${m.src}" | id="${m.id}"]`
-                                : `[FOTO: ${m.name} | id="${m.id}"]`;
-                              navigator.clipboard.writeText(tag);
-                              notify(`Tag [${m.type === 'video' ? 'VIDEO' : 'FOTO'}: ${m.name}] berhasil disalin.`);
-                            }}
-                            title="Salin Tag Pembungkus"
-                            style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '2px' }}
-                          >
-                            <Copy size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (m.type === 'video') {
-                                const tagRegex = new RegExp(`\\[(?:VIDEO|video):\\s*.*?\\s*\\|\\s*(?:url=["'].*?["']\\s*\\|\\s*)?id=["']${m.id}["']\\]`, 'gi');
-                                setLesContent((prev) => prev.replace(tagRegex, '').split(m.src).join('').replace(/\n\s*\n\s*\n/g, '\n\n'));
-                                setEmbeddedMediaList((prev) => prev.filter((item) => item.id !== m.id));
-                                notify(`Video "${m.name}" berhasil dihapus dari naskah.`);
-                              } else {
-                                const tagRegex = new RegExp(`\\[(?:FOTO|GAMBAR|MEDIA_FOTO):\\s*.*?\\s*\\|\\s*id=["']${m.id}["']\\]`, 'gi');
-                                setLesContent((prev) => prev.replace(tagRegex, '').replace(/\n\s*\n\s*\n/g, '\n\n'));
-                                setEmbeddedMediaList((prev) => prev.filter((item) => item.id !== m.id));
-                                notify(`Foto "${m.name}" berhasil dihapus dari naskah.`);
-                              }
-                            }}
-                            title="Hapus Media dari Naskah"
-                            style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '2px' }}
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Textarea */}
-                <textarea
-                  ref={contentTextareaRef}
-                  className="pfx-textarea"
-                  style={{
-                    minHeight: '230px',
-                    fontSize: '0.88rem',
-                    lineHeight: 1.65,
-                    fontFamily: 'inherit',
-                    padding: '0.85rem',
-                  }}
-                  placeholder="Ketik silabus penjelasan materi di sini... Gunakan tombol toolbar di atas untuk menyisipkan video dan gambar di posisi mana saja yang Anda inginkan."
-                  value={lesContent}
-                  onChange={(e) => setLesContent(e.target.value)}
-                />
-
-                {/* Bar Info Modul & Tombol Toggle Panduan Format Naskah */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: '0.6rem',
-                  padding: '0.4rem 0.6rem',
-                  borderRadius: 'var(--radius-sm)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                  flexWrap: 'wrap',
-                  gap: '0.5rem',
-                }}>
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '0.74rem',
-                    color: 'var(--text-secondary)',
-                  }}>
-                    <BookOpen size={13} color="var(--gold-accent)" />
-                    <span>Modul Induk: <strong style={{ color: '#fff' }}>{selectedModule?.title || 'Dasar-Dasar Forex'}</strong></span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowNaskahGuide((prev) => !prev)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: showNaskahGuide ? 'var(--gold-accent)' : 'var(--text-dim)',
-                      fontSize: '0.73rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      cursor: 'pointer',
-                      padding: '3px 8px',
-                      borderRadius: '4px',
-                      backgroundColor: showNaskahGuide ? 'rgba(227, 182, 79, 0.12)' : 'transparent',
-                      transition: 'all 0.15s ease',
-                      fontWeight: showNaskahGuide ? 600 : 400,
-                    }}
-                  >
-                    <HelpCircle size={13} />
-                    <span>{showNaskahGuide ? 'Tutup Panduan Format' : 'Panduan Format Naskah & Media'}</span>
-                  </button>
-                </div>
-
-                {/* Kotak Panduan Format Naskah & Pembungkus Media (Collapsible) */}
-                {showNaskahGuide && (
-                  <div
-                    style={{
-                      marginTop: '0.65rem',
-                      padding: '0.85rem',
-                      borderRadius: 'var(--radius-sm)',
-                      backgroundColor: 'rgba(227, 182, 79, 0.05)',
-                      border: '1px solid rgba(227, 182, 79, 0.25)',
-                      animation: 'fadeIn 0.2s ease',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <HelpCircle size={15} color="var(--gold-accent)" />
-                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--gold-accent)' }}>
-                          Panduan Penulisan Naskah &amp; Pembungkus Media Ringkas
-                        </span>
-                      </div>
-                      <span style={{
-                        fontSize: '0.68rem',
-                        padding: '2px 7px',
-                        borderRadius: '3px',
-                        backgroundColor: 'rgba(227, 182, 79, 0.15)',
-                        color: 'var(--gold-accent)',
-                        fontWeight: 600,
-                      }}>
-                        VIP Mobile Ready
-                      </span>
-                    </div>
-
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                      gap: '0.85rem',
-                      fontSize: '0.73rem',
-                      color: 'var(--text-secondary)',
-                      lineHeight: 1.55,
-                    }}>
-                      {/* Kolom 1: Pembungkus Media Ringkas */}
-                      <div style={{
-                        padding: '0.75rem',
-                        borderRadius: '6px',
-                        backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                      }}>
-                        <div style={{ fontWeight: 600, color: '#fff', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <Camera size={13} color="var(--gold-accent)" />
-                          <span>Pembungkus Media Ringkas</span>
-                        </div>
-                        <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
-                          <li style={{ marginBottom: '0.35rem' }}>
-                            <strong>Sisipkan Foto / Drag &amp; Drop:</strong> Gunakan toolbar atau seret file gambar langsung ke editor. Foto otomatis dikompres dan diringkas jadi token <code>[FOTO: nama | id="..."]</code> agar naskah tidak dibanjiri kode base64 panjang.
-                          </li>
-                          <li style={{ marginBottom: '0.35rem' }}>
-                            <strong>Sisipkan Video YouTube:</strong> Gunakan tombol <strong>+ Sisipkan Video</strong> untuk menyematkan token <code>[VIDEO: judul | id="..."]</code>.
-                          </li>
-                          <li>
-                            <strong>Posisi Bebas:</strong> Token media dapat dipindah/cut-paste ke mana saja (di paling atas, tengah antar alinea, atau di akhir). Tampilan di aplikasi mobile akan persis mengikuti posisi token tersebut.
-                          </li>
-                        </ul>
-                      </div>
-
-                      {/* Kolom 2: Format Teks Markdown */}
-                      <div style={{
-                        padding: '0.75rem',
-                        borderRadius: '6px',
-                        backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                      }}>
-                        <div style={{ fontWeight: 600, color: '#fff', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <FileText size={13} color="var(--gold-accent)" />
-                          <span>Format Teks Markdown yang Didukung</span>
-                        </div>
-                        <ul style={{ paddingLeft: '1.1rem', margin: 0 }}>
-                          <li style={{ marginBottom: '0.35rem' }}>
-                            <code>## Subjudul Materi</code> &mdash; Menampilkan subjudul dengan aksen garis vertikal emas khas VIP.
-                          </li>
-                          <li style={{ marginBottom: '0.35rem' }}>
-                            <code>- Butir Poin</code> &mdash; Membuat daftar poin berurutan dengan penanda titik emas.
-                          </li>
-                          <li style={{ marginBottom: '0.35rem' }}>
-                            <code>&gt; Kotak Catatan / Insight</code> &mdash; Membungkus ringkasan penting dalam kotak berlatar elegan.
-                          </li>
-                          <li>
-                            <code>**Tebal**</code>, <code>*Miring*</code>, dan <code>`Istilah Teknis`</code> untuk penekanan teks.
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer Modal */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingTop: '1rem',
-                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-              }}>
-                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                  <Check size={13} color="var(--gold-accent)" />
-                  <span>
-                    {draftSavedAt
-                      ? `Draft tersimpan otomatis di browser pukul ${new Date(draftSavedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`
-                      : 'Media otomatis dikonversi ke format standar saat disimpan'}
-                  </span>
-                </span>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={() => setShowLesModal(false)} className="btn-cancel">
-                    Batal
-                  </button>
-                  <button type="submit" className="btn-primary" disabled={actionLoading}>
-                    <span>{actionLoading ? 'Menyimpan...' : editingLesson ? 'Simpan Perubahan' : 'Simpan Bab'}</span>
                   </button>
                 </div>
               </div>
@@ -2511,6 +1639,37 @@ export const AdminMateriView: React.FC = () => {
                           return;
                         }
 
+                        const fileVideoUrl = (trimmed.match(/^\[(?:VIDEO|video):.*?\|\s*url=["'](.*?)["']/)?.[1] ?? trimmed).trim();
+                        if (isVideoFileUrl(fileVideoUrl)) {
+                          flushText(`tb-${idx}`);
+                          elements.push(
+                            <div
+                              key={`pure-vf-${idx}`}
+                              style={{
+                                margin: '14px 0',
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                backgroundColor: 'rgba(235, 87, 87, 0.05)',
+                                border: '1px solid rgba(235, 87, 87, 0.22)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                              }}
+                            >
+                              <Film size={16} color="#EB5757" />
+                              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#F5F2EA' }}>
+                                  {fileVideoUrl.split('?')[0].split('/').pop()}
+                                </span>
+                                <span style={{ fontSize: '0.7rem', color: '#EB5757', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(235, 87, 87, 0.12)' }}>
+                                  Video Unggahan
+                                </span>
+                              </div>
+                            </div>
+                          );
+                          return;
+                        }
+
                         const videoEmbedMatch = trimmed.match(/^\[(?:VIDEO|video):\s*(.*?)(?:\s*\|\s*url=["'](.*?)["'])?(?:\s*\|\s*id=["'](.*?)["'])?\]$/i);
                         const isYtTag = /^\[video(?::|\s+)(.*?)\]$/i.test(trimmed);
                         const potentialYtUrl = videoEmbedMatch && videoEmbedMatch[2]
@@ -2681,419 +1840,6 @@ export const AdminMateriView: React.FC = () => {
                 <span>{lightboxImg.caption}</span>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ─── MODAL: Sisipkan Foto / Gambar (Semua Format: PNG, JPG, WEBP, GIF, SVG, BMP, AVIF) ─── */}
-      {showInsertImgModal && (
-        <div className="pfx-modal-backdrop" style={{ zIndex: 1100 }} onClick={() => setShowInsertImgModal(false)}>
-          <div className="pfx-modal-panel" style={{ maxWidth: '540px', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-              <div>
-                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--gold-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Media &amp; Ilustrasi Silabus
-                </span>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#FFF', margin: '0.2rem 0 0' }}>
-                  Sisipkan Foto / Gambar Materi
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowInsertImgModal(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '4px', borderRadius: '4px' }}
-                title="Tutup"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Tabs: Upload Berkas vs Tautan URL */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.75rem' }}>
-              <button
-                type="button"
-                onClick={() => setImgTab('upload')}
-                className="btn-secondary"
-                style={{
-                  fontSize: '0.8rem',
-                  padding: '0.4rem 0.85rem',
-                  backgroundColor: imgTab === 'upload' ? 'rgba(227, 182, 79, 0.16)' : 'transparent',
-                  borderColor: imgTab === 'upload' ? 'var(--gold-accent)' : 'rgba(255,255,255,0.1)',
-                  color: imgTab === 'upload' ? 'var(--gold-accent)' : 'var(--text-secondary)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                }}
-              >
-                <Upload size={13} />
-                <span>Unggah Berkas (Semua Format)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setImgTab('url')}
-                className="btn-secondary"
-                style={{
-                  fontSize: '0.8rem',
-                  padding: '0.4rem 0.85rem',
-                  backgroundColor: imgTab === 'url' ? 'rgba(227, 182, 79, 0.16)' : 'transparent',
-                  borderColor: imgTab === 'url' ? 'var(--gold-accent)' : 'rgba(255,255,255,0.1)',
-                  color: imgTab === 'url' ? 'var(--gold-accent)' : 'var(--text-secondary)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                }}
-              >
-                <ImageIcon size={13} />
-                <span>Tautan / URL Web</span>
-              </button>
-            </div>
-
-            {imgTab === 'upload' ? (
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label className="pfx-label">Pilih Berkas Foto (PNG, JPG, WEBP, GIF, SVG, BMP, AVIF)</label>
-                <input
-                  type="file"
-                  id="pfx-img-file-input"
-                  accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg,.bmp,.avif"
-                  onChange={handleImageFileSelect}
-                  style={{ display: 'none' }}
-                />
-
-                <div
-                  onClick={() => document.getElementById('pfx-img-file-input')?.click()}
-                  onDragEnter={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsDraggingImg(true);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsDraggingImg(true);
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsDraggingImg(false);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setIsDraggingImg(false);
-                    const files = e.dataTransfer.files;
-                    if (files && files.length > 0) {
-                      processImageFile(files[0]);
-                    }
-                  }}
-                  style={{
-                    padding: '1.75rem',
-                    borderRadius: 'var(--radius-sm)',
-                    border: isDraggingImg ? '2px dashed var(--gold-accent)' : '2px dashed rgba(255, 255, 255, 0.15)',
-                    backgroundColor: isDraggingImg ? 'rgba(227, 182, 79, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: isDraggingImg ? '0 0 20px rgba(227, 182, 79, 0.25)' : 'none',
-                    transform: isDraggingImg ? 'scale(1.01)' : 'scale(1)',
-                  }}
-                >
-                  <Camera size={28} color="var(--gold-accent)" style={{ margin: '0 auto 0.6rem', opacity: isDraggingImg ? 1 : 0.85 }} />
-                  <div style={{ color: isDraggingImg ? 'var(--gold-accent)' : '#FFF', fontSize: '0.88rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                    {imgCompressing ? 'Memproses berkas foto...' : isDraggingImg ? 'Lepaskan berkas foto di sini!' : 'Drag & Drop berkas foto ke sini atau Klik untuk memilih'}
-                  </div>
-                  <div style={{ color: 'var(--text-dim)', fontSize: '0.74rem' }}>
-                    Bisa langsung drag and drop dari folder atau klik buka file explorer (PNG, JPG, WEBP, GIF, SVG, BMP, AVIF)
-                  </div>
-                </div>
-
-                {imgPreviewData && (
-                  <div style={{ marginTop: '0.85rem', position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '180px', backgroundColor: '#000', textAlign: 'center' }}>
-                    <img src={imgPreviewData} alt="Pratinjau" style={{ maxHeight: '180px', width: 'auto', margin: '0 auto', display: 'block' }} />
-                    <button
-                      type="button"
-                      onClick={() => setImgPreviewData(null)}
-                      style={{ position: 'absolute', top: '6px', right: '6px', backgroundColor: 'rgba(0,0,0,0.7)', border: 'none', color: '#FDA4AF', padding: '4px', borderRadius: '4px', cursor: 'pointer' }}
-                      title="Hapus foto"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label className="pfx-label">Tautan / URL Gambar</label>
-                <input
-                  type="url"
-                  className="pfx-input"
-                  placeholder="Contoh: https://i.imgur.com/example.png atau URL web"
-                  value={imgUrlInput}
-                  onChange={(e) => setImgUrlInput(e.target.value)}
-                />
-
-                {imgUrlInput.trim() && (
-                  <div style={{ marginTop: '0.85rem', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '160px', backgroundColor: '#000', textAlign: 'center' }}>
-                    <img src={imgUrlInput.trim()} alt="Pratinjau URL" style={{ maxHeight: '160px', width: 'auto', margin: '0 auto', display: 'block' }} onError={(e) => ((e.currentTarget as HTMLElement).style.display = 'none')} />
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label className="pfx-label">Keterangan / Caption Gambar (Opsional)</label>
-              <input
-                type="text"
-                className="pfx-input"
-                placeholder="Contoh: Analisis Candlestick Pinbar Sesi Tokyo"
-                value={imgCaptionInput}
-                onChange={(e) => setImgCaptionInput(e.target.value)}
-              />
-            </div>
-
-            {/* Pilihan Posisi Peletakan Foto */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
-                <label className="pfx-label" style={{ margin: 0 }}>Posisi Peletakan di Naskah</label>
-                <span style={{ fontSize: '0.72rem', color: 'var(--gold-accent)', fontWeight: 500 }}>
-                  {imgInsertPosition === 'cursor' ? 'Posisi Kursor' : imgInsertPosition === 'top' ? 'Paling Atas' : 'Paling Bawah'}
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setImgInsertPosition('cursor')}
-                  style={{
-                    padding: '0.55rem 0.5rem',
-                    borderRadius: '8px',
-                    border: imgInsertPosition === 'cursor' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
-                    backgroundColor: imgInsertPosition === 'cursor' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
-                    color: imgInsertPosition === 'cursor' ? 'var(--gold-accent)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '0.78rem',
-                    fontWeight: imgInsertPosition === 'cursor' ? 600 : 500,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <MousePointer size={14} />
-                  <span>Posisi Kursor</span>
-                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Sesuai titik edit</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setImgInsertPosition('top')}
-                  style={{
-                    padding: '0.55rem 0.5rem',
-                    borderRadius: '8px',
-                    border: imgInsertPosition === 'top' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
-                    backgroundColor: imgInsertPosition === 'top' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
-                    color: imgInsertPosition === 'top' ? 'var(--gold-accent)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '0.78rem',
-                    fontWeight: imgInsertPosition === 'top' ? 600 : 500,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <ArrowUp size={14} />
-                  <span>Paling Atas</span>
-                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Awal naskah</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setImgInsertPosition('bottom')}
-                  style={{
-                    padding: '0.55rem 0.5rem',
-                    borderRadius: '8px',
-                    border: imgInsertPosition === 'bottom' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
-                    backgroundColor: imgInsertPosition === 'bottom' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
-                    color: imgInsertPosition === 'bottom' ? 'var(--gold-accent)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '0.78rem',
-                    fontWeight: imgInsertPosition === 'bottom' ? 600 : 500,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <ArrowDown size={14} />
-                  <span>Paling Bawah</span>
-                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Akhir naskah</span>
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button type="button" onClick={() => setShowInsertImgModal(false)} className="btn-cancel">
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmInsertImage}
-                className="btn-primary"
-                disabled={imgCompressing || (imgTab === 'upload' ? !imgPreviewData : !imgUrlInput.trim())}
-              >
-                <span>Sisipkan Foto ke Naskah</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── MODAL: Sisipkan Video YouTube ke Posisi Kursor ─── */}
-      {showInsertVideoModal && (
-        <div className="pfx-modal-backdrop" style={{ zIndex: 1100 }} onClick={() => setShowInsertVideoModal(false)}>
-          <div className="pfx-modal-panel" style={{ maxWidth: '520px', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-              <div>
-                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--gold-accent)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Video Pembelajaran
-                </span>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#FFF', margin: '0.2rem 0 0' }}>
-                  Sisipkan Video YouTube
-                </h2>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.4rem 0 0' }}>
-                  Video akan disisipkan tepat pada posisi kursor di dalam naskah penjelasan materi.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowInsertVideoModal(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '4px', borderRadius: '4px' }}
-                title="Tutup"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label className="pfx-label">Tautan / URL YouTube</label>
-              <input
-                type="url"
-                className="pfx-input"
-                placeholder="Tempel tautan (https://youtu.be/... atau watch?v=...)"
-                value={videoModalUrl}
-                onChange={(e) => setVideoModalUrl(e.target.value)}
-                autoFocus
-              />
-
-              {videoModalUrl.trim() && (() => {
-                const ytid = extractYouTubeId(videoModalUrl);
-                if (ytid) {
-                  return (
-                    <div style={{ marginTop: '0.65rem', fontSize: '0.78rem', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Check size={13} />
-                      <span>Format URL valid (ID: {ytid})</span>
-                    </div>
-                  );
-                } else {
-                  return (
-                    <div style={{ marginTop: '0.65rem', fontSize: '0.78rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <AlertTriangle size={13} />
-                      <span>Format tautan YouTube tidak dikenali.</span>
-                    </div>
-                  );
-                }
-              })()}
-            </div>
-
-            {/* Pilihan Posisi Peletakan Video */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
-                <label className="pfx-label" style={{ margin: 0 }}>Posisi Peletakan di Naskah</label>
-                <span style={{ fontSize: '0.72rem', color: 'var(--gold-accent)', fontWeight: 500 }}>
-                  {videoInsertPosition === 'cursor' ? 'Posisi Kursor' : videoInsertPosition === 'top' ? 'Paling Atas' : 'Paling Bawah'}
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setVideoInsertPosition('cursor')}
-                  style={{
-                    padding: '0.55rem 0.5rem',
-                    borderRadius: '8px',
-                    border: videoInsertPosition === 'cursor' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
-                    backgroundColor: videoInsertPosition === 'cursor' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
-                    color: videoInsertPosition === 'cursor' ? 'var(--gold-accent)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '0.78rem',
-                    fontWeight: videoInsertPosition === 'cursor' ? 600 : 500,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <MousePointer size={14} />
-                  <span>Posisi Kursor</span>
-                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Sesuai titik edit</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVideoInsertPosition('top')}
-                  style={{
-                    padding: '0.55rem 0.5rem',
-                    borderRadius: '8px',
-                    border: videoInsertPosition === 'top' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
-                    backgroundColor: videoInsertPosition === 'top' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
-                    color: videoInsertPosition === 'top' ? 'var(--gold-accent)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '0.78rem',
-                    fontWeight: videoInsertPosition === 'top' ? 600 : 500,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <ArrowUp size={14} />
-                  <span>Paling Atas</span>
-                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Awal naskah</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVideoInsertPosition('bottom')}
-                  style={{
-                    padding: '0.55rem 0.5rem',
-                    borderRadius: '8px',
-                    border: videoInsertPosition === 'bottom' ? '1px solid var(--gold-accent)' : '1px solid rgba(255,255,255,0.1)',
-                    backgroundColor: videoInsertPosition === 'bottom' ? 'rgba(227, 182, 79, 0.16)' : 'rgba(255,255,255,0.02)',
-                    color: videoInsertPosition === 'bottom' ? 'var(--gold-accent)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '0.78rem',
-                    fontWeight: videoInsertPosition === 'bottom' ? 600 : 500,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <ArrowDown size={14} />
-                  <span>Paling Bawah</span>
-                  <span style={{ fontSize: '0.67rem', opacity: 0.7 }}>Akhir naskah</span>
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button type="button" onClick={() => setShowInsertVideoModal(false)} className="btn-cancel">
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmInsertVideo}
-                className="btn-primary"
-                disabled={!extractYouTubeId(videoModalUrl)}
-              >
-                <span>Sisipkan Video ke Naskah</span>
-              </button>
-            </div>
           </div>
         </div>
       )}

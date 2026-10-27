@@ -340,3 +340,83 @@ describe('RPC & hak eksekusi fungsi', () => {
       expect((await s.rows<{ v: boolean }>(w.alice, `select public.is_admin() v`))[0].v).toBe(false);
     }));
 });
+
+describe('RLS storage gambar materi', () => {
+  const put = (name: string, bucket = 'lesson-images') =>
+    `insert into storage.objects (bucket_id, name) values ('${bucket}', '${name}')`;
+
+  it('bucket lesson-images publik, dibatasi 5 MB dan tanpa SVG', () =>
+    db.tx(async (s) => {
+      const [b] = await s.rows<{ public: boolean; file_size_limit: string; allowed_mime_types: string[] }>(
+        'service',
+        `select public, file_size_limit, allowed_mime_types from storage.buckets where id = 'lesson-images'`
+      );
+      expect(b.public).toBe(true);
+      expect(Number(b.file_size_limit)).toBe(5 * 1024 * 1024);
+      expect(b.allowed_mime_types).not.toContain('image/svg+xml');
+    }));
+
+  it('admin dapat mengunggah dan menghapus gambar', () =>
+    db.tx(async (s) => {
+      const w = await world(s);
+      expect((await s.run(w.admin, put('lessons/2026/01/a.webp'))).rowCount).toBe(1);
+      expect((await s.run(w.admin, `delete from storage.objects where name = 'lessons/2026/01/a.webp'`)).rowCount).toBe(1);
+    }));
+
+  it('member dan anon tidak dapat mengunggah', () =>
+    db.tx(async (s) => {
+      const w = await world(s);
+      await expect(s.run(w.alice, put('lessons/x.webp'))).rejects.toMatchObject({ code: PERMISSION_DENIED });
+      await expect(s.run('anon', put('lessons/x.webp'))).rejects.toMatchObject({ code: PERMISSION_DENIED });
+    }));
+
+  it('member tidak dapat menghapus atau mengubah gambar admin', () =>
+    db.tx(async (s) => {
+      const w = await world(s);
+      await s.run(w.admin, put('lessons/y.webp'));
+      expect((await s.run(w.alice, `delete from storage.objects where name = 'lessons/y.webp'`)).rowCount).toBe(0);
+      expect((await s.run(w.alice, `update storage.objects set name = 'z' where name = 'lessons/y.webp'`)).rowCount).toBe(0);
+    }));
+
+  it('gambar dapat dibaca publik, bucket lain tidak terbuka untuk admin', () =>
+    db.tx(async (s) => {
+      const w = await world(s);
+      await s.run(w.admin, put('lessons/y.webp'));
+      expect((await s.rows('anon', `select name from storage.objects where bucket_id = 'lesson-images'`)).length).toBe(1);
+      await s.sql(`insert into storage.buckets (id, name) values ('lain', 'lain')`);
+      await expect(s.run(w.admin, put('a.webp', 'lain'))).rejects.toMatchObject({ code: PERMISSION_DENIED });
+    }));
+});
+
+describe('RLS storage video materi', () => {
+  const put = (name: string, bucket = 'lesson-videos') =>
+    `insert into storage.objects (bucket_id, name) values ('${bucket}', '${name}')`;
+
+  it('bucket lesson-videos publik, dibatasi 50 MB, hanya MP4/WebM', () =>
+    db.tx(async (s) => {
+      const [b] = await s.rows<{ public: boolean; file_size_limit: string; allowed_mime_types: string[] }>(
+        'service',
+        `select public, file_size_limit, allowed_mime_types from storage.buckets where id = 'lesson-videos'`
+      );
+      expect(b.public).toBe(true);
+      expect(Number(b.file_size_limit)).toBe(50 * 1024 * 1024);
+      expect(b.allowed_mime_types).toEqual(['video/mp4', 'video/webm']);
+    }));
+
+  it('admin dapat mengunggah dan menghapus video', () =>
+    db.tx(async (s) => {
+      const w = await world(s);
+      expect((await s.run(w.admin, put('lessons/2026/01/a.mp4'))).rowCount).toBe(1);
+      expect((await s.run(w.admin, `delete from storage.objects where name = 'lessons/2026/01/a.mp4'`)).rowCount).toBe(1);
+    }));
+
+  it('member dan anon tidak dapat mengunggah, tetapi anon dapat membaca', () =>
+    db.tx(async (s) => {
+      const w = await world(s);
+      await expect(s.run(w.alice, put('lessons/x.mp4'))).rejects.toMatchObject({ code: PERMISSION_DENIED });
+      await expect(s.run('anon', put('lessons/x.mp4'))).rejects.toMatchObject({ code: PERMISSION_DENIED });
+      await s.run(w.admin, put('lessons/y.mp4'));
+      expect((await s.rows('anon', `select name from storage.objects where bucket_id = 'lesson-videos'`)).length).toBe(1);
+      expect((await s.run(w.alice, `delete from storage.objects where name = 'lessons/y.mp4'`)).rowCount).toBe(0);
+    }));
+});

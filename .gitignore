@@ -58,6 +58,8 @@ frontend/android
 
 # Editor / Tooling
 .opencode/
+# Konfigurasi Claude Code lokal (dapat berisi token)
+.claude/
 
 # Office & Temporary
 ~$*

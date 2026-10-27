@@ -99,7 +99,7 @@ describe('AdminMateriService modul', () => {
   it('deleteModule menghapus bab lebih dulu', async () => {
     const r = await AdminMateriService.deleteModule('m1');
     expect(r.success).toBe(true);
-    expect(ops()).toEqual(['delete:edu_lessons', 'delete:edu_modules']);
+    expect(ops()).toEqual(['select:edu_lessons', 'delete:edu_lessons', 'delete:edu_modules']);
     expect(supabase.queriesFor('edu_lessons', 'delete')[0].filters).toEqual([{ type: 'eq', column: 'module_id', value: 'm1' }]);
   });
 
@@ -201,5 +201,76 @@ describe('AdminMateriService bab', () => {
       { id: 'b', sort_order: 3 },
       { id: 'c', sort_order: 1 },
     ]);
+  });
+});
+
+describe('AdminMateriService pembersihan media di storage', () => {
+  const PUB = 'https://x.supabase.co/storage/v1/object/public';
+  const IMG = `${PUB}/lesson-images/lessons/2026/10/a.webp`;
+  const IMG2 = `${PUB}/lesson-images/lessons/2026/10/c.webp`;
+  const VID = `${PUB}/lesson-videos/lessons/2026/10/b.mp4`;
+  const removals = () => supabase.storageCalls.filter((c) => c.op === 'remove');
+
+  /** Handler edu_lessons: select ber-ilike = cek rujukan (kosong), select lain = data bab. */
+  const lessonsDb = (existing: unknown) => (q: RecordedQuery) =>
+    q.op === 'select' ? (q.filters.some((f) => f.type === 'ilike') ? { data: [] } : { data: existing }) : {};
+
+  it('updateLesson menghapus media yang dibuang dari naskah dan menyisakan yang masih dipakai', async () => {
+    const existing = { id: 'l1', title: 'T', minutes: 3, youtube_urls: [], content: `![a](${IMG})\n\n${VID}` };
+    supabase.onTable('edu_lessons', lessonsDb(existing));
+
+    const r = await AdminMateriService.updateLesson('l1', { content: `${VID}\n\nteks` });
+
+    expect(r.success).toBe(true);
+    expect(removals()).toEqual([expect.objectContaining({ bucket: 'lesson-images', paths: ['lessons/2026/10/a.webp'] })]);
+  });
+
+  it('updateLesson juga menghapus unggahan sesi ini yang dibuang sebelum disimpan', async () => {
+    const existing = { id: 'l1', title: 'T', minutes: 3, youtube_urls: [], content: 'lama' };
+    supabase.onTable('edu_lessons', lessonsDb(existing));
+    await AdminMateriService.updateLesson('l1', { content: 'baru' }, { uploadedUrls: [IMG2] });
+    expect(removals()).toEqual([expect.objectContaining({ paths: ['lessons/2026/10/c.webp'] })]);
+  });
+
+  it('updateLesson gagal → tidak ada yang dihapus dari storage', async () => {
+    const existing = { id: 'l1', title: 'T', minutes: 3, youtube_urls: [], content: `![a](${IMG})` };
+    supabase.onTable('edu_lessons', (q) => (q.op === 'delete' ? { error: { message: 'x' } } : lessonsDb(existing)(q)));
+    expect((await AdminMateriService.updateLesson('l1', { content: '' })).success).toBe(false);
+    expect(removals()).toHaveLength(0);
+  });
+
+  it('createLesson menghapus unggahan sesi yang tidak ada di naskah akhir', async () => {
+    supabase.onTable('edu_lessons', lessonsDb({ sort_order: 1 }));
+    await AdminMateriService.createLesson('m1', { title: 'B', minutes: 5, youtubeUrls: [], content: `![a](${IMG})` }, { uploadedUrls: [IMG, IMG2] });
+    expect(removals()).toEqual([expect.objectContaining({ paths: ['lessons/2026/10/c.webp'] })]);
+  });
+
+  it('deleteLesson menghapus semua media bab itu dari storage', async () => {
+    supabase.onTable('edu_lessons', lessonsDb({ content: `![a](${IMG})\n${VID}` }));
+    expect(await AdminMateriService.deleteLesson('l1')).toEqual({ success: true });
+    expect(removals().map((c) => [c.bucket, c.paths])).toEqual([
+      ['lesson-images', ['lessons/2026/10/a.webp']],
+      ['lesson-videos', ['lessons/2026/10/b.mp4']],
+    ]);
+  });
+
+  it('deleteLesson gagal → media tidak dihapus', async () => {
+    supabase.onTable('edu_lessons', (q) => (q.op === 'delete' ? { error: { message: 'x' } } : lessonsDb({ content: IMG })(q)));
+    expect((await AdminMateriService.deleteLesson('l1')).success).toBe(false);
+    expect(removals()).toHaveLength(0);
+  });
+
+  it('deleteModule menghapus media seluruh bab di modul itu', async () => {
+    supabase.onTable('edu_lessons', lessonsDb([{ content: `![a](${IMG})` }, { content: VID }]));
+    expect((await AdminMateriService.deleteModule('m1')).success).toBe(true);
+    expect(removals()).toHaveLength(2);
+  });
+
+  it('kegagalan pembersihan storage tidak menggagalkan simpan', async () => {
+    const existing = { id: 'l1', title: 'T', minutes: 3, youtube_urls: [], content: `![a](${IMG})` };
+    supabase.onTable('edu_lessons', lessonsDb(existing));
+    supabase.failStorage('storage down');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await AdminMateriService.updateLesson('l1', { content: '' })).success).toBe(true);
   });
 });

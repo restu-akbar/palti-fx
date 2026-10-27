@@ -55,6 +55,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Cloudflare Pages membangun dari folder web/ dengan lockfile-nya sendiri (`npm ci --workspaces=false`).
+      # Bila web/package-lock.json tertinggal dari package.json, build di Cloudflare gagal; tangkap di sini.
+      - name: Lockfile web sinkron dengan package.json (dipakai build Cloudflare Pages)
+        run: npm ci --workspaces=false --include=dev --dry-run
+        working-directory: web
       - run: npm run lint
         working-directory: web
         continue-on-error: true
