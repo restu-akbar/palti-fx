@@ -27,6 +27,7 @@ import {
   validatePassword,
 } from '../lib/authUtils';
 import { colors, fonts, goldGradient } from '../theme';
+import { getFullVersionString } from '../lib/version';
 
 const isWeb = Platform.OS === 'web';
 
@@ -363,7 +364,7 @@ export function LoginScreen({ onSuccess, onForgotPassword }: LoginScreenProps) {
           </View>
 
           {/* Version */}
-          <Text style={st.ver}>v1.0.0 · PALTI FX</Text>
+          <Text style={st.ver}>{getFullVersionString()}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
 
