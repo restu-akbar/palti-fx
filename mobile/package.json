@@ -1,6 +1,6 @@
 {
   "name": "@palti-fx/mobile",
-  "version": "1.0.0.2",
+  "version": "1.0.0.4",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",

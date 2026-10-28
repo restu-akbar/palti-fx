@@ -2,7 +2,7 @@
   "expo": {
     "name": "Palti FX",
     "slug": "palti-fx",
-    "version": "1.0.0.2",
+    "version": "1.0.0.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.paltifx.app",
-      "versionCode": 2,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#08080A",
         "foregroundImage": "./assets/android-icon-foreground.png",

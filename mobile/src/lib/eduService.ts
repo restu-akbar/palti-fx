@@ -24,9 +24,25 @@ export function extractYouTubeId(url: string): string | null {
   return match && match[1] ? match[1] : null;
 }
 
-/** True bila URL menunjuk langsung ke berkas video yang diunggah (MP4/WebM), bukan YouTube. */
+/** True bila URL menunjuk langsung ke berkas video yang diunggah (MP4/WebM/MOV/Storage lesson-videos), bukan YouTube. */
 export function isDirectVideoUrl(url: string): boolean {
-  return /^https?:\/\/\S+\.(?:mp4|webm)(?:\?\S*)?$/i.test((url || '').trim());
+  const clean = (url || '').trim();
+  if (!clean) return false;
+  return (
+    /^https?:\/\/\S+\.(?:mp4|webm|mov|m4v|ogv)(?:[?#]\S*)?$/i.test(clean) ||
+    /^https?:\/\/\S+\/storage\/v1\/object\/(?:public|sign)\/lesson-videos\/\S+$/i.test(clean)
+  );
+}
+
+/** True bila URL menunjuk langsung ke berkas gambar/foto (ekstensi gambar, data URI, atau Storage lesson-images). */
+export function isDirectImageUrl(url: string): boolean {
+  const clean = (url || '').trim();
+  if (!clean || isDirectVideoUrl(clean)) return false;
+  return (
+    /^https?:\/\/\S+\.(?:png|jpe?g|webp|gif|svg|avif|bmp)(?:[?#]\S*)?$/i.test(clean) ||
+    /^data:image\/(?:png|jpe?g|webp|gif|svg\+xml|bmp|avif);base64,/i.test(clean) ||
+    /^https?:\/\/\S+\/storage\/v1\/object\/(?:public|sign)\/lesson-images\/\S+$/i.test(clean)
+  );
 }
 
 export class EduService {

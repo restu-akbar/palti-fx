@@ -17,7 +17,7 @@ vi.mock('../src/lib/supabase', async () => {
 
 import { MODULES } from '../src/data/modules';
 import { supabase as client } from '../src/lib/supabase';
-import { EduService, extractYouTubeId, isDirectVideoUrl } from '../src/lib/eduService';
+import { EduService, extractYouTubeId, isDirectImageUrl, isDirectVideoUrl } from '../src/lib/eduService';
 
 const supabase = client as unknown as FakeSupabase;
 const CACHE_KEY = 'pfx.edu_modules.cache.v3';
@@ -217,9 +217,11 @@ describe('EduService CRUD admin', () => {
 });
 
 describe('isDirectVideoUrl', () => {
-  it('mengenali URL MP4/WebM, dengan atau tanpa query', () => {
-    expect(isDirectVideoUrl('https://x.supabase.co/storage/v1/object/public/lesson-videos/a.mp4')).toBe(true);
+  it('mengenali URL MP4/WebM/Storage lesson-videos, dengan atau tanpa query/hash', () => {
+    expect(isDirectVideoUrl('https://x.supabase.co/storage/v1/object/public/lesson-videos/lessons/2026/10/548b7108-ebec-47fb-9c39-c64a9324a8de.mp4')).toBe(true);
+    expect(isDirectVideoUrl('https://x.supabase.co/storage/v1/object/public/lesson-videos/lessons/2026/10/clip')).toBe(true);
     expect(isDirectVideoUrl('https://cdn.test/a.WEBM?t=1')).toBe(true);
+    expect(isDirectVideoUrl('https://cdn.test/a.mp4#t=0.001')).toBe(true);
     expect(isDirectVideoUrl('  https://cdn.test/a.mp4  ')).toBe(true);
   });
 
@@ -228,5 +230,20 @@ describe('isDirectVideoUrl', () => {
     expect(isDirectVideoUrl('https://cdn.test/a.png')).toBe(false);
     expect(isDirectVideoUrl('javascript:alert(1)//a.mp4')).toBe(false);
     expect(isDirectVideoUrl('')).toBe(false);
+  });
+});
+
+describe('isDirectImageUrl', () => {
+  it('mengenali URL gambar, data URI, dan Storage lesson-images', () => {
+    expect(isDirectImageUrl('https://x.supabase.co/storage/v1/object/public/lesson-images/lessons/2026/10/a.webp')).toBe(true);
+    expect(isDirectImageUrl('https://x.supabase.co/storage/v1/object/public/lesson-images/lessons/2026/10/raw')).toBe(true);
+    expect(isDirectImageUrl('https://cdn.test/a.png?v=1')).toBe(true);
+    expect(isDirectImageUrl('data:image/webp;base64,UklGRg==')).toBe(true);
+  });
+
+  it('menolak video, YouTube, dan string kosong', () => {
+    expect(isDirectImageUrl('https://x.supabase.co/storage/v1/object/public/lesson-videos/a.mp4')).toBe(false);
+    expect(isDirectImageUrl('https://youtu.be/dQw4w9WgXcQ')).toBe(false);
+    expect(isDirectImageUrl('')).toBe(false);
   });
 });

@@ -19,7 +19,7 @@ import { YouTubePlayer } from '../components/YouTubePlayer';
 import { VideoFilePlayer } from '../components/VideoFilePlayer';
 import { useEdu } from '../context/EduContext';
 import { Module } from '../data/modules';
-import { extractYouTubeId, isDirectVideoUrl } from '../lib/eduService';
+import { extractYouTubeId, isDirectImageUrl, isDirectVideoUrl } from '../lib/eduService';
 import { useStore } from '../lib/store';
 import { useNav } from '../nav';
 import { colors, fonts } from '../theme';
@@ -563,14 +563,21 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
   const next = m.lessons[idx + 1];
   const done = !!completed[lesson.id];
 
-  // Deteksi video YouTube yang BELUM disisipkan di dalam teks naskah
+  // Deteksi video (YouTube maupun file video storage) di youtubeUrls yang BELUM disisipkan di dalam teks naskah
   const unplacedVideos = useMemo(() => {
     if (!lesson.youtubeUrls || lesson.youtubeUrls.length === 0) return [];
     const content = lesson.content || '';
-    return lesson.youtubeUrls.filter((url) => {
+    return lesson.youtubeUrls.filter((rawUrl) => {
+      const url = (rawUrl || '').trim();
+      if (!url) return false;
       const ytid = extractYouTubeId(url);
-      if (!ytid) return false;
-      return !content.includes(ytid) && !content.includes(url);
+      if (ytid) {
+        return !content.includes(ytid) && !content.includes(url);
+      }
+      if (isDirectVideoUrl(url)) {
+        return !content.includes(url);
+      }
+      return false;
     });
   }, [lesson.youtubeUrls, lesson.content]);
 
@@ -588,17 +595,18 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
         </View>
       </FadeIn>
 
-      {/* ── YouTube Player Top Section (HANYA bila ada video legacy yang BELUM disisipkan di dalam naskah) ── */}
+      {/* ── Video Player Top Section (HANYA bila ada video legacy yang BELUM disisipkan di dalam naskah) ── */}
       {unplacedVideos.length > 0 ? (
         <FadeIn delay={120}>
           <View style={{ marginBottom: 14 }}>
-            {unplacedVideos.map((url, vIdx) => (
-              <YouTubePlayer
-                key={vIdx}
-                url={url}
-                title={unplacedVideos.length > 1 ? `Video Penjelasan ${vIdx + 1}` : 'Video Penjelasan Materi'}
-              />
-            ))}
+            {unplacedVideos.map((url, vIdx) => {
+              const videoTitle = unplacedVideos.length > 1 ? `Video Penjelasan ${vIdx + 1}` : 'Video Penjelasan Materi';
+              return isDirectVideoUrl(url) ? (
+                <VideoFilePlayer key={vIdx} url={url} title={videoTitle} />
+              ) : (
+                <YouTubePlayer key={vIdx} url={url} title={videoTitle} />
+              );
+            })}
           </View>
         </FadeIn>
       ) : null}
@@ -871,12 +879,11 @@ export function RichText({ content }: { content: string }) {
     }
 
     // 5. Foto / Gambar Inline
-    // Format: ![caption](url) atau [foto: url] atau [gambar: url] atau data:image atau direct image link
+    // Format: ![caption](url), [foto: url], [FOTO: label | url="..."], <img src="...">, data:image, atau URL gambar langsung (termasuk Supabase Storage lesson-images)
     const imgMdMatch = trimmed.match(/^!\[(.*?)\]\((.*?)\)$/);
-    const imgTagMatch = trimmed.match(/^\[(?:foto|gambar|image|img)(?::|\s+)(.*?)\]$/i);
-    const isDirectImgUrl =
-      /^(https?:\/\/.*?\.(?:png|jpg|jpeg|webp|gif|svg|avif|bmp)(?:\?.*)?)$/i.test(trimmed) ||
-      /^data:image\/(?:png|jpeg|jpg|webp|gif|svg\+xml|bmp|avif);base64,/i.test(trimmed);
+    const imgEmbedMatch = trimmed.match(/^\[(?:foto|gambar|media_foto):\s*(.*?)(?:\s*\|\s*url=["'](.*?)["'])?(?:\s*\|\s*id=["'](.*?)["'])?\]$/i);
+    const imgTagMatch = !imgEmbedMatch ? trimmed.match(/^\[(?:foto|gambar|image|img)(?::|\s+)(.*?)\]$/i) : null;
+    const htmlImgMatch = trimmed.match(/^<img\b[^>]*?\bsrc=["']([^"']+)["'][^>]*?\/?>$/i);
 
     let imgSrc: string | null = null;
     let imgCaption = '';
@@ -884,10 +891,26 @@ export function RichText({ content }: { content: string }) {
     if (imgMdMatch) {
       imgCaption = imgMdMatch[1].trim();
       imgSrc = imgMdMatch[2].trim();
+    } else if (imgEmbedMatch) {
+      if (imgEmbedMatch[2]) {
+        imgCaption = imgEmbedMatch[1].trim();
+        imgSrc = imgEmbedMatch[2].trim();
+      } else if (isDirectImageUrl(imgEmbedMatch[1])) {
+        imgSrc = imgEmbedMatch[1].trim();
+      }
     } else if (imgTagMatch) {
       imgSrc = imgTagMatch[1].trim();
-    } else if (isDirectImgUrl) {
+    } else if (htmlImgMatch) {
+      imgSrc = htmlImgMatch[1].trim();
+      const altMatch = trimmed.match(/\balt=["']([^"']*)["']/i);
+      if (altMatch) imgCaption = altMatch[1].trim();
+    } else if (isDirectImageUrl(trimmed)) {
       imgSrc = trimmed;
+    }
+
+    // Jangan perlakukan URL video sebagai gambar bila terbungkus ![...](...)
+    if (imgSrc && (isDirectVideoUrl(imgSrc) || extractYouTubeId(imgSrc))) {
+      imgSrc = null;
     }
 
     if (imgSrc) {
@@ -928,22 +951,32 @@ export function RichText({ content }: { content: string }) {
       return;
     }
 
-    // 6. Video YouTube Inline
-    // Format: [VIDEO: ... | url="..." | id="..."], [video: url], [video](url), atau URL YouTube langsung
+    // 6. Video Inline (Berkas Storage MP4/WebM & YouTube)
+    // Format: [VIDEO: ... | url="..." | id="..."], [video: url], ![caption](url), [caption](url), <video src="...">, atau URL langsung
     const videoEmbedMatch = trimmed.match(/^\[(?:VIDEO|video):\s*(.*?)(?:\s*\|\s*url=["'](.*?)["'])?(?:\s*\|\s*id=["'](.*?)["'])?\]$/i);
     const ytTagMatch =
-      trimmed.match(/^\[video(?::|\s+)(.*?)\]$/i) ||
+      (!videoEmbedMatch && trimmed.match(/^\[video(?::|\s+)(.*?)\]$/i)) ||
       trimmed.match(/^!?\[(?:video|youtube)\]\((.*?)\)$/i);
+    const mdLinkVideoMatch = trimmed.match(/^!?\[(.*?)\]\((https?:\/\/[^)]+)\)$/i);
+    const htmlVideoMatch = trimmed.match(/^<video\b[^>]*?(?:\bsrc=["']([^"']+)["'][^>]*?>.*?<\/video>|\bsrc=["']([^"']+)["'][^>]*?\/?>|><source\b[^>]*?\bsrc=["']([^"']+)["'][^>]*?>.*?<\/video>)$/i);
+
+    const htmlVideoUrl = htmlVideoMatch ? (htmlVideoMatch[1] || htmlVideoMatch[2] || htmlVideoMatch[3] || '').trim() : '';
+    const mdCandidateUrl = mdLinkVideoMatch ? mdLinkVideoMatch[2].trim() : '';
+
     const potentialYtUrl = videoEmbedMatch && videoEmbedMatch[2]
       ? videoEmbedMatch[2].trim()
       : videoEmbedMatch && videoEmbedMatch[1] && (videoEmbedMatch[1].startsWith('http') || extractYouTubeId(videoEmbedMatch[1]))
       ? videoEmbedMatch[1].trim()
       : ytTagMatch
       ? ytTagMatch[1].trim()
+      : htmlVideoUrl
+      ? htmlVideoUrl
+      : mdCandidateUrl && isDirectVideoUrl(mdCandidateUrl)
+      ? mdCandidateUrl
       : trimmed;
     const inlineYtId = extractYouTubeId(potentialYtUrl);
 
-    // Video berkas unggahan admin (MP4/WebM)
+    // Video berkas unggahan admin (MP4/WebM/Storage lesson-videos)
     if (isDirectVideoUrl(potentialYtUrl)) {
       flushAll('vf-pre-' + i);
       blocks.push(
@@ -954,7 +987,7 @@ export function RichText({ content }: { content: string }) {
       return;
     }
 
-    if (inlineYtId && (videoEmbedMatch || ytTagMatch || potentialYtUrl.startsWith('http://') || potentialYtUrl.startsWith('https://'))) {
+    if (inlineYtId && (videoEmbedMatch || ytTagMatch || htmlVideoUrl || potentialYtUrl.startsWith('http://') || potentialYtUrl.startsWith('https://'))) {
       flushAll('yt-pre-' + i);
       blocks.push(
         <View key={'inline-yt-' + i} style={{ marginVertical: 8 }}>

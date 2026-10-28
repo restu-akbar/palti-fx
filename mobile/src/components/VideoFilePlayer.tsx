@@ -31,18 +31,35 @@ export function VideoFilePlayer({ url, title, style }: VideoFilePlayerProps) {
 
   if (!isDirectVideoUrl(src)) return null;
 
+  const videoSrc = src.includes('#') ? src : `${src}#t=0.001`;
   const html = `
     <!DOCTYPE html>
     <html>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
         <style>
-          html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #07090e; overflow: hidden; }
-          video { width: 100%; height: 100%; background: #000; }
+          * { box-sizing: border-box; }
+          html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #07090e;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          video {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            object-fit: contain;
+          }
         </style>
       </head>
       <body>
-        <video src="${escapeAttr(src)}" controls playsinline preload="metadata"></video>
+        <video src="${escapeAttr(videoSrc)}" controls playsinline webkit-playsinline preload="metadata"></video>
       </body>
     </html>
   `;
@@ -61,17 +78,20 @@ export function VideoFilePlayer({ url, title, style }: VideoFilePlayerProps) {
       <View style={st.playerBox}>
         {Platform.OS === 'web' ? (
           // @ts-ignore Web video element
-          <video src={src} controls playsInline preload="metadata" style={{ width: '100%', height: '100%', backgroundColor: '#000' }} />
+          <video src={src} controls playsInline preload="metadata" style={{ width: '100%', height: '100%', backgroundColor: '#000', objectFit: 'contain' }} />
         ) : (
           <>
             <WebView
               style={st.webview}
+              javaScriptEnabled
+              domStorageEnabled
               allowsFullscreenVideo
               allowsInlineMediaPlayback
-              mediaPlaybackRequiresUserAction
+              mediaPlaybackRequiresUserAction={false}
               originWhitelist={['*']}
-              source={{ html }}
+              source={{ html, baseUrl: 'https://localhost' }}
               onLoadEnd={() => setLoading(false)}
+              onError={() => setLoading(false)}
             />
             {loading && (
               <View style={st.loaderOverlay} pointerEvents="none">
