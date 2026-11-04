@@ -76,7 +76,7 @@ class NetworkServiceManager {
     const endpoints = [
       'https://1.1.1.1/cdn-cgi/trace',
       'https://clients3.google.com/generate_204',
-      process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://xdeyntmcrdvhspkucclu.supabase.co',
+      ...(process.env.EXPO_PUBLIC_SUPABASE_URL ? [process.env.EXPO_PUBLIC_SUPABASE_URL] : []),
     ];
 
     try {

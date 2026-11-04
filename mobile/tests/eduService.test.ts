@@ -10,6 +10,9 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
     removeItem: async (k: string) => void storage.delete(k),
   },
 }));
+vi.mock('../src/lib/networkService', () => ({
+  NetworkService: { notifyOnline: vi.fn() },
+}));
 vi.mock('../src/lib/supabase', async () => {
   const { createFakeSupabase } = await import('./helpers/fakeSupabase');
   return { supabase: createFakeSupabase() };

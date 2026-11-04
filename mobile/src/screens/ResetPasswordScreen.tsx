@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -74,7 +75,6 @@ export function ResetPasswordScreen({
   // Back button handling: jika di step 2, tampilkan modal konfirmasi
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    const { BackHandler } = require('react-native');
     const onBackPress = () => {
       if (step === 2) {
         setShowHomeConfirmModal(true);

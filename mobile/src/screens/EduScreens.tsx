@@ -265,7 +265,7 @@ export function EduScreen() {
                 <Ionicons name="search-outline" size={32} color="rgba(255,255,255,0.2)" />
                 <Text style={[st.title, { marginTop: 12, textAlign: 'center' }]}>Tidak ada materi ditemukan</Text>
                 <Text style={[st.sub, { textAlign: 'center', marginTop: 4, paddingHorizontal: 16 }]}>
-                  Tidak ada bab atau subbab yang memuat kata kunci "{searchQuery}". Coba kata kunci seperti: pair, pip, lot, leverage, candlestick.
+                  Tidak ada bab atau subbab yang memuat kata kunci &quot;{searchQuery}&quot;. Coba kata kunci seperti: pair, pip, lot, leverage, candlestick.
                 </Text>
               </Card>
             </FadeIn>
@@ -308,7 +308,7 @@ export function EduScreen() {
 
                       {item.snippet && (
                         <Text style={st.snippetText} numberOfLines={2}>
-                          "{item.snippet}"
+                          &quot;{item.snippet}&quot;
                         </Text>
                       )}
 
@@ -393,6 +393,19 @@ export function ModuleScreen({ moduleId }: { moduleId: string }) {
 
   const m = findModule(moduleId);
 
+  // Filter lessons inside module
+  const displayedLessons = useMemo(() => {
+    if (!m) return [];
+    const q = moduleSearch.trim().toLowerCase();
+    if (!q) return m.lessons;
+    return m.lessons.filter((l) => {
+      if (l.title.toLowerCase().includes(q)) return true;
+      if (l.content && l.content.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [m, moduleSearch]);
+
+
   if (!m) {
     return (
       <Screen title="Modul tidak ditemukan">
@@ -402,17 +415,6 @@ export function ModuleScreen({ moduleId }: { moduleId: string }) {
   }
 
   const nextIdx = m.lessons.findIndex((l) => !completed[l.id]);
-
-  // Filter lessons inside module
-  const displayedLessons = useMemo(() => {
-    const q = moduleSearch.trim().toLowerCase();
-    if (!q) return m.lessons;
-    return m.lessons.filter((l) => {
-      if (l.title.toLowerCase().includes(q)) return true;
-      if (l.content && l.content.toLowerCase().includes(q)) return true;
-      return false;
-    });
-  }, [m.lessons, moduleSearch]);
 
   return (
     <Screen
@@ -551,6 +553,17 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
   };
 
   const found = findLesson(moduleId, lessonId);
+  const lessonYoutubeUrls = found?.lesson.youtubeUrls;
+  const lessonContent = found?.lesson.content;
+
+  // Deteksi video YouTube yang BELUM disisipkan di dalam teks naskah
+  const unplacedVideos = (lessonYoutubeUrls ?? []).filter((url) => {
+    const ytid = extractYouTubeId(url);
+    if (!ytid) return false;
+    const content = lessonContent || '';
+    return !content.includes(ytid) && !content.includes(url);
+  });
+
   if (!found) {
     return (
       <Screen title="Materi tidak ditemukan">
@@ -562,17 +575,6 @@ export function LessonScreen({ moduleId, lessonId }: { moduleId: string; lessonI
   const { module: m, lesson, index: idx } = found;
   const next = m.lessons[idx + 1];
   const done = !!completed[lesson.id];
-
-  // Deteksi video YouTube yang BELUM disisipkan di dalam teks naskah
-  const unplacedVideos = useMemo(() => {
-    if (!lesson.youtubeUrls || lesson.youtubeUrls.length === 0) return [];
-    const content = lesson.content || '';
-    return lesson.youtubeUrls.filter((url) => {
-      const ytid = extractYouTubeId(url);
-      if (!ytid) return false;
-      return !content.includes(ytid) && !content.includes(url);
-    });
-  }, [lesson.youtubeUrls, lesson.content]);
 
   return (
     <Screen title={lesson.title} eyebrow={`${m.title.toUpperCase()} · BAB ${idx + 1}/${m.lessons.length}`}>
