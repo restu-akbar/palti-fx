@@ -130,7 +130,36 @@ describe('UserSyncService penulisan', () => {
     });
     await expect(
       UserSyncService.saveTrade('u1', { id: 't', date: 'd', symbol: 's', direction: 'BUY', lot: 1, pl: 0, createdAt: 1 })
-    ).resolves.toBeUndefined();
-    await expect(UserSyncService.deleteTrade('u1', 't')).resolves.toBeUndefined();
+    ).resolves.toBe(false);
+    await expect(UserSyncService.deleteTrade('u1', 't')).resolves.toBe(false);
+  });
+});
+
+describe('UserSyncService hasil penulisan (true/false)', () => {
+  const trade = { id: 't1', date: '2026-01-05', symbol: 'EURUSD', direction: 'BUY' as const, lot: 0.1, pl: 5, createdAt: 1000 };
+
+  it('true bila server menerima', async () => {
+    expect(await UserSyncService.saveTrade('u1', trade)).toBe(true);
+    expect(await UserSyncService.deleteTrade('u1', 't1')).toBe(true);
+    expect(await UserSyncService.saveLessonProgress('u1', 'l1', true)).toBe(true);
+    expect(await UserSyncService.saveLessonProgress('u1', 'l1', false)).toBe(true);
+  });
+
+  it('false bila server mengembalikan error (bukan melempar)', async () => {
+    for (const table of ['user_trades', 'user_lesson_progress']) {
+      supabase.onTable(table, () => ({ error: { message: 'boom' } }));
+    }
+    expect(await UserSyncService.saveTrade('u1', trade)).toBe(false);
+    expect(await UserSyncService.deleteTrade('u1', 't1')).toBe(false);
+    expect(await UserSyncService.saveLessonProgress('u1', 'l1', true)).toBe(false);
+    expect(await UserSyncService.saveLessonProgress('u1', 'l1', false)).toBe(false);
+  });
+
+  it('false bila jaringan melempar exception', async () => {
+    supabase.onTable('user_trades', () => { throw new Error('offline'); });
+    supabase.onTable('user_lesson_progress', () => { throw new Error('offline'); });
+    expect(await UserSyncService.saveTrade('u1', trade)).toBe(false);
+    expect(await UserSyncService.deleteTrade('u1', 't1')).toBe(false);
+    expect(await UserSyncService.saveLessonProgress('u1', 'l1', true)).toBe(false);
   });
 });

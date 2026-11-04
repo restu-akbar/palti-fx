@@ -1,4 +1,5 @@
 import type { UserScopedSettings } from '../domain/settings';
+import type { Outbox } from '../domain/outbox';
 import type { Trade } from '../domain/trade';
 
 export interface UserCacheBundle {
@@ -6,6 +7,7 @@ export interface UserCacheBundle {
   completed: Record<string, boolean>;
   achievements: Record<string, number>;
   settings: UserScopedSettings;
+  outbox?: Outbox;
 }
 
 export interface UserCache {
@@ -14,4 +16,5 @@ export interface UserCache {
   saveCompleted(user: string | null | undefined, completed: Record<string, boolean>): Promise<void>;
   saveAchievements(user: string | null | undefined, unlocked: Record<string, number>): Promise<void>;
   saveSettings(user: string | null | undefined, settings: UserScopedSettings): Promise<void>;
+  saveOutbox(user: string | null | undefined, outbox: Outbox): Promise<void>;
 }

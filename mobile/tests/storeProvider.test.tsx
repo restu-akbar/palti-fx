@@ -34,9 +34,9 @@ function makeDeps(opts: {
   const deps = {
     remote: {
       fetchUserData: vi.fn(async () => ({ completed: {}, trades: [], ...opts.cloud })),
-      saveLessonProgress: vi.fn(async () => {}),
-      saveTrade: vi.fn(async () => {}),
-      deleteTrade: vi.fn(async () => {}),
+      saveLessonProgress: vi.fn(async () => true),
+      saveTrade: vi.fn(async () => true),
+      deleteTrade: vi.fn(async () => true),
       updateProfileName: vi.fn(async () => {}),
     },
     cache: {
@@ -45,6 +45,7 @@ function makeDeps(opts: {
       saveCompleted: vi.fn(async () => {}),
       saveAchievements: vi.fn(async () => {}),
       saveSettings: vi.fn(async () => {}),
+      saveOutbox: vi.fn(async () => {}),
     },
     currentUserId: vi.fn(async () => (opts.uid === undefined ? 'uid-1' : opts.uid)),
     signOutLocal: vi.fn(),
@@ -390,5 +391,105 @@ describe('useStore', () => {
     const r = createRoot(el);
     expect(() => act(() => r.render(<Lone />))).toThrow(/StoreProvider/);
     spy.mockRestore();
+  });
+});
+
+describe('StoreProvider: antrean penulisan cloud (outbox)', () => {
+  const lastOutbox = (deps: ReturnType<typeof makeDeps>) =>
+    deps.cache.saveOutbox.mock.calls.at(-1)?.[1] as { trades: Record<string, string>; lessons: Record<string, boolean> };
+
+  it('penulisan sukses tidak meninggalkan antrean', async () => {
+    const deps = makeDeps({ device: { activeUser: 'u' }, bundles: { u: emptyBundle({ trades: [trade('t1')] }) } });
+    await mount(deps);
+    await act(async () => latest.deleteTrade('t1'));
+    await flush();
+    expect(lastOutbox(deps)).toEqual({ trades: {}, lessons: {} });
+  });
+
+  it('hapus trade gagal: tetap di antrean, lalu dikirim ulang saat sinkron dan tidak muncul kembali', async () => {
+    const deps = makeDeps({
+      device: { activeUser: 'u' },
+      bundles: { u: emptyBundle({ trades: [trade('t1'), trade('t2')] }) },
+      cloud: { trades: [trade('t1'), trade('t2')] },
+    });
+    // percobaan pertama gagal; setelah percobaan kedua berhasil, cloud memang sudah tidak punya t1
+    deps.remote.deleteTrade.mockResolvedValueOnce(false).mockImplementationOnce(async () => {
+      deps.remote.fetchUserData.mockResolvedValue({ completed: {}, trades: [trade('t2')] });
+      return true;
+    });
+    await mount(deps);
+
+    await act(async () => latest.deleteTrade('t1'));
+    await flush();
+    expect(lastOutbox(deps).trades).toEqual({ t1: 'delete' });
+
+    // sinkron berikutnya: kirim ulang (berhasil) dan t1 tidak dimunculkan lagi dari cloud
+    await act(async () => latest.syncFromCloud());
+    await flush();
+    expect(deps.remote.deleteTrade).toHaveBeenCalledTimes(2);
+    expect(latest.trades.map((t) => t.id)).toEqual(['t2']);
+    expect(lastOutbox(deps)).toEqual({ trades: {}, lessons: {} });
+  });
+
+  it('masih offline saat sinkron: trade terhapus tidak muncul kembali dan antrean tetap', async () => {
+    const deps = makeDeps({
+      device: { activeUser: 'u' },
+      bundles: { u: emptyBundle({ trades: [trade('t1')] }) },
+      cloud: { trades: [trade('t1')] },
+    });
+    deps.remote.deleteTrade.mockResolvedValue(false);
+    await mount(deps);
+
+    await act(async () => latest.deleteTrade('t1'));
+    await act(async () => latest.syncFromCloud());
+    await flush();
+    expect(latest.trades).toEqual([]);
+    expect(lastOutbox(deps).trades).toEqual({ t1: 'delete' });
+  });
+
+  it('ubah trade gagal diunggah: dikirim ulang saat sinkron', async () => {
+    const deps = makeDeps({ device: { activeUser: 'u' }, bundles: { u: emptyBundle({ trades: [trade('t1')] }) }, cloud: { trades: [trade('t1')] } });
+    deps.remote.saveTrade.mockResolvedValueOnce(false);
+    await mount(deps);
+
+    await act(async () => latest.saveTrade({ ...trade('t1'), pl: 77 }));
+    await flush();
+    expect(lastOutbox(deps).trades).toEqual({ t1: 'upsert' });
+
+    await act(async () => latest.syncFromCloud());
+    await flush();
+    expect(deps.remote.saveTrade).toHaveBeenLastCalledWith('uid-1', expect.objectContaining({ id: 't1', pl: 77 }));
+    expect(lastOutbox(deps)).toEqual({ trades: {}, lessons: {} });
+  });
+
+  it('batal selesai bab gagal: dikirim ulang saat sinkron', async () => {
+    const deps = makeDeps({ device: { activeUser: 'u' }, bundles: { u: emptyBundle({ completed: { l1: true } }) }, cloud: { completed: { l1: true } } });
+    deps.remote.saveLessonProgress.mockResolvedValueOnce(false);
+    await mount(deps);
+
+    await act(async () => latest.toggleLesson('l1', false));
+    await flush();
+    expect(lastOutbox(deps).lessons).toEqual({ l1: false });
+
+    await act(async () => latest.syncFromCloud());
+    await flush();
+    expect(deps.remote.saveLessonProgress).toHaveBeenLastCalledWith('uid-1', 'l1', false);
+    expect(lastOutbox(deps)).toEqual({ trades: {}, lessons: {} });
+  });
+
+  it('antrean dimuat dari cache saat aplikasi dibuka dan dikirim saat sinkron awal', async () => {
+    const deps = makeDeps({
+      device: { activeUser: 'u', isLoggedIn: true },
+      bundles: { u: emptyBundle({ trades: [], outbox: { trades: { t9: 'delete' }, lessons: {} } }) },
+      cloud: { trades: [trade('t9')] },
+    });
+    deps.remote.deleteTrade.mockImplementationOnce(async () => {
+      deps.remote.fetchUserData.mockResolvedValue({ completed: {}, trades: [] });
+      return true;
+    });
+    await mount(deps);
+    await flush();
+    expect(deps.remote.deleteTrade).toHaveBeenCalledWith('uid-1', 't9');
+    expect(latest.trades).toEqual([]);
   });
 });

@@ -1,12 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Settings, UserScopedSettings } from '../core/domain/settings';
 import type { UserCacheBundle } from '../core/ports/userCache';
+import { Outbox, emptyOutbox, sanitizeOutbox } from '../core/domain/outbox';
 import type { Trade } from '../core/domain/trade';
 
 export const TRADES_USER_KEY_PREFIX = '@pfx_user_trades_';
 export const COMPLETED_USER_KEY_PREFIX = '@pfx_user_completed_';
 export const SETTINGS_USER_KEY_PREFIX = '@pfx_user_settings_';
 export const ACH_USER_KEY_PREFIX = '@pfx_achievements_user_';
+export const OUTBOX_USER_KEY_PREFIX = '@pfx_user_outbox_';
 
 export const LEGACY_KEYS = {
   trades: 'pfx.trades.v1',
@@ -28,7 +30,7 @@ export function normalizeUserKey(identifier?: string | null): string {
  * Mengambil key spesifik per user untuk kategori data tertentu.
  */
 export function getUserStorageKey(
-  category: 'trades' | 'completed' | 'settings' | 'achievements',
+  category: 'trades' | 'completed' | 'settings' | 'achievements' | 'outbox',
   identifier?: string | null
 ): string {
   const user = normalizeUserKey(identifier);
@@ -41,6 +43,8 @@ export function getUserStorageKey(
       return `${SETTINGS_USER_KEY_PREFIX}${user}`;
     case 'achievements':
       return `${ACH_USER_KEY_PREFIX}${user}`;
+    case 'outbox':
+      return `${OUTBOX_USER_KEY_PREFIX}${user}`;
   }
 }
 
@@ -240,19 +244,36 @@ export type { UserCacheBundle };
  * Digunakan saat inisialisasi aplikasi atau saat berganti akun aktif.
  */
 export async function loadAllUserData(identifier?: string | null): Promise<UserCacheBundle> {
-  const [trades, completed, achievements, settings] = await Promise.all([
+  const [trades, completed, achievements, settings, outbox] = await Promise.all([
     getLocalTradesForUser(identifier),
     getLocalCompletedForUser(identifier),
     getLocalAchievementsForUser(identifier),
     getLocalSettingsForUser(identifier),
+    getLocalOutboxForUser(identifier),
   ]);
-  return { trades, completed, achievements, settings };
+  return { trades, completed, achievements, settings, outbox };
 }
 
 /** Hapus seluruh cache lokal milik satu akun (dipakai saat akun dihapus permanen). */
 export async function clearLocalUserData(identifier?: string | null): Promise<void> {
-  const categories = ['trades', 'completed', 'settings', 'achievements'] as const;
+  const categories = ['trades', 'completed', 'settings', 'achievements', 'outbox'] as const;
   try {
     await AsyncStorage.multiRemove(categories.map((c) => getUserStorageKey(c, identifier)));
+  } catch {}
+}
+
+/** Antrean penulisan cloud yang tertunda milik akun (lihat core/domain/outbox). */
+export async function getLocalOutboxForUser(identifier?: string | null): Promise<Outbox> {
+  try {
+    const raw = await AsyncStorage.getItem(getUserStorageKey('outbox', identifier));
+    return raw ? sanitizeOutbox(JSON.parse(raw)) : emptyOutbox();
+  } catch {
+    return emptyOutbox();
+  }
+}
+
+export async function saveLocalOutboxForUser(identifier: string | null | undefined, outbox: Outbox): Promise<void> {
+  try {
+    await AsyncStorage.setItem(getUserStorageKey('outbox', identifier), JSON.stringify(outbox));
   } catch {}
 }

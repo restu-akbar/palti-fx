@@ -85,36 +85,40 @@ export class UserSyncService {
   /**
    * Menyimpan progres penyelesaian bab ke tabel user_lesson_progress di Supabase.
    */
-  static async saveLessonProgress(userId: string, lessonId: string, completed: boolean): Promise<void> {
+  static async saveLessonProgress(userId: string, lessonId: string, completed: boolean): Promise<boolean> {
     try {
-      if (completed) {
-        await supabase.from('user_lesson_progress').upsert(
-          {
-            user_id: userId,
-            lesson_id: lessonId,
-            completed: true,
-            completed_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,lesson_id' }
-        );
-      } else {
-        await supabase
-          .from('user_lesson_progress')
-          .delete()
-          .eq('user_id', userId)
-          .eq('lesson_id', lessonId);
+      const { error } = completed
+        ? await supabase.from('user_lesson_progress').upsert(
+            {
+              user_id: userId,
+              lesson_id: lessonId,
+              completed: true,
+              completed_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id,lesson_id' }
+          )
+        : await supabase
+            .from('user_lesson_progress')
+            .delete()
+            .eq('user_id', userId)
+            .eq('lesson_id', lessonId);
+      if (error) {
+        console.warn('[UserSyncService.saveLessonProgress] Error:', error);
+        return false;
       }
+      return true;
     } catch (err) {
       console.warn('[UserSyncService.saveLessonProgress] Error:', err);
+      return false;
     }
   }
 
   /**
    * Menyimpan trade jurnal ke tabel user_trades di Supabase.
    */
-  static async saveTrade(userId: string, trade: Trade): Promise<void> {
+  static async saveTrade(userId: string, trade: Trade): Promise<boolean> {
     try {
-      await supabase.from('user_trades').upsert(
+      const { error } = await supabase.from('user_trades').upsert(
         {
           id: trade.id,
           user_id: userId,
@@ -135,23 +139,35 @@ export class UserSyncService {
         },
         { onConflict: 'id' }
       );
+      if (error) {
+        console.warn('[UserSyncService.saveTrade] Error:', error);
+        return false;
+      }
+      return true;
     } catch (err) {
       console.warn('[UserSyncService.saveTrade] Error:', err);
+      return false;
     }
   }
 
   /**
    * Menghapus trade jurnal dari tabel user_trades di Supabase.
    */
-  static async deleteTrade(userId: string, tradeId: string): Promise<void> {
+  static async deleteTrade(userId: string, tradeId: string): Promise<boolean> {
     try {
-      await supabase
+      const { error } = await supabase
         .from('user_trades')
         .delete()
         .eq('id', tradeId)
         .eq('user_id', userId);
+      if (error) {
+        console.warn('[UserSyncService.deleteTrade] Error:', error);
+        return false;
+      }
+      return true;
     } catch (err) {
       console.warn('[UserSyncService.deleteTrade] Error:', err);
+      return false;
     }
   }
 }

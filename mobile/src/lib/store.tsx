@@ -1,4 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Outbox,
+  clearLesson,
+  clearTrade,
+  emptyOutbox,
+  markLesson,
+  markTrade,
+} from '../core/domain/outbox';
 import type { Settings } from '../core/domain/settings';
 import { Trade, upsertTrade } from '../core/domain/trade';
 import type { StoreDeps } from '../core/ports/storeDeps';
@@ -41,6 +49,7 @@ export function StoreProvider({
   const tradesRef = useRef<Trade[]>([]);
   const completedRef = useRef<Record<string, boolean>>({});
   const settingsRef = useRef<Settings>({});
+  const outboxRef = useRef<Outbox>(emptyOutbox());
 
   const commitTrades = useCallback((next: Trade[]) => {
     tradesRef.current = next;
@@ -55,18 +64,56 @@ export function StoreProvider({
     setSettings(next);
   }, []);
 
+  /** Ubah antrean penulisan cloud milik `user`; diabaikan bila akun aktif sudah berganti. */
+  const mutateOutbox = useCallback(
+    (user: string | undefined, fn: (o: Outbox) => Outbox) => {
+      if (activeUserRef.current !== user) return;
+      const next = fn(outboxRef.current);
+      if (next === outboxRef.current) return;
+      outboxRef.current = next;
+      deps.cache.saveOutbox(user, next);
+    },
+    [deps],
+  );
+
+  /** Kirim ulang penulisan yang tertunda; yang berhasil dikeluarkan dari antrean. */
+  const flushOutbox = useCallback(
+    async (uid: string, user: string | undefined) => {
+      const pending = outboxRef.current;
+      for (const [id, op] of Object.entries(pending.trades)) {
+        let ok = true;
+        if (op === 'delete') ok = await deps.remote.deleteTrade(uid, id);
+        else {
+          const t = tradesRef.current.find((x) => x.id === id);
+          if (t) ok = await deps.remote.saveTrade(uid, t);
+        }
+        if (ok) mutateOutbox(user, (o) => clearTrade(o, id, op));
+      }
+      for (const [id, done] of Object.entries(pending.lessons)) {
+        const ok = await deps.remote.saveLessonProgress(uid, id, done);
+        if (ok) mutateOutbox(user, (o) => clearLesson(o, id, done));
+      }
+    },
+    [deps, mutateOutbox],
+  );
+
   const syncFromCloud = useCallback(
     async (userId?: string) => {
       const uid = userId || (await deps.currentUserId());
       if (!uid) return;
       const targetUser = activeUserRef.current;
       try {
+        await flushOutbox(uid, targetUser);
         const cloud = await deps.remote.fetchUserData(uid);
-        const result = reconcileUserData(cloud, {
-          completed: completedRef.current,
-          unlocked: settingsRef.current.unlocked,
-          trades: tradesRef.current,
-        });
+        const result = reconcileUserData(
+          cloud,
+          {
+            completed: completedRef.current,
+            unlocked: settingsRef.current.unlocked,
+            trades: tradesRef.current,
+          },
+          outboxRef.current,
+        );
 
         result.uploads.lessons.forEach((lId) => deps.remote.saveLessonProgress(uid, lId, true));
         result.uploads.trades.forEach((t) => deps.remote.saveTrade(uid, t));
@@ -81,7 +128,7 @@ export function StoreProvider({
         console.warn('[store.syncFromCloud] Error syncing from cloud:', err);
       }
     },
-    [deps, commitCompleted, commitSettings, commitTrades],
+    [deps, commitCompleted, commitSettings, commitTrades, flushOutbox],
   );
 
   useEffect(() => {
@@ -97,6 +144,7 @@ export function StoreProvider({
 
       commitTrades(userData.trades);
       commitCompleted(userData.completed);
+      outboxRef.current = userData.outbox ?? emptyOutbox();
       commitSettings({
         ...globalSettings,
         ...userData.settings,
@@ -117,11 +165,14 @@ export function StoreProvider({
       const next = upsertTrade(tradesRef.current, item);
       commitTrades(next);
       deps.cache.saveTrades(activeUserRef.current, next);
-      deps.currentUserId().then((uid) => {
-        if (uid) deps.remote.saveTrade(uid, item);
+      const user = activeUserRef.current;
+      mutateOutbox(user, (o) => markTrade(o, item.id, 'upsert'));
+      deps.currentUserId().then(async (uid) => {
+        const ok = !!uid && (await deps.remote.saveTrade(uid, item));
+        if (ok) mutateOutbox(user, (o) => clearTrade(o, item.id, 'upsert'));
       });
     },
-    [deps, commitTrades],
+    [deps, commitTrades, mutateOutbox],
   );
 
   const deleteTrade = useCallback(
@@ -129,11 +180,14 @@ export function StoreProvider({
       const next = tradesRef.current.filter((p) => p.id !== id);
       commitTrades(next);
       deps.cache.saveTrades(activeUserRef.current, next);
-      deps.currentUserId().then((uid) => {
-        if (uid) deps.remote.deleteTrade(uid, id);
+      const user = activeUserRef.current;
+      mutateOutbox(user, (o) => markTrade(o, id, 'delete'));
+      deps.currentUserId().then(async (uid) => {
+        const ok = !!uid && (await deps.remote.deleteTrade(uid, id));
+        if (ok) mutateOutbox(user, (o) => clearTrade(o, id, 'delete'));
       });
     },
-    [deps, commitTrades],
+    [deps, commitTrades, mutateOutbox],
   );
 
   const toggleLesson = useCallback(
@@ -143,11 +197,14 @@ export function StoreProvider({
       const next = { ...prev, [lessonId]: isDone };
       commitCompleted(next);
       deps.cache.saveCompleted(activeUserRef.current, next);
-      deps.currentUserId().then((uid) => {
-        if (uid) deps.remote.saveLessonProgress(uid, lessonId, isDone);
+      const user = activeUserRef.current;
+      mutateOutbox(user, (o) => markLesson(o, lessonId, isDone));
+      deps.currentUserId().then(async (uid) => {
+        const ok = !!uid && (await deps.remote.saveLessonProgress(uid, lessonId, isDone));
+        if (ok) mutateOutbox(user, (o) => clearLesson(o, lessonId, isDone));
       });
     },
-    [deps, commitCompleted],
+    [deps, commitCompleted, mutateOutbox],
   );
 
   const updateSettings = useCallback(
@@ -167,6 +224,7 @@ export function StoreProvider({
         ]).then(([userData, secureName]) => {
           commitTrades(userData.trades);
           commitCompleted(userData.completed);
+          outboxRef.current = userData.outbox ?? emptyOutbox();
           const cur = settingsRef.current;
           commitSettings({
             ...cur,
@@ -224,6 +282,7 @@ export function StoreProvider({
   const logout = useCallback(() => {
     deps.signOutLocal();
     activeUserRef.current = undefined;
+    outboxRef.current = emptyOutbox();
     commitTrades([]);
     commitCompleted({});
     // Bersihkan state in-memory agar aman saat layar login tampil kembali.

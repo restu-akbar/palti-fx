@@ -106,7 +106,7 @@ describe('userCacheStorage I/O', () => {
     expect((await getLocalTradesForUser('u')).map((t) => t.id)).toEqual(['baru']);
   });
 
-  it('loadAllUserData memuat keempat kategori sekaligus', async () => {
+  it('loadAllUserData memuat semua kategori sekaligus', async () => {
     await saveLocalTradesForUser('u', [trade('t')]);
     await saveLocalCompletedForUser('u', { l1: true });
     await saveLocalAchievementsForUser('u', { a1: 1 });
@@ -117,12 +117,13 @@ describe('userCacheStorage I/O', () => {
       completed: { l1: true },
       achievements: { a1: 1 },
       settings: { leverage: '100' },
+      outbox: { trades: {}, lessons: {} },
     });
   });
 
   it('kegagalan baca/tulis tidak melempar dan memberi nilai kosong', async () => {
     failures.get = true;
-    expect(await loadAllUserData('u')).toEqual({ trades: [], completed: {}, achievements: {}, settings: {} });
+    expect(await loadAllUserData('u')).toEqual({ trades: [], completed: {}, achievements: {}, settings: {}, outbox: { trades: {}, lessons: {} } });
     failures.set = true;
     await expect(saveLocalTradesForUser('u', [])).resolves.toBeUndefined();
     await expect(saveLocalCompletedForUser('u', {})).resolves.toBeUndefined();
@@ -139,14 +140,25 @@ describe('userCacheStorage I/O', () => {
 describe('clearLocalUserData', () => {
   it('menghapus semua cache milik satu akun dan tidak menyentuh akun lain', async () => {
     const { clearLocalUserData, getUserStorageKey } = await import('../src/lib/userCacheStorage');
-    for (const c of ['trades', 'completed', 'settings', 'achievements'] as const) {
+    for (const c of ['trades', 'completed', 'settings', 'achievements', 'outbox'] as const) {
       storage.set(getUserStorageKey(c, 'A@x.com'), '{}');
       storage.set(getUserStorageKey(c, 'b@x.com'), '{}');
     }
     await clearLocalUserData(' A@x.com ');
-    for (const c of ['trades', 'completed', 'settings', 'achievements'] as const) {
+    for (const c of ['trades', 'completed', 'settings', 'achievements', 'outbox'] as const) {
       expect(storage.has(getUserStorageKey(c, 'a@x.com'))).toBe(false);
       expect(storage.has(getUserStorageKey(c, 'b@x.com'))).toBe(true);
     }
+  });
+});
+
+describe('outbox lokal per akun', () => {
+  it('disimpan, dibaca kembali, terisolasi antar akun, dan tahan data rusak', async () => {
+    const { saveLocalOutboxForUser, getLocalOutboxForUser, getUserStorageKey } = await import('../src/lib/userCacheStorage');
+    await saveLocalOutboxForUser('A@x.com', { trades: { t1: 'delete' }, lessons: { l1: false } });
+    expect(await getLocalOutboxForUser('a@x.com')).toEqual({ trades: { t1: 'delete' }, lessons: { l1: false } });
+    expect(await getLocalOutboxForUser('b@x.com')).toEqual({ trades: {}, lessons: {} });
+    storage.set(getUserStorageKey('outbox', 'rusak@x.com'), '{bukan json');
+    expect(await getLocalOutboxForUser('rusak@x.com')).toEqual({ trades: {}, lessons: {} });
   });
 });

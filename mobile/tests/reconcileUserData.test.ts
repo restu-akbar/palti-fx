@@ -23,3 +23,16 @@ it('reconcileUserData', () => {
   const empty = reconcileUserData({ completed: {}, trades: [] }, { completed: {}, unlocked: undefined, trades: [] });
   assert.deepEqual(empty.unlocked, {});
 });
+
+it('reconcileUserData: trade yang dihapus lokal tetapi belum terhapus di cloud tidak muncul kembali', () => {
+  const t = (id: string): Trade => ({ id, date: '2026-01-01', symbol: 'EURUSD', direction: 'BUY', lot: 0.1, pl: 1, createdAt: 1 });
+  const r = reconcileUserData(
+    { completed: {}, trades: [t('keep'), t('gone')] },
+    { completed: {}, unlocked: undefined, trades: [t('keep')] },
+    { trades: { gone: 'delete' }, lessons: {} }
+  );
+  assert.deepEqual(r.trades.map((x) => x.id), ['keep']);
+  // tanpa outbox, perilaku lama (muncul kembali) tidak berlaku lagi untuk id yang tidak ada di antrean
+  const r2 = reconcileUserData({ completed: {}, trades: [t('keep'), t('gone')] }, { completed: {}, unlocked: undefined, trades: [t('keep')] });
+  assert.deepEqual(r2.trades.map((x) => x.id).sort(), ['gone', 'keep']);
+});

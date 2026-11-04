@@ -7,8 +7,9 @@ export interface CloudUserData {
 
 export interface UserDataRemote {
   fetchUserData(userId: string): Promise<CloudUserData>;
-  saveLessonProgress(userId: string, lessonId: string, completed: boolean): Promise<void>;
-  saveTrade(userId: string, trade: Trade): Promise<void>;
-  deleteTrade(userId: string, tradeId: string): Promise<void>;
+  /** Penulisan mengembalikan true bila berhasil di server (false = gagal/offline; akan diulang via outbox). */
+  saveLessonProgress(userId: string, lessonId: string, completed: boolean): Promise<boolean>;
+  saveTrade(userId: string, trade: Trade): Promise<boolean>;
+  deleteTrade(userId: string, tradeId: string): Promise<boolean>;
   updateProfileName(userId: string, name: string | null): Promise<void>;
 }
