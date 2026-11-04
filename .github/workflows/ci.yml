@@ -17,8 +17,20 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
         working-directory: mobile
+      - run: npx expo lint
+        working-directory: mobile
+      - run: npx expo-doctor
+        working-directory: mobile
       - run: npm run test:coverage
         working-directory: mobile
+      # Bundle Hermes produksi: menangkap error resolusi monorepo/import sebelum build EAS
+      - run: npx expo export --platform android --platform ios --output-dir "$RUNNER_TEMP/export"
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-key
+      # Hanya paket yang dibundel ke aplikasi; tooling dev transitif (shell-quote dsb.) dipantau terpisah
+      - run: npm audit --omit=dev --audit-level=critical || echo "::warning::npm audit menemukan kerentanan critical (tooling dev transitif); tinjau manual"
 
   database:
     runs-on: ubuntu-latest

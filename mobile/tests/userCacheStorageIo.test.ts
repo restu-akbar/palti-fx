@@ -16,6 +16,9 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
       if (failures.set) throw new Error('write fail');
       storage.set(k, v);
     },
+    multiRemove: async (ks: string[]) => {
+      ks.forEach((k) => storage.delete(k));
+    },
   },
 }));
 
@@ -130,5 +133,20 @@ describe('userCacheStorage I/O', () => {
   it('JSON rusak dibaca sebagai kosong', async () => {
     storage.set(getUserStorageKey('trades', 'u'), '{rusak');
     expect(await getLocalTradesForUser('u')).toEqual([]);
+  });
+});
+
+describe('clearLocalUserData', () => {
+  it('menghapus semua cache milik satu akun dan tidak menyentuh akun lain', async () => {
+    const { clearLocalUserData, getUserStorageKey } = await import('../src/lib/userCacheStorage');
+    for (const c of ['trades', 'completed', 'settings', 'achievements'] as const) {
+      storage.set(getUserStorageKey(c, 'A@x.com'), '{}');
+      storage.set(getUserStorageKey(c, 'b@x.com'), '{}');
+    }
+    await clearLocalUserData(' A@x.com ');
+    for (const c of ['trades', 'completed', 'settings', 'achievements'] as const) {
+      expect(storage.has(getUserStorageKey(c, 'a@x.com'))).toBe(false);
+      expect(storage.has(getUserStorageKey(c, 'b@x.com'))).toBe(true);
+    }
   });
 });

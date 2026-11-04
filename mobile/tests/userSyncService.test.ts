@@ -17,15 +17,12 @@ beforeEach(() => {
 });
 
 describe('UserSyncService.fetchUserData', () => {
-  it('memetakan progres, medali, dan trade dari baris database', async () => {
+  it('memetakan progres dan trade dari baris database', async () => {
     supabase.onTable('user_lesson_progress', () => ({
       data: [
         { lesson_id: 'l1', completed: true },
         { lesson_id: 'l2', completed: false },
       ],
-    }));
-    supabase.onTable('user_achievements', () => ({
-      data: [{ achievement_id: 'a1', unlocked_at: '2026-01-05T00:00:00.000Z' }],
     }));
     supabase.onTable('user_trades', () => ({
       data: [
@@ -40,7 +37,6 @@ describe('UserSyncService.fetchUserData', () => {
     const r = await UserSyncService.fetchUserData('u1');
 
     expect(r.completed).toEqual({ l1: true });
-    expect(r.unlocked).toEqual({ a1: Date.parse('2026-01-05T00:00:00.000Z') });
     expect(r.trades).toEqual([
       {
         id: 't1', date: '2026-01-05', symbol: 'EURUSD', direction: 'BUY', lot: 0.5,
@@ -50,9 +46,15 @@ describe('UserSyncService.fetchUserData', () => {
     ]);
   });
 
+  it('tidak pernah menyentuh tabel user_achievements (medali hanya lokal)', async () => {
+    await UserSyncService.fetchUserData('u1');
+    expect(supabase.queriesFor('user_achievements')).toHaveLength(0);
+    expect('saveAchievement' in UserSyncService).toBe(false);
+  });
+
   it('semua query dibatasi user_id', async () => {
     await UserSyncService.fetchUserData('u1');
-    for (const table of ['user_lesson_progress', 'user_achievements', 'user_trades']) {
+    for (const table of ['user_lesson_progress', 'user_trades']) {
       expect(supabase.queriesFor(table)[0].filters).toContainEqual({ type: 'eq', column: 'user_id', value: 'u1' });
     }
   });
@@ -66,7 +68,7 @@ describe('UserSyncService.fetchUserData', () => {
   });
 
   it('data kosong menghasilkan struktur kosong', async () => {
-    expect(await UserSyncService.fetchUserData('u1')).toEqual({ completed: {}, unlocked: {}, trades: [] });
+    expect(await UserSyncService.fetchUserData('u1')).toEqual({ completed: {}, trades: [] });
   });
 
   it('error jaringan tidak melempar dan mengembalikan data kosong', async () => {
@@ -93,13 +95,6 @@ describe('UserSyncService penulisan', () => {
       { type: 'eq', column: 'user_id', value: 'u1' },
       { type: 'eq', column: 'lesson_id', value: 'l1' },
     ]);
-  });
-
-  it('saveAchievement menyimpan waktu dalam ISO', async () => {
-    await UserSyncService.saveAchievement('u1', 'a1', Date.parse('2026-01-05T00:00:00.000Z'));
-    const [q] = supabase.queriesFor('user_achievements', 'upsert');
-    expect(q.payload).toEqual({ user_id: 'u1', achievement_id: 'a1', unlocked_at: '2026-01-05T00:00:00.000Z' });
-    expect(q.options).toEqual({ onConflict: 'user_id,achievement_id' });
   });
 
   it('saveTrade melakukan upsert berdasarkan id', async () => {

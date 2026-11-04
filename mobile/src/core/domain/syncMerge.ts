@@ -10,14 +10,6 @@ export function mergeCompleted(
   return { merged: { ...cloud, ...local }, toUpload };
 }
 
-export function mergeUnlocked(
-  cloud: Record<string, number>,
-  local: Record<string, number> | undefined
-): { merged: Record<string, number>; toUpload: [string, number][] } {
-  const toUpload = Object.entries(local || {}).filter(([id]) => !cloud[id]);
-  return { merged: { ...cloud, ...(local || {}) }, toUpload };
-}
-
 export function mergeTrades(cloud: Trade[], local: Trade[]): { merged: Trade[]; toUpload: Trade[] } {
   const byId = new Map<string, Trade>();
   cloud.forEach((t) => byId.set(t.id, t));

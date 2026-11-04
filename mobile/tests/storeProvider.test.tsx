@@ -28,14 +28,13 @@ function makeDeps(opts: {
   bundles?: Record<string, UserCacheBundle>;
   nicknames?: Record<string, string>;
   uid?: string | null;
-  cloud?: { completed?: Record<string, boolean>; unlocked?: Record<string, number>; trades?: Trade[] };
+  cloud?: { completed?: Record<string, boolean>; trades?: Trade[] };
 } = {}) {
   const bundles = opts.bundles ?? {};
   const deps = {
     remote: {
-      fetchUserData: vi.fn(async () => ({ completed: {}, unlocked: {}, trades: [], ...opts.cloud })),
+      fetchUserData: vi.fn(async () => ({ completed: {}, trades: [], ...opts.cloud })),
       saveLessonProgress: vi.fn(async () => {}),
-      saveAchievement: vi.fn(async () => {}),
       saveTrade: vi.fn(async () => {}),
       deleteTrade: vi.fn(async () => {}),
       updateProfileName: vi.fn(async () => {}),
@@ -265,7 +264,7 @@ describe('StoreProvider: updateSettings', () => {
     expect(deps.remote.updateProfileName).toHaveBeenCalledWith('uid-1', 'Dio');
   });
 
-  it('medali baru disimpan lokal dan diunggah satu per satu', async () => {
+  it('medali baru hanya disimpan lokal (tidak ada pemanggilan cloud)', async () => {
     const deps = makeDeps({ device: { activeUser: 'u' } });
     await mount(deps);
 
@@ -273,8 +272,7 @@ describe('StoreProvider: updateSettings', () => {
     await flush();
 
     expect(deps.cache.saveAchievements).toHaveBeenCalledWith('u', { a1: 1, a2: 2 });
-    expect(deps.remote.saveAchievement).toHaveBeenCalledTimes(2);
-    expect(deps.remote.saveAchievement).toHaveBeenCalledWith('uid-1', 'a1', 1);
+    expect(Object.keys(deps.remote)).not.toContain('saveAchievement');
   });
 
   it('pergantian akun memuat cache akun baru tanpa menulis ke akun lama', async () => {
@@ -341,7 +339,7 @@ describe('StoreProvider: syncFromCloud', () => {
     const deps = makeDeps({
       device: { activeUser: 'u' },
       bundles: { u: emptyBundle({ trades: [trade('lokal')], completed: { l2: true }, achievements: { a2: 2 } }) },
-      cloud: { trades: [trade('cloud', '2026-01-09')], completed: { l1: true }, unlocked: { a1: 1 } },
+      cloud: { trades: [trade('cloud', '2026-01-09')], completed: { l1: true } },
     });
     await mount(deps);
 
@@ -349,11 +347,10 @@ describe('StoreProvider: syncFromCloud', () => {
 
     expect(latest.trades.map((t) => t.id)).toEqual(['cloud', 'lokal']);
     expect(latest.completed).toEqual({ l1: true, l2: true });
-    expect(latest.settings.unlocked).toEqual({ a1: 1, a2: 2 });
+    expect(latest.settings.unlocked).toEqual({ a2: 2 });
     expect(deps.remote.saveTrade).toHaveBeenCalledTimes(1);
     expect(deps.remote.saveTrade).toHaveBeenCalledWith('uid-1', expect.objectContaining({ id: 'lokal' }));
     expect(deps.remote.saveLessonProgress).toHaveBeenCalledWith('uid-1', 'l2', true);
-    expect(deps.remote.saveAchievement).toHaveBeenCalledWith('uid-1', 'a2', 2);
     expect(deps.cache.saveTrades).toHaveBeenLastCalledWith('u', latest.trades);
   });
 

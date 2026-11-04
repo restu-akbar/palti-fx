@@ -248,3 +248,11 @@ export async function loadAllUserData(identifier?: string | null): Promise<UserC
   ]);
   return { trades, completed, achievements, settings };
 }
+
+/** Hapus seluruh cache lokal milik satu akun (dipakai saat akun dihapus permanen). */
+export async function clearLocalUserData(identifier?: string | null): Promise<void> {
+  const categories = ['trades', 'completed', 'settings', 'achievements'] as const;
+  try {
+    await AsyncStorage.multiRemove(categories.map((c) => getUserStorageKey(c, identifier)));
+  } catch {}
+}

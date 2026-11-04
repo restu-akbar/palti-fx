@@ -69,7 +69,6 @@ export function StoreProvider({
         });
 
         result.uploads.lessons.forEach((lId) => deps.remote.saveLessonProgress(uid, lId, true));
-        result.uploads.achievements.forEach(([achId, ts]) => deps.remote.saveAchievement(uid, achId, ts));
         result.uploads.trades.forEach((t) => deps.remote.saveTrade(uid, t));
 
         commitCompleted(result.completed);
@@ -203,16 +202,9 @@ export function StoreProvider({
         });
       }
 
-      // Simpan medali pencapaian secara lokal per akun + sinkronkan ke cloud
+      // Medali pencapaian disimpan lokal per akun (tidak disinkronkan ke cloud)
       if (patch.unlocked !== undefined) {
         deps.cache.saveAchievements(nextUser, patch.unlocked);
-        deps.currentUserId().then((uid) => {
-          if (uid && patch.unlocked) {
-            Object.entries(patch.unlocked).forEach(([achId, ts]) => {
-              deps.remote.saveAchievement(uid, achId, ts);
-            });
-          }
-        });
       }
 
       const next = { ...prev, ...patch };

@@ -1,4 +1,4 @@
-import { mergeCompleted, mergeTrades, mergeUnlocked } from '../domain/syncMerge';
+import { mergeCompleted, mergeTrades } from '../domain/syncMerge';
 import type { Trade } from '../domain/trade';
 import type { CloudUserData } from '../ports/userDataRemote';
 
@@ -14,19 +14,17 @@ export interface ReconcileResult {
   trades: Trade[];
   uploads: {
     lessons: string[];
-    achievements: [string, number][];
     trades: Trade[];
   };
 }
 
 export function reconcileUserData(cloud: CloudUserData, local: LocalUserData): ReconcileResult {
   const completed = mergeCompleted(cloud.completed, local.completed);
-  const unlocked = mergeUnlocked(cloud.unlocked || {}, local.unlocked);
   const trades = mergeTrades(cloud.trades, local.trades);
   return {
     completed: completed.merged,
-    unlocked: unlocked.merged,
+    unlocked: local.unlocked ?? {},  // medali hanya lokal
     trades: trades.merged,
-    uploads: { lessons: completed.toUpload, achievements: unlocked.toUpload, trades: trades.toUpload },
+    uploads: { lessons: completed.toUpload, trades: trades.toUpload },
   };
 }
