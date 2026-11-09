@@ -10,8 +10,11 @@ afterAll(async () => {
 });
 
 const hashOf = (code: string) => `encode(sha256(convert_to('${code}', 'UTF8')), 'hex')`;
-const addInvite = (s: { sql: (t: string) => Promise<unknown> }, code: string) =>
-  s.sql(`insert into public.invitations (code_hash, code_hint) values (${hashOf(code)}, 'label')`);
+// Satu kode global: menyetel kode selalu menimpa kode sebelumnya
+const addInvite = async (s: { sql: (t: string) => Promise<unknown> }, code: string) => {
+  await s.sql(`delete from public.invitations`);
+  await s.sql(`insert into public.invitations (code_hash, code_hint) values (${hashOf(code)}, 'label')`);
+};
 
 describe('normalize_invite_code', () => {
   it('huruf besar, tanpa spasi dan strip, null aman', () =>
@@ -25,7 +28,7 @@ describe('normalize_invite_code', () => {
 });
 
 describe('trigger handle_new_user: pendaftaran member', () => {
-  it('kode undangan valid membuat profil member aktif dan menghanguskan undangan', () =>
+  it('kode undangan valid membuat profil member aktif dan kode tetap aktif', () =>
     db.tx(async (s) => {
       await addInvite(s, 'ABCD1234');
       await s.sql(
@@ -37,8 +40,8 @@ describe('trigger handle_new_user: pendaftaran member', () => {
       expect(p.member_id).toMatch(/^PFX-[0-9A-F]{8}$/);
 
       const [inv] = await s.rows<{ is_used: boolean; used_at: string | null }>('service', `select is_used, used_at from public.invitations where code_hint = 'label'`);
-      expect(inv.is_used).toBe(true);
-      expect(inv.used_at).not.toBeNull();
+      expect(inv.is_used).toBe(false);
+      expect(inv.used_at).toBeNull();
     }));
 
   it('email otomatis terkonfirmasi', () =>
@@ -67,13 +70,22 @@ describe('trigger handle_new_user: pendaftaran member', () => {
       expect((await s.rows<{ is_used: boolean }>('service', `select is_used from public.invitations where code_hint = 'label'`))[0].is_used).toBe(false);
     }));
 
-  it('kode yang sudah dipakai tidak bisa dipakai lagi', () =>
+  it('kode yang sama bisa dipakai banyak pendaftar', () =>
     db.tx(async (s) => {
       await addInvite(s, 'ABCD1234');
       await s.sql(`insert into auth.users (email, raw_user_meta_data) values ('a@x.com', '{"invitation_code":"ABCD1234"}')`);
+      await s.sql(`insert into auth.users (email, raw_user_meta_data) values ('b@x.com', '{"invitation_code":"abcd-1234"}')`);
+      expect((await s.rows('service', `select 1 from public.profiles`)).length).toBe(2);
+    }));
+
+  it('kode lama tidak berlaku lagi setelah ditimpa', () =>
+    db.tx(async (s) => {
+      await addInvite(s, 'LAMA1234');
+      await addInvite(s, 'BARU5678');
       await expect(
-        s.sql(`insert into auth.users (email, raw_user_meta_data) values ('b@x.com', '{"invitation_code":"ABCD1234"}')`)
+        s.sql(`insert into auth.users (email, raw_user_meta_data) values ('a@x.com', '{"invitation_code":"LAMA1234"}')`)
       ).rejects.toMatchObject({ code: 'P0001' });
+      await s.sql(`insert into auth.users (email, raw_user_meta_data) values ('b@x.com', '{"invitation_code":"BARU5678"}')`);
     }));
 
   it('tanpa kode ditolak selama pendaftaran manual dimatikan', () =>
@@ -93,9 +105,39 @@ describe('trigger handle_new_user: pendaftaran member', () => {
 
   it('role dalam undangan tidak menaikkan hak: pendaftar undangan selalu member', () =>
     db.tx(async (s) => {
+      await s.sql(`delete from public.invitations`);
       await s.sql(`insert into public.invitations (code_hash, role) values (${hashOf('ADMIN123')}, 'admin')`);
       await s.sql(`insert into auth.users (email, raw_user_meta_data) values ('a@x.com', '{"invitation_code":"ADMIN123"}')`);
       expect((await s.rows<{ role: string }>('service', `select role from public.profiles`))[0].role).toBe('member');
+    }));
+});
+
+describe('RPC set_invite_code', () => {
+  it('admin menimpa kode global; kode baru langsung berlaku', () =>
+    db.tx(async (s) => {
+      const admin = await s.admin('boss@x.com');
+      await s.run(admin, `select public.set_invite_code(' kode - baru ')`);
+      expect((await s.rows('service', `select 1 from public.invitations`)).length).toBe(1);
+      await s.sql(`insert into auth.users (email, raw_user_meta_data) values ('a@x.com', '{"invitation_code":"KODEBARU"}')`);
+      expect((await s.rows('service', `select 1 from public.profiles where email = 'a@x.com'`)).length).toBe(1);
+    }));
+
+  it('kode terlalu pendek ditolak', () =>
+    db.tx(async (s) => {
+      const admin = await s.admin('boss@x.com');
+      await expect(s.run(admin, `select public.set_invite_code('ab')`)).rejects.toMatchObject({ code: '22023' });
+    }));
+
+  it('member dan anon tidak bisa mengganti kode', () =>
+    db.tx(async (s) => {
+      const alice = await s.member('alice@x.com');
+      await expect(s.run(alice, `select public.set_invite_code('HACK1234')`)).rejects.toMatchObject({ code: '42501' });
+      await expect(s.run('anon', `select public.set_invite_code('HACK1234')`)).rejects.toMatchObject({ code: '42501' });
+    }));
+
+  it('tabel hanya boleh berisi satu kode', () =>
+    db.tx(async (s) => {
+      await expect(s.sql(`insert into public.invitations (code_hash) values ('lain')`)).rejects.toMatchObject({ code: '23505' });
     }));
 });
 

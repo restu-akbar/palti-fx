@@ -63,6 +63,7 @@ describe('idempotensi skema', () => {
       await s.sql(sqlFile('user_data_schema.sql'));
       await s.sql(sqlFile('edu_schema.sql'));
       await s.sql(sqlFile('migrations/001_security_hardening.sql'));
+      await s.sql(sqlFile('migrations/005_single_invite_code.sql'));
 
       for (const t of ['profiles', 'user_trades', 'edu_modules']) {
         expect((await s.rows('service', `select 1 from public.${t}`)).length).toBeGreaterThan(0);
@@ -72,7 +73,7 @@ describe('idempotensi skema', () => {
 
 describe('data bawaan', () => {
   // Kode undangan statis di repo: siapa pun yang membaca schema.sql dapat mendaftar
-  // sebagai member dengan kode ini selama belum dipakai.
+  // sebagai member dengan kode ini sampai admin menggantinya.
   it('schema.sql menanam satu kode undangan bawaan yang belum terpakai', () =>
     db.tx(async (s) => {
       const rows = await s.rows<{ code_hint: string; is_used: boolean }>('service', `select code_hint, is_used from public.invitations`);

@@ -61,7 +61,7 @@ export function mapAuthError(err: AuthErrorLike | null | undefined): string {
   // Trigger database menolak kode undangan → Supabase membalas 500 "Database error saving new user".
   // Harus dicek sebelum fallback status 500, kalau tidak pengguna melihat pesan SMTP yang menyesatkan.
   if (msg.includes('database error saving new user') || msg.includes('kode undangan')) {
-    return 'Kode undangan tidak valid, sudah dipakai, atau kedaluwarsa.';
+    return 'Kode undangan tidak valid. Minta kode terbaru ke admin PALTI FX.';
   }
   if (msg.includes('error sending') || msg.includes('recovery email') || msg.includes('confirmation email') || msg.includes('smtp')) {
     return 'Gagal mengirim email dari server (SMTP). Jika memakai Resend Sandbox, email tujuan harus sama dengan akun Resend Anda (atau verifikasi domain di Resend).';

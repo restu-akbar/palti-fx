@@ -482,12 +482,10 @@ grant execute on function public.get_admin_dashboard_stats() to authenticated;
 -- ---------------------------------------------------------------------
 -- Catatan: Admin tidak memerlukan kode undangan (login langsung via email & password).
 -- Kode undangan hanya diterbitkan untuk pendaftaran akun Member biasa.
+-- Satu kode global (migrasi 005): seed hanya bila belum ada kode, agar tidak menimpa kode dari admin.
 insert into public.invitations (code_hash, code_hint, role)
-values
-  (encode(sha256(convert_to(public.normalize_invite_code('PFX-MEMBER-VIP'), 'UTF8')), 'hex'), 'PFX-MEMBER-VIP', 'member')
-on conflict (code_hash) do update set
-  role = excluded.role,
-  code_hint = excluded.code_hint;
+select encode(sha256(convert_to(public.normalize_invite_code('PFX-MEMBER-VIP'), 'UTF8')), 'hex'), 'PFX-MEMBER-VIP', 'member'
+where not exists (select 1 from public.invitations);
 
 update public.profiles set role = 'admin' where lower(email) = 'dioraput@gmail.com';
 update public.profiles set role = 'member' where lower(email) = 'diorahmanputra@gmail.com';
