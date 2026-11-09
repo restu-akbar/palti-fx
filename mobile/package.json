@@ -45,7 +45,8 @@
     "lint": "expo lint",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:db": "vitest run --config vitest.db.config.ts"
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "build:web": "expo export -p web"
   },
   "private": true
 }
