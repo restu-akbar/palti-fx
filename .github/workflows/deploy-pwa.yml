@@ -1,0 +1,39 @@
+name: Deploy PWA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-pwa.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-pwa
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+        working-directory: mobile
+      - run: npm run build:web
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_PRIVACY_URL: ${{ vars.EXPO_PUBLIC_PRIVACY_URL }}
+      # Project Cloudflare Pages "palti-fx-app" (direct upload) → https://palti-fx-app.pages.dev
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy mobile/dist --project-name palti-fx-app --branch main --commit-hash ${{ github.sha }}
