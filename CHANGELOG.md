@@ -2,7 +2,7 @@
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/) dan versi mengikuti [SemVer](https://semver.org/lang/id/).
 
-## [1.0.0] - [TANGGAL RILIS]
+## [1.0.0] - 9 November 2026
 
 Rilis pertama aplikasi mobile Palti FX (Android dan iOS).
 
