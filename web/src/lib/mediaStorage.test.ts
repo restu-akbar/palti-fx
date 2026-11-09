@@ -293,6 +293,11 @@ describe('R2MediaStorage', () => {
     supabase.auth.getSession.mockResolvedValueOnce({ data: { session: { access_token: 'jwt-1' } }, error: null });
   const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
+  // Antrean mockResolvedValueOnce dari test lain bisa tersisa; mulai tiap test tanpa sesi.
+  beforeEach(() => {
+    supabase.auth.getSession.mockReset();
+    supabase.auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   it('minta URL bertanda tangan lalu PUT ke R2 dan mengembalikan URL publik dari server', async () => {
@@ -316,18 +321,18 @@ describe('R2MediaStorage', () => {
   it('gagal bila tidak ada sesi, server menolak, atau PUT gagal', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    await expect(r2().upload('p', PNG, 'image/png')).rejects.toThrow(/Sesi login/);
+    await expect(r2().upload('p', PNG, 'image/png')).rejects.toMatchObject({ message: expect.stringMatching(/Sesi login/) });
     expect(fetchMock).not.toHaveBeenCalled();
 
     withSession();
     fetchMock.mockResolvedValueOnce(reply({ error: 'Hanya admin' }, 403));
-    await expect(r2().upload('p', PNG, 'image/png')).rejects.toThrow('Hanya admin');
+    await expect(r2().upload('p', PNG, 'image/png')).rejects.toMatchObject({ message: 'Hanya admin' });
 
     withSession();
     fetchMock
       .mockResolvedValueOnce(reply({ uploadUrl: 'https://r2.test/put', headers: {}, publicUrl: R2_IMG }))
       .mockResolvedValueOnce(new Response(null, { status: 403 }));
-    await expect(r2().upload('p', PNG, 'image/png')).rejects.toThrow(/R2 \(403\)/);
+    await expect(r2().upload('p', PNG, 'image/png')).rejects.toMatchObject({ message: expect.stringMatching(/R2 \(403\)/) });
   });
 
   it('remove hanya mengirim key R2 dan melewati path Supabase lama', async () => {
@@ -346,7 +351,7 @@ describe('R2MediaStorage', () => {
 
     withSession();
     fetchMock.mockResolvedValueOnce(reply({ error: 'x' }, 502));
-    await expect(r2().remove(['images/a.png'])).rejects.toThrow('x');
+    await expect(r2().remove(['images/a.png'])).rejects.toMatchObject({ message: 'x' });
   });
 
   it('pathFromUrl mengenali URL R2 dan URL Supabase selama transisi', () => {
