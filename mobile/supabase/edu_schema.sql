@@ -269,7 +269,7 @@ on conflict (id) do update set
 -- Catatan: Kode undangan VIP di-seed oleh schema.sql (tabel invitations berbasis code_hash).
 update public.profiles
    set role = 'admin'
- where lower(email) = 'dioraput@gmail.com';
+ where lower(email) = 'paltigt1@gmail.com';
 
 update public.profiles
    set role = 'member'

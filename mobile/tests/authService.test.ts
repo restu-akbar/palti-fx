@@ -145,13 +145,22 @@ describe('AuthService.activate', () => {
   });
 
   it('tidak pernah mengirim role dari klien, termasuk untuk email admin', async () => {
-    await AuthService.activate('dioraput@gmail.com', 'PFX1234', 'abc12345');
+    await AuthService.activate('paltigt1@gmail.com', 'PFX1234', 'abc12345');
     const arg = (supabase.auth.signUp as any).mock.calls.at(-1)[0];
     expect(JSON.stringify(arg)).not.toMatch(/role|admin/i);
   });
 
   it('email admin tetap wajib kode undangan di aplikasi', async () => {
-    expect((await AuthService.activate('dioraput@gmail.com', '', 'abc12345')).error).toMatch(/undangan/i);
+    expect((await AuthService.activate('paltigt1@gmail.com', '', 'abc12345')).error).toMatch(/undangan/i);
+  });
+
+  it('500 generik saat signup (kode ditolak trigger) bukan pesan koneksi', async () => {
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: {},
+      error: { name: 'AuthRetryableFetchError', message: '{}', status: 500 },
+    } as never);
+    const r = await AuthService.activate('a@b.com', 'PFX1234', 'abc12345');
+    expect(r.error).toContain('Kode undangan');
   });
 
   it('error pendaftaran dipetakan', async () => {

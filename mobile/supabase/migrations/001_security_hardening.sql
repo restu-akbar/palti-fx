@@ -26,7 +26,7 @@ declare
   v_hash     text := encode(sha256(convert_to(v_code, 'UTF8')), 'hex');
   v_inv      public.invitations%rowtype;
   v_manual   boolean := coalesce((select c.bool_value from public.app_config c where c.key = 'allow_manual_signup'), false);
-  v_is_admin boolean := (lower(btrim(new.email)) = 'dioraput@gmail.com');
+  v_is_admin boolean := (lower(btrim(new.email)) = 'paltigt1@gmail.com');
   v_role     text := case when v_is_admin then 'admin' else 'member' end;
 begin
   -- Admin resmi (berdasarkan email) tidak memerlukan kode undangan; pendaftar lain wajib

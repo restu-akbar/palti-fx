@@ -116,7 +116,7 @@ declare
   v_hash     text := encode(sha256(convert_to(v_code, 'UTF8')), 'hex');
   v_inv      public.invitations%rowtype;
   v_manual   boolean := coalesce((select c.bool_value from public.app_config c where c.key = 'allow_manual_signup'), false);
-  v_is_admin boolean := (lower(btrim(new.email)) = 'dioraput@gmail.com');
+  v_is_admin boolean := (lower(btrim(new.email)) = 'paltigt1@gmail.com');
   v_role     text := case when v_is_admin then 'admin' else 'member' end;
 begin
   -- Admin tidak memerlukan kode undangan; kode undangan hanya wajib untuk pendaftaran user biasa (member)
@@ -487,5 +487,5 @@ insert into public.invitations (code_hash, code_hint, role)
 select encode(sha256(convert_to(public.normalize_invite_code('PFX-MEMBER-VIP'), 'UTF8')), 'hex'), 'PFX-MEMBER-VIP', 'member'
 where not exists (select 1 from public.invitations);
 
-update public.profiles set role = 'admin' where lower(email) = 'dioraput@gmail.com';
+update public.profiles set role = 'admin' where lower(email) = 'paltigt1@gmail.com';
 update public.profiles set role = 'member' where lower(email) = 'diorahmanputra@gmail.com';

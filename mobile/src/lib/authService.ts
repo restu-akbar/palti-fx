@@ -120,7 +120,15 @@ export class AuthService {
           data: { invitation_code: code },
         },
       });
-      if (error) return { success: false, error: mapAuthError(error) };
+      if (error) {
+        // Trigger yang menolak kode undangan kadang membuat GoTrue membalas 500 generik
+        // ("unexpected_failure"); auth-js lalu melemparnya sebagai AuthRetryableFetchError
+        // yang mirip error jaringan. Status 500 di signup hampir selalu berarti kode ditolak.
+        if (error.status === 500) {
+          return { success: false, error: 'Kode undangan tidak valid. Minta kode terbaru ke admin PALTI FX.' };
+        }
+        return { success: false, error: mapAuthError(error) };
+      }
 
       // Email sudah terdaftar & konfirmasi aktif → identities kosong (tanpa error)
       if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
