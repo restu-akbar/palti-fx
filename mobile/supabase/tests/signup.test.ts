@@ -115,7 +115,7 @@ describe('trigger handle_new_user: pendaftaran member', () => {
 describe('RPC set_invite_code', () => {
   it('admin menimpa kode global; kode baru langsung berlaku', () =>
     db.tx(async (s) => {
-      const admin = await s.admin('boss@x.com');
+      const admin = { id: await s.admin('boss@x.com') };
       await s.run(admin, `select public.set_invite_code(' kode - baru ')`);
       expect((await s.rows('service', `select 1 from public.invitations`)).length).toBe(1);
       await s.sql(`insert into auth.users (email, raw_user_meta_data) values ('a@x.com', '{"invitation_code":"KODEBARU"}')`);
@@ -124,13 +124,13 @@ describe('RPC set_invite_code', () => {
 
   it('kode terlalu pendek ditolak', () =>
     db.tx(async (s) => {
-      const admin = await s.admin('boss@x.com');
+      const admin = { id: await s.admin('boss@x.com') };
       await expect(s.run(admin, `select public.set_invite_code('ab')`)).rejects.toMatchObject({ code: '22023' });
     }));
 
   it('member dan anon tidak bisa mengganti kode', () =>
     db.tx(async (s) => {
-      const alice = await s.member('alice@x.com');
+      const alice = { id: await s.member('alice@x.com') };
       await expect(s.run(alice, `select public.set_invite_code('HACK1234')`)).rejects.toMatchObject({ code: '42501' });
       await expect(s.run('anon', `select public.set_invite_code('HACK1234')`)).rejects.toMatchObject({ code: '42501' });
     }));
