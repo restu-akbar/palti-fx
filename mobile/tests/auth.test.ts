@@ -48,6 +48,9 @@ it('helper autentikasi', () => {
   assert.ok(mapAuthError({ status: 429 }).includes('Terlalu banyak'));
   assert.ok(mapAuthError({ name: 'AuthRetryableFetchError' }).includes('koneksi'));
   assert.ok(mapAuthError({ message: 'Database error saving new user' }).includes('undangan'));
+  assert.ok(mapAuthError({ status: 500, code: 'unexpected_failure', message: 'Database error saving new user' }).includes('undangan'));
+  assert.ok(!mapAuthError({ status: 500, code: 'unexpected_failure' }).includes('SMTP'));
+  assert.ok(mapAuthError({ status: 500, message: 'Error sending confirmation email' }).includes('SMTP'));
 });
 
 // 7. createChunkedStorage
