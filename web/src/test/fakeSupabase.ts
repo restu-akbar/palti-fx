@@ -80,7 +80,7 @@ export function createFakeSupabase() {
   };
 
   const auth = {
-    getSession: vi.fn(async () => ({ data: { session: null }, error: null })),
+    getSession: vi.fn(async (): Promise<{ data: { session: { access_token: string } | null }; error: null }> => ({ data: { session: null }, error: null })),
     getUser: vi.fn(async () => ({ data: { user: null }, error: null })),
     signInWithPassword: vi.fn(async () => ({ data: { user: null, session: null }, error: null })),
     signUp: vi.fn(async () => ({ data: { user: null, session: null }, error: null })),

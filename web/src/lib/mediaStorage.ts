@@ -8,10 +8,10 @@ import { supabase } from './supabase';
  *
  * Penyimpanan dipisah menjadi "driver" agar backend bisa diganti tanpa menyentuh UI:
  *   - `supabase` (default): bucket Supabase Storage (lihat migrations/002 & 003).
- *   - `r2`: Cloudflare R2 lewat S3 API — BELUM diimplementasi. Browser tidak boleh memegang
- *     kunci R2, jadi jalurnya: Cloudflare Pages Function (mis. web/functions/api/upload-url.ts)
- *     yang memverifikasi JWT Supabase + role admin lalu mengembalikan presigned PUT URL;
- *     driver `r2` cukup `fetch(PUT)` ke URL itu dan membentuk URL publik dari domain bucket.
+ *   - `r2`: Cloudflare R2. Browser tidak memegang kunci R2: Pages Function
+ *     (web/functions/api/upload-url.ts) memverifikasi JWT Supabase + role admin, membuat path di
+ *     server, lalu mengembalikan presigned PUT URL. Driver ini hanya `fetch(PUT)` ke URL itu.
+ *     Selama masa transisi `pathFromUrl` juga mengenali URL Supabase lama (lihat R2MediaStorage).
  */
 
 export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -77,21 +77,89 @@ export class SupabaseMediaStorage implements MediaStorageDriver {
   }
 }
 
+const R2_PREFIX: Record<MediaKind, string> = { image: 'images/', video: 'videos/' };
+
+/**
+ * Driver Cloudflare R2. `path` dari pemanggil diabaikan saat upload: server yang menentukan key
+ * (`images|videos/lessons/YYYY/MM/<uuid>.<ext>`), dan URL publik dibentuk dari respons server.
+ */
+export class R2MediaStorage implements MediaStorageDriver {
+  private readonly kind: MediaKind;
+  private readonly publicBaseUrl: string;
+  private readonly legacyBucket: string;
+  private readonly apiUrl: string;
+
+  constructor(kind: MediaKind, publicBaseUrl: string, legacyBucket: string, apiUrl = '/api/upload-url') {
+    this.kind = kind;
+    this.publicBaseUrl = publicBaseUrl;
+    this.legacyBucket = legacyBucket;
+    this.apiUrl = apiUrl;
+  }
+
+  private async authHeader(): Promise<Record<string, string>> {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error('Sesi login tidak ditemukan. Silakan masuk ulang.');
+    return { Authorization: `Bearer ${token}` };
+  }
+
+  async upload(_path: string, blob: Blob, contentType: string): Promise<{ url: string }> {
+    const sign = await fetch(this.apiUrl, {
+      method: 'POST',
+      headers: { ...(await this.authHeader()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: this.kind, contentType, size: blob.size }),
+    });
+    const signed = await sign.json().catch(() => ({}));
+    if (!sign.ok) throw new Error(signed.error || `Gagal meminta URL unggah (${sign.status}).`);
+
+    const put = await fetch(signed.uploadUrl, { method: 'PUT', headers: signed.headers, body: blob });
+    if (!put.ok) throw new Error(`Gagal mengunggah ke R2 (${put.status}).`);
+    return { url: signed.publicUrl };
+  }
+
+  async remove(paths: string[]): Promise<void> {
+    // Path lama dari Supabase (tanpa prefix images/ atau videos/) bukan milik bucket R2: dibiarkan
+    // sebagai cadangan sampai bucket Supabase dihapus.
+    const keys = paths.filter((p) => p.startsWith(R2_PREFIX[this.kind]));
+    if (keys.length === 0) return;
+    const res = await fetch(this.apiUrl, {
+      method: 'DELETE',
+      headers: { ...(await this.authHeader()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Gagal menghapus dari R2 (${res.status}).`);
+    }
+  }
+
+  pathFromUrl(url: string): string | null {
+    const base = `${this.publicBaseUrl.replace(/\/+$/, '')}/`;
+    if (url.startsWith(base)) {
+      const path = decodeURIComponent(url.slice(base.length).split(/[?#]/)[0]);
+      return path.startsWith(R2_PREFIX[this.kind]) ? path : null;
+    }
+    return new SupabaseMediaStorage(this.legacyBucket).pathFromUrl(url);
+  }
+}
+
 export function createMediaStorage(
   kind: MediaKind,
   env: Record<string, unknown> = import.meta.env
 ): MediaStorageDriver {
   const driver = String(env.VITE_STORAGE_DRIVER || 'supabase').trim().toLowerCase();
+  const legacyBucket =
+    kind === 'image'
+      ? String(env.VITE_STORAGE_BUCKET || 'lesson-images')
+      : String(env.VITE_STORAGE_VIDEO_BUCKET || 'lesson-videos');
   switch (driver) {
-    case 'supabase': {
-      const bucket =
-        kind === 'image'
-          ? String(env.VITE_STORAGE_BUCKET || 'lesson-images')
-          : String(env.VITE_STORAGE_VIDEO_BUCKET || 'lesson-videos');
-      return new SupabaseMediaStorage(bucket);
+    case 'supabase':
+      return new SupabaseMediaStorage(legacyBucket);
+    case 'r2': {
+      const base = String(env.VITE_R2_PUBLIC_BASE_URL || '').trim();
+      if (!base) throw new Error('Driver penyimpanan "r2" membutuhkan VITE_R2_PUBLIC_BASE_URL.');
+      return new R2MediaStorage(kind, base, legacyBucket, String(env.VITE_UPLOAD_API_URL || '/api/upload-url'));
     }
-    case 'r2':
-      throw new Error('Driver penyimpanan "r2" (Cloudflare R2) belum dikonfigurasi.');
     default:
       throw new Error(`Driver penyimpanan tidak dikenal: "${driver}".`);
   }

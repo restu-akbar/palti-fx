@@ -16,7 +16,7 @@ export default defineConfig({
       'use-sync-external-store/shim/with-selector.js': fileURLToPath(new URL('./src/test/useSyncExternalStoreShim.ts', import.meta.url)),
     },
     environment: 'jsdom',
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'functions/**/*.test.ts'],
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
       provider: 'v8',
