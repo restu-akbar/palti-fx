@@ -1,12 +1,52 @@
-name: CI
+name: CI/CD
 
 on:
   pull_request:
   push:
     branches: [main, staging]
+  # Jalankan manual: semua job CI + kedua deploy (bila dari main), tanpa melihat perubahan path.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read # dibutuhkan dorny/paths-filter untuk membaca file yang berubah di PR
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Push ke main tidak dibatalkan agar deploy yang sedang jalan tidak terputus di tengah.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      mobile: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.mobile == 'true' }}
+      database: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.database == 'true' }}
+      web: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.web == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - 'package.json'
+              - 'package-lock.json'
+              - '.github/workflows/ci.yml'
+            mobile:
+              - *shared
+              - 'mobile/**'
+            database:
+              - *shared
+              - 'mobile/supabase/**'
+              - 'mobile/vitest.db.config.ts'
+            web:
+              - *shared
+              - 'web/**'
+
   mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +73,8 @@ jobs:
       - run: npm audit --omit=dev --audit-level=critical || echo "::warning::npm audit menemukan kerentanan critical (tooling dev transitif); tinjau manual"
 
   database:
+    needs: changes
+    if: needs.changes.outputs.database == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -59,6 +101,8 @@ jobs:
         working-directory: mobile
 
   web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -79,3 +123,74 @@ jobs:
         working-directory: web
       - run: npm run build
         working-directory: web
+
+  # Deploy hanya di main, setelah semua job CI terkait lulus (job yang di-skip karena path tidak berubah dianggap lulus).
+  deploy-pwa:
+    needs: [changes, mobile, database]
+    if: >-
+      !cancelled()
+      && github.ref == 'refs/heads/main'
+      && github.event_name != 'pull_request'
+      && needs.changes.outputs.mobile == 'true'
+      && needs.mobile.result == 'success'
+      && contains(fromJSON('["success","skipped"]'), needs.database.result)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-pwa
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_PRIVACY_URL: ${{ vars.EXPO_PUBLIC_PRIVACY_URL }}
+      # Project Cloudflare Pages "palti-fx-app" (direct upload) → https://palti-fx-app.pages.dev
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy mobile/dist --project-name palti-fx-app --branch main --commit-hash ${{ github.sha }}
+
+  deploy-web:
+    needs: [changes, web, database]
+    if: >-
+      !cancelled()
+      && github.ref == 'refs/heads/main'
+      && github.event_name != 'pull_request'
+      && needs.changes.outputs.web == 'true'
+      && needs.web.result == 'success'
+      && contains(fromJSON('["success","skipped"]'), needs.database.result)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-web
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        working-directory: web
+        env:
+          # Satu project Supabase untuk mobile dan web, jadi secret Expo dipakai ulang.
+          VITE_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          VITE_STORAGE_DRIVER: ${{ vars.VITE_STORAGE_DRIVER || 'supabase' }}
+          VITE_R2_PUBLIC_BASE_URL: ${{ vars.VITE_R2_PUBLIC_BASE_URL }}
+      # Project Cloudflare Pages "palti-fx" (direct upload) → https://palti-fx.pages.dev
+      # Dijalankan dari web/ agar folder functions/ (Pages Function /api/upload-url) ikut ter-deploy.
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: web
+          command: pages deploy dist --project-name palti-fx --branch main --commit-hash ${{ github.sha }}
