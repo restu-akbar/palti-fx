@@ -16,6 +16,9 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
       if (failures.set) throw new Error('write fail');
       storage.set(k, v);
     },
+    removeItem: async (k: string) => {
+      storage.delete(k);
+    },
     multiRemove: async (ks: string[]) => {
       ks.forEach((k) => storage.delete(k));
     },
@@ -80,6 +83,17 @@ describe('userCacheStorage I/O', () => {
 
     expect(first.map((t) => t.id)).toEqual(['lama']);
     expect(storage.get(getUserStorageKey('trades', 'u'))).toBe(JSON.stringify([trade('lama')]));
+  });
+
+  it('data legacy tidak ikut diwariskan ke akun kedua', async () => {
+    storage.set(LEGACY_KEYS.trades, JSON.stringify([trade('lama')]));
+    storage.set(LEGACY_KEYS.completed, JSON.stringify({ l1: true }));
+
+    await getLocalTradesForUser('a');
+    await getLocalCompletedForUser('a');
+
+    expect(await getLocalTradesForUser('b')).toEqual([]);
+    expect(await getLocalCompletedForUser('b')).toEqual({});
   });
 
   it('legacy kosong tidak dimigrasikan', async () => {

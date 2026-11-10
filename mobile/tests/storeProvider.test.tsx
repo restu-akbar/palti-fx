@@ -301,6 +301,33 @@ describe('StoreProvider: updateSettings', () => {
     await act(async () => latest.saveTrade({ id: 'baru', date: '2026-02-01', symbol: 'X', direction: 'BUY', lot: 1, pl: 1 }));
     expect(deps.cache.saveTrades).toHaveBeenLastCalledWith('b@x.com', expect.any(Array));
   });
+
+  it('sinkron langsung setelah ganti akun tidak mengunggah data akun lama', async () => {
+    const deps = makeDeps({
+      device: { activeUser: 'a@x.com', isLoggedIn: true, name: 'Andi' },
+      bundles: {
+        'a@x.com': emptyBundle({ trades: [trade('milik-a')], completed: { la: true }, achievements: { x: 1 } }),
+        'b@x.com': emptyBundle({ trades: [trade('milik-b')] }),
+      },
+    });
+    await mount(deps);
+    await flush();
+    deps.remote.saveTrade.mockClear();
+    deps.remote.saveLessonProgress.mockClear();
+
+    await act(async () => {
+      latest.updateSettings({ activeUser: 'b@x.com' });
+      await latest.syncFromCloud();
+    });
+    await flush();
+
+    expect(deps.remote.saveTrade).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: 'milik-a' }));
+    expect(deps.remote.saveLessonProgress).not.toHaveBeenCalledWith(expect.anything(), 'la', expect.anything());
+    expect(latest.trades.map((t) => t.id)).toEqual(['milik-b']);
+    expect(latest.completed).toEqual({});
+    expect(latest.settings.unlocked).toEqual({});
+    expect(latest.settings.name).toBeUndefined();
+  });
 });
 
 describe('StoreProvider: logout', () => {

@@ -72,6 +72,8 @@ export async function getLocalTradesForUser(identifier?: string | null): Promise
       if (Array.isArray(legacyTrades) && legacyTrades.length > 0) {
         // Simpan ke partisi user ini
         await AsyncStorage.setItem(key, JSON.stringify(legacyTrades));
+        // Hanya diwariskan sekali ke akun pertama; jangan sampai ikut ke akun lain
+        await AsyncStorage.removeItem(LEGACY_KEYS.trades);
         return legacyTrades;
       }
     }
@@ -120,6 +122,7 @@ export async function getLocalCompletedForUser(
       const legacyCompleted = JSON.parse(legacyRaw) as Record<string, boolean>;
       if (legacyCompleted && Object.keys(legacyCompleted).length > 0) {
         await AsyncStorage.setItem(key, JSON.stringify(legacyCompleted));
+        await AsyncStorage.removeItem(LEGACY_KEYS.completed);
         return legacyCompleted;
       }
     }

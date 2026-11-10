@@ -5,7 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EquityChart } from '../components/EquityChart';
-import { LogoMark, Wordmark } from '../components/Logo';
+import { LogoMark } from '../components/Logo';
 import { MarketSessions } from '../components/MarketSessions';
 import { AnimatedBar, CountUp, FadeIn, Float, PressScale, ProgressRing, Shimmer, tap } from '../components/motion';
 import { Card, Chip, GoldButton, IconBadge, IconName, SectionTitle, Sheet } from '../components/ui';
@@ -107,7 +107,6 @@ export function HomeScreen() {
           <View style={st.top}>
             <View style={st.brandLockup} accessibilityRole="image" accessibilityLabel="PALTI FX">
               <LogoMark size={36} />
-              <Wordmark width={78} />
             </View>
             <View style={{ flex: 1 }} />
             <View style={st.topRight}>

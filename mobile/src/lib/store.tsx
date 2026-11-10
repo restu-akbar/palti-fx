@@ -50,6 +50,8 @@ export function StoreProvider({
   const completedRef = useRef<Record<string, boolean>>({});
   const settingsRef = useRef<Settings>({});
   const outboxRef = useRef<Outbox>(emptyOutbox());
+  /** Pemuatan cache akun aktif yang sedang berjalan; sync menunggu ini agar tidak memakai data akun lain. */
+  const userLoadRef = useRef<Promise<void>>(Promise.resolve());
 
   const commitTrades = useCallback((next: Trade[]) => {
     tradesRef.current = next;
@@ -101,10 +103,12 @@ export function StoreProvider({
     async (userId?: string) => {
       const uid = userId || (await deps.currentUserId());
       if (!uid) return;
+      await userLoadRef.current;
       const targetUser = activeUserRef.current;
       try {
         await flushOutbox(uid, targetUser);
         const cloud = await deps.remote.fetchUserData(uid);
+        if (activeUserRef.current !== targetUser) return; // akun berganti saat menunggu cloud
         const result = reconcileUserData(
           cloud,
           {
@@ -218,10 +222,15 @@ export function StoreProvider({
 
       // Pergantian akun aktif: muat seluruh cache lokal milik akun baru tanpa menimpa akun lama
       if (userChanged) {
-        Promise.all([
+        // Kosongkan data akun lama seketika agar tidak tampil / ikut tersinkron ke akun baru
+        commitTrades([]);
+        commitCompleted({});
+        outboxRef.current = emptyOutbox();
+        userLoadRef.current = Promise.all([
           deps.cache.loadAll(nextUser),
           nextUser ? deps.getNickname(nextUser) : null,
         ]).then(([userData, secureName]) => {
+          if (activeUserRef.current !== nextUser) return; // sudah berganti lagi
           commitTrades(userData.trades);
           commitCompleted(userData.completed);
           outboxRef.current = userData.outbox ?? emptyOutbox();
@@ -265,7 +274,9 @@ export function StoreProvider({
         deps.cache.saveAchievements(nextUser, patch.unlocked);
       }
 
-      const next = { ...prev, ...patch };
+      const next: Settings = userChanged
+        ? { ...prev, ...patch, unlocked: patch.unlocked ?? {}, name: patch.name }
+        : { ...prev, ...patch };
       commitSettings(next);
       // Simpan pengaturan global perangkat (tanpa menghapus partisi data akun manapun)
       deps.saveDeviceSettings({

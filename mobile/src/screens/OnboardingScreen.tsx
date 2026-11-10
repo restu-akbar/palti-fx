@@ -208,6 +208,9 @@ export function OnboardingScreen({
 }) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
+  // PanResponder dibuat sekali, jadi baca langkah terkini lewat ref (bukan closure lama)
+  const stepRef = useRef(0);
+  stepRef.current = step;
   const [showSkipModal, setShowSkipModal] = useState(false);
   const slideX = useRef(new Animated.Value(0)).current;
   const fadeOut = useRef(new Animated.Value(1)).current;
@@ -311,6 +314,7 @@ export function OnboardingScreen({
         slideX.stopAnimation();
       },
       onPanResponderMove: (_, g) => {
+        const step = stepRef.current;
         if ((step === 0 && g.dx > 0) || (step === STEPS.length - 1 && g.dx < 0)) {
           slideX.setValue(g.dx * 0.25);
         } else {
@@ -318,6 +322,7 @@ export function OnboardingScreen({
         }
       },
       onPanResponderRelease: (_, g) => {
+        const step = stepRef.current;
         const threshold = SW * 0.18;
         const velocityThreshold = 0.25;
 
