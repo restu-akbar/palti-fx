@@ -127,7 +127,7 @@ describe('RPC set_invite_code', () => {
 describe('trigger handle_new_user: jalur admin', () => {
   it('email admin resmi tidak butuh kode undangan', () =>
     db.tx(async (s) => {
-      await s.sql(`insert into auth.users (email) values ('DioRaput@Gmail.com')`);
+      await s.sql(`insert into auth.users (email) values ('PaltiGT1@Gmail.com')`);
       expect((await s.rows<{ role: string }>('service', `select role from public.profiles`))[0].role).toBe('admin');
     }));
 

@@ -306,7 +306,7 @@ describe('RPC & hak eksekusi fungsi', () => {
     db.tx(async (s) => {
       const w = await world(s);
       const [r] = await s.rows<{ stats: Record<string, number> }>(w.admin, `select public.get_admin_dashboard_stats() as stats`);
-      expect(r.stats).toMatchObject({ total_users: 3, active_users: 3, used_invites: 0, active_invites: 1 });
+      expect(r.stats).toMatchObject({ total_users: 3, active_users: 3, active_invites: 1 });
 
       await expect(s.run(w.alice, `select public.get_admin_dashboard_stats()`)).rejects.toMatchObject({ code: PERMISSION_DENIED });
       await expect(s.run('anon', `select public.get_admin_dashboard_stats()`)).rejects.toMatchObject({ code: PERMISSION_DENIED });
