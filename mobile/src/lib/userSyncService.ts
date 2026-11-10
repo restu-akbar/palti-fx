@@ -19,21 +19,18 @@ export class UserSyncService {
   /**
    * Mengambil seluruh data user dari cloud Supabase saat login / restore session:
    * 1. Progres Bab Edukasi (completed lessons)
-   * 2. Pencapaian Medali (unlocked achievements)
-   * 3. Catatan Jurnal Trading (trades)
+   * 2. Catatan Jurnal Trading (trades)
+   * (Medali disimpan lokal di perangkat, tidak disinkronkan ke cloud.)
    */
   static async fetchUserData(userId: string): Promise<{
     completed: Record<string, boolean>;
-    unlocked: Record<string, number>;
     trades: Trade[];
   }> {
     const result: {
       completed: Record<string, boolean>;
-      unlocked: Record<string, number>;
       trades: Trade[];
     } = {
       completed: {},
-      unlocked: {},
       trades: [],
     };
 
@@ -52,20 +49,7 @@ export class UserSyncService {
         });
       }
 
-      // 2. Fetch Achievements
-      const { data: achData } = await supabase
-        .from('user_achievements')
-        .select('achievement_id, unlocked_at')
-        .eq('user_id', userId);
-
-      if (achData) {
-        achData.forEach((row: any) => {
-          const timestamp = row.unlocked_at ? new Date(row.unlocked_at).getTime() : Date.now();
-          result.unlocked[row.achievement_id] = timestamp;
-        });
-      }
-
-      // 3. Fetch Trades
+      // 2. Fetch Trades
       const { data: tradeData } = await supabase
         .from('user_trades')
         .select('*')
@@ -101,54 +85,40 @@ export class UserSyncService {
   /**
    * Menyimpan progres penyelesaian bab ke tabel user_lesson_progress di Supabase.
    */
-  static async saveLessonProgress(userId: string, lessonId: string, completed: boolean): Promise<void> {
+  static async saveLessonProgress(userId: string, lessonId: string, completed: boolean): Promise<boolean> {
     try {
-      if (completed) {
-        await supabase.from('user_lesson_progress').upsert(
-          {
-            user_id: userId,
-            lesson_id: lessonId,
-            completed: true,
-            completed_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id,lesson_id' }
-        );
-      } else {
-        await supabase
-          .from('user_lesson_progress')
-          .delete()
-          .eq('user_id', userId)
-          .eq('lesson_id', lessonId);
+      const { error } = completed
+        ? await supabase.from('user_lesson_progress').upsert(
+            {
+              user_id: userId,
+              lesson_id: lessonId,
+              completed: true,
+              completed_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id,lesson_id' }
+          )
+        : await supabase
+            .from('user_lesson_progress')
+            .delete()
+            .eq('user_id', userId)
+            .eq('lesson_id', lessonId);
+      if (error) {
+        console.warn('[UserSyncService.saveLessonProgress] Error:', error);
+        return false;
       }
+      return true;
     } catch (err) {
       console.warn('[UserSyncService.saveLessonProgress] Error:', err);
-    }
-  }
-
-  /**
-   * Menyimpan medali pencapaian yang baru terbuka ke tabel user_achievements di Supabase.
-   */
-  static async saveAchievement(userId: string, achievementId: string, unlockedAt: number): Promise<void> {
-    try {
-      await supabase.from('user_achievements').upsert(
-        {
-          user_id: userId,
-          achievement_id: achievementId,
-          unlocked_at: new Date(unlockedAt).toISOString(),
-        },
-        { onConflict: 'user_id,achievement_id' }
-      );
-    } catch (err) {
-      console.warn('[UserSyncService.saveAchievement] Error:', err);
+      return false;
     }
   }
 
   /**
    * Menyimpan trade jurnal ke tabel user_trades di Supabase.
    */
-  static async saveTrade(userId: string, trade: Trade): Promise<void> {
+  static async saveTrade(userId: string, trade: Trade): Promise<boolean> {
     try {
-      await supabase.from('user_trades').upsert(
+      const { error } = await supabase.from('user_trades').upsert(
         {
           id: trade.id,
           user_id: userId,
@@ -169,23 +139,35 @@ export class UserSyncService {
         },
         { onConflict: 'id' }
       );
+      if (error) {
+        console.warn('[UserSyncService.saveTrade] Error:', error);
+        return false;
+      }
+      return true;
     } catch (err) {
       console.warn('[UserSyncService.saveTrade] Error:', err);
+      return false;
     }
   }
 
   /**
    * Menghapus trade jurnal dari tabel user_trades di Supabase.
    */
-  static async deleteTrade(userId: string, tradeId: string): Promise<void> {
+  static async deleteTrade(userId: string, tradeId: string): Promise<boolean> {
     try {
-      await supabase
+      const { error } = await supabase
         .from('user_trades')
         .delete()
         .eq('id', tradeId)
         .eq('user_id', userId);
+      if (error) {
+        console.warn('[UserSyncService.deleteTrade] Error:', error);
+        return false;
+      }
+      return true;
     } catch (err) {
       console.warn('[UserSyncService.deleteTrade] Error:', err);
+      return false;
     }
   }
 }

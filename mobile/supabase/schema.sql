@@ -62,25 +62,13 @@ create table if not exists public.profiles (
   updated_at  timestamptz not null default now()
 );
 
--- Kode Undangan VIP (Non-relational, SHA-256 hash)
+-- Kode undangan global (satu baris, SHA-256 hash; diganti admin lewat set_invite_code)
 create table if not exists public.invitations (
   id          uuid primary key default gen_random_uuid(),
   code_hash   text not null unique,
-  code_hint   text,                       -- Petunjuk/label untuk tampilan admin (bukan kode mentah)
-  role        text not null default 'member' check (role in ('member', 'admin')),
-  is_used     boolean not null default false,
-  used_at     timestamptz,
   created_at  timestamptz not null default now()
 );
-
--- Konfigurasi Internal (Saklar pembuatan akun manual)
-create table if not exists public.app_config (
-  key        text primary key,
-  bool_value boolean not null default false
-);
-insert into public.app_config (key, bool_value)
-values ('allow_manual_signup', false)
-on conflict (key) do nothing;
+create unique index if not exists invitations_singleton on public.invitations ((true));
 
 -- ---------------------------------------------------------------------
 -- 3. Generator ID Member Unik (PFX-XXXXXXXX)
@@ -105,6 +93,34 @@ $$;
 -- ---------------------------------------------------------------------
 -- 4. Trigger Auth: Validasi Undangan & Pembuatan Profil
 -- ---------------------------------------------------------------------
+create or replace function public.set_invite_code(p_code text)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_code text := public.normalize_invite_code(p_code);
+  v_at   timestamptz := now();
+begin
+  if not public.is_admin() then
+    raise exception 'Hanya administrator yang dapat mengganti kode undangan' using errcode = '42501';
+  end if;
+  if length(v_code) < 4 then
+    raise exception 'Kode undangan minimal 4 karakter (tanpa spasi/tanda hubung)' using errcode = '22023';
+  end if;
+
+  delete from public.invitations where true;
+  insert into public.invitations (code_hash, created_at)
+  values (encode(sha256(convert_to(v_code, 'UTF8')), 'hex'), v_at);
+
+  return v_at;
+end
+$$;
+
+revoke all on function public.set_invite_code(text) from public, anon;
+grant execute on function public.set_invite_code(text) to authenticated;
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -114,26 +130,15 @@ as $$
 declare
   v_code     text := public.normalize_invite_code(new.raw_user_meta_data ->> 'invitation_code');
   v_hash     text := encode(sha256(convert_to(v_code, 'UTF8')), 'hex');
-  v_inv      public.invitations%rowtype;
-  v_manual   boolean := coalesce((select c.bool_value from public.app_config c where c.key = 'allow_manual_signup'), false);
-  v_is_admin boolean := (lower(btrim(new.email)) = 'dioraput@gmail.com' or coalesce(new.raw_user_meta_data ->> 'role', '') = 'admin');
-  v_role     text := case when v_is_admin then 'admin' else 'member' end;
+  v_is_admin boolean := (lower(btrim(new.email)) = 'paltigt1@gmail.com');
 begin
-  -- Admin tidak memerlukan kode undangan; kode undangan hanya wajib untuk pendaftaran user biasa (member)
+  -- Admin resmi (berdasarkan email) tidak memerlukan kode undangan; pendaftar lain wajib
   if not v_is_admin then
-    if v_code <> '' then
-      select * into v_inv
-        from public.invitations i
-       where i.code_hash = v_hash
-         and i.is_used = false
-       for update;
-
-      if not found then
-        raise exception 'Kode undangan tidak valid atau sudah digunakan' using errcode = 'P0001';
-      end if;
-      v_role := 'member';
-    elsif not v_manual then
+    if v_code = '' then
       raise exception 'Pendaftaran akun member hanya melalui kode undangan resmi' using errcode = 'P0001';
+    end if;
+    if not exists (select 1 from public.invitations i where i.code_hash = v_hash) then
+      raise exception 'Kode undangan tidak valid' using errcode = 'P0001';
     end if;
   end if;
 
@@ -143,18 +148,10 @@ begin
     public.generate_member_id(),
     coalesce(nullif(btrim(new.raw_user_meta_data ->> 'full_name'), ''), split_part(new.email, '@', 1)),
     lower(btrim(new.email)),
-    v_role,
+    case when v_is_admin then 'admin' else 'member' end,
     'active'
   );
 
-  if v_inv.id is not null then
-    update public.invitations
-       set is_used = true,
-           used_at = now()
-     where id = v_inv.id;
-  end if;
-
-  -- Akun dari undangan langsung terkonfirmasi otomatis (tanpa verifikasi email manual)
   update auth.users
      set email_confirmed_at = coalesce(email_confirmed_at, now())
    where id = new.id
@@ -326,7 +323,6 @@ create table if not exists public.user_trades (
 -- ---------------------------------------------------------------------
 alter table public.profiles             enable row level security;
 alter table public.invitations          enable row level security;
-alter table public.app_config           enable row level security;
 alter table public.edu_modules          enable row level security;
 alter table public.edu_lessons          enable row level security;
 alter table public.user_lesson_progress enable row level security;
@@ -410,7 +406,6 @@ create policy user_trades_own on public.user_trades
 grant select on public.profiles to authenticated;
 grant update (full_name, status) on public.profiles to authenticated;
 grant select, insert, update, delete on public.invitations to authenticated;
-revoke all on public.app_config from anon, authenticated;
 
 grant select on public.edu_modules to anon, authenticated;
 grant all on public.edu_modules to authenticated;
@@ -438,40 +433,19 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_is_admin boolean;
-  v_total_users int;
-  v_active_users int;
-  v_total_modules int;
-  v_total_lessons int;
-  v_active_invites int;
-  v_used_invites int;
 begin
-  select exists (
-    select 1 from public.profiles
-    where id = auth.uid() and role = 'admin'
-  ) into v_is_admin;
-
-  if not coalesce(v_is_admin, false) then
+  if not public.is_admin() then
     raise exception 'Hanya administrator yang dapat melihat statistik dashboard' using errcode = '42501';
   end if;
 
-  select count(*) into v_total_users from public.profiles;
-  select count(*) into v_active_users from public.profiles where status = 'active';
-  select count(*) into v_total_modules from public.edu_modules;
-  select count(*) into v_total_lessons from public.edu_lessons;
-  select count(*) into v_active_invites from public.invitations where is_used = false;
-  select count(*) into v_used_invites from public.invitations where is_used = true;
-
   return json_build_object(
-    'total_users', v_total_users,
-    'active_users', v_active_users,
-    'total_modules', v_total_modules,
-    'total_lessons', v_total_lessons,
-    'active_invites', v_active_invites,
-    'used_invites', v_used_invites
+    'total_users',   (select count(*) from public.profiles),
+    'active_users',  (select count(*) from public.profiles where status = 'active'),
+    'total_modules', (select count(*) from public.edu_modules),
+    'total_lessons', (select count(*) from public.edu_lessons),
+    'active_invites', (select count(*) from public.invitations)
   );
-end;
+end
 $$;
 
 revoke all on function public.get_admin_dashboard_stats() from public, anon;
@@ -482,12 +456,10 @@ grant execute on function public.get_admin_dashboard_stats() to authenticated;
 -- ---------------------------------------------------------------------
 -- Catatan: Admin tidak memerlukan kode undangan (login langsung via email & password).
 -- Kode undangan hanya diterbitkan untuk pendaftaran akun Member biasa.
-insert into public.invitations (code_hash, code_hint, role)
-values
-  (encode(sha256(convert_to(public.normalize_invite_code('PFX-MEMBER-VIP'), 'UTF8')), 'hex'), 'PFX-MEMBER-VIP', 'member')
-on conflict (code_hash) do update set
-  role = excluded.role,
-  code_hint = excluded.code_hint;
+-- Satu kode global (migrasi 005): seed hanya bila belum ada kode, agar tidak menimpa kode dari admin.
+insert into public.invitations (code_hash)
+select encode(sha256(convert_to(public.normalize_invite_code('PFX-MEMBER-VIP'), 'UTF8')), 'hex')
+where not exists (select 1 from public.invitations);
 
-update public.profiles set role = 'admin' where lower(email) = 'dioraput@gmail.com';
+update public.profiles set role = 'admin' where lower(email) = 'paltigt1@gmail.com';
 update public.profiles set role = 'member' where lower(email) = 'diorahmanputra@gmail.com';

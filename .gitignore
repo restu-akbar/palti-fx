@@ -58,8 +58,11 @@ frontend/android
 
 # Editor / Tooling
 .opencode/
-# Konfigurasi Claude Code lokal (dapat berisi token)
+# Konfigurasi & artefak agent AI lokal (dapat berisi token / catatan kerja)
 .claude/
+.agents/
+.mcp.json
+CLAUDE.local.md
 
 # Office & Temporary
 ~$*

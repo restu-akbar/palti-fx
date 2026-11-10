@@ -21,7 +21,7 @@ describe('kontrak skema dengan kode aplikasi', () => {
     db.tx(async (s) => {
       const expected: Record<string, string[]> = {
         profiles: ['id', 'member_id', 'full_name', 'email', 'role', 'status', 'created_at', 'updated_at'],
-        invitations: ['id', 'code_hash', 'code_hint', 'role', 'is_used', 'used_at', 'created_at'],
+        invitations: ['id', 'code_hash', 'created_at'],
         edu_modules: ['id', 'title', 'subtitle', 'level', 'icon', 'sort_order', 'created_at'],
         edu_lessons: ['id', 'module_id', 'title', 'minutes', 'youtube_urls', 'content', 'sort_order', 'created_at'],
         user_lesson_progress: ['user_id', 'lesson_id', 'completed', 'completed_at'],
@@ -63,6 +63,8 @@ describe('idempotensi skema', () => {
       await s.sql(sqlFile('user_data_schema.sql'));
       await s.sql(sqlFile('edu_schema.sql'));
       await s.sql(sqlFile('migrations/001_security_hardening.sql'));
+      await s.sql(sqlFile('migrations/005_single_invite_code.sql'));
+      await s.sql(sqlFile('migrations/006_reduce_unused.sql'));
 
       for (const t of ['profiles', 'user_trades', 'edu_modules']) {
         expect((await s.rows('service', `select 1 from public.${t}`)).length).toBeGreaterThan(0);
@@ -72,11 +74,14 @@ describe('idempotensi skema', () => {
 
 describe('data bawaan', () => {
   // Kode undangan statis di repo: siapa pun yang membaca schema.sql dapat mendaftar
-  // sebagai member dengan kode ini selama belum dipakai.
-  it('schema.sql menanam satu kode undangan bawaan yang belum terpakai', () =>
+  // sebagai member dengan kode ini sampai admin menggantinya.
+  it('schema.sql menanam satu kode undangan bawaan', () =>
     db.tx(async (s) => {
-      const rows = await s.rows<{ code_hint: string; is_used: boolean }>('service', `select code_hint, is_used from public.invitations`);
-      expect(rows).toEqual([{ code_hint: 'PFX-MEMBER-VIP', is_used: false }]);
+      const rows = await s.rows<{ ok: boolean }>(
+        'service',
+        `select code_hash = encode(sha256(convert_to('PFXMEMBERVIP', 'UTF8')), 'hex') as ok from public.invitations`
+      );
+      expect(rows).toEqual([{ ok: true }]);
     }));
 
   it('kode undangan bawaan benar-benar dapat dipakai mendaftar', () =>

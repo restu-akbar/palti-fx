@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
   Dimensions,
   Image,
   Linking,
@@ -16,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius } from '../theme';
+import { colors, fonts } from '../theme';
 import { tap } from './motion';
 
 export function extractYtId(url: string): string | null {
@@ -226,22 +224,14 @@ export function YouTubePlayerModal({
 }
 
 function NativeWebViewPlayer({ ytid }: { ytid: string }) {
+  let WebViewComponent: typeof import('react-native-webview').WebView | null = null;
   try {
-    const { WebView } = require('react-native-webview');
-    return (
-      <WebView
-        source={{
-          uri: `https://www.youtube.com/embed/${ytid}?autoplay=1&playsinline=1&modestbranding=1`,
-        }}
-        allowsFullscreenVideo={true}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        mediaPlaybackRequiresUserAction={false}
-        allowsInlineMediaPlayback={true}
-        style={{ flex: 1, backgroundColor: '#000' }}
-      />
-    );
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    WebViewComponent = require('react-native-webview').WebView;
   } catch {
+    WebViewComponent = null;
+  }
+  if (!WebViewComponent) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000', padding: 20 }}>
         <Text style={{ color: '#fff', textAlign: 'center', marginBottom: 12 }}>
@@ -250,6 +240,19 @@ function NativeWebViewPlayer({ ytid }: { ytid: string }) {
       </View>
     );
   }
+  return (
+    <WebViewComponent
+      source={{
+        uri: `https://www.youtube.com/embed/${ytid}?autoplay=1&playsinline=1&modestbranding=1`,
+      }}
+      allowsFullscreenVideo={true}
+      javaScriptEnabled={true}
+      domStorageEnabled={true}
+      mediaPlaybackRequiresUserAction={false}
+      allowsInlineMediaPlayback={true}
+      style={{ flex: 1, backgroundColor: '#000' }}
+    />
+  );
 }
 
 /* =====================================================================
@@ -326,6 +329,8 @@ export function ImageZoomModal({
             y: touches[0].pageY - panRef.current.y,
           };
           // Cek Double Tap
+          // handler gesture dipanggil saat event, bukan saat render
+          // eslint-disable-next-line react-hooks/purity
           const now = Date.now();
           if (now - lastTapRef.current < 300) {
             tap('select');

@@ -1,0 +1,19 @@
+# Dikecualikan dari arsip build EAS (web/package.json tetap ikut: dibutuhkan npm workspaces + lockfile)
+.git
+.github
+.agents
+.claude
+.mcp.json
+coverage
+**/coverage
+web/src
+web/public
+web/functions
+web/dist
+web/*.html
+web/*.ts
+web/tsconfig*.json
+web/README.md
+mobile/tests
+mobile/supabase
+mobile/vitest*.ts

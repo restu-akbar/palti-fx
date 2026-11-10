@@ -80,7 +80,7 @@ export function EduProvider({ children }: { children: React.ReactNode }) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'edu_modules' },
         (payload) => {
-          console.log('[EduRealtime] Perubahan modul di server:', payload.eventType);
+          if (__DEV__) console.log('[EduRealtime] Perubahan modul di server:', payload.eventType);
           refresh(true);
         }
       )
@@ -88,7 +88,7 @@ export function EduProvider({ children }: { children: React.ReactNode }) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'edu_lessons' },
         (payload) => {
-          console.log('[EduRealtime] Perubahan bab/subbab di server:', payload.eventType);
+          if (__DEV__) console.log('[EduRealtime] Perubahan bab/subbab di server:', payload.eventType);
           refresh(true);
         }
       )

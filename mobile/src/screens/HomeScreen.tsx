@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EquityChart } from '../components/EquityChart';
 import { LogoMark } from '../components/Logo';
@@ -12,7 +12,10 @@ import { Card, Chip, GoldButton, IconBadge, IconName, SectionTitle, Sheet } from
 import { Medal, useAchievements } from '../components/Medal';
 import { StreakChip } from '../components/Streak';
 import { useEdu } from '../context/EduContext';
+import { AuthService } from '../lib/authService';
 import { pct, signedUsd } from '../lib/format';
+import { setSecureNickname } from '../lib/nicknameStorage';
+import { clearLocalUserData } from '../lib/userCacheStorage';
 import { greeting } from '../lib/sessions';
 import { computeStats, useStore } from '../lib/store';
 import { ToolId, useNav } from '../nav';
@@ -27,6 +30,8 @@ const TIPS = [
   'Kesabaran menunggu setup terbaik adalah keunggulan.',
   'Evaluasi jurnal setiap minggu, perbaiki satu hal setiap kali.',
 ];
+
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL;
 
 const QUICK: { id: ToolId; label: string; icon: IconName }[] = [
   { id: 'lot', label: 'Lot Size', icon: 'layers' },
@@ -48,6 +53,26 @@ export function HomeScreen() {
   const [nameOpen, setNameOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePw, setDeletePw] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteErr, setDeleteErr] = useState('');
+  const handleDeleteAccount = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteErr('');
+    const r = await AuthService.deleteAccount(deletePw);
+    setDeleting(false);
+    if (!r.success) {
+      setDeleteErr(r.error || 'Akun belum dapat dihapus.');
+      return;
+    }
+    const id = settings.activeUser;
+    await Promise.all([clearLocalUserData(id), setSecureNickname(id, null)]);
+    setDeleteOpen(false);
+    setDeletePw('');
+    logout();
+  };
   const memberName = settings.name?.trim() || 'Member';
   const medalsPreview = [...achList]
     .sort((x, y) => (x.unlocked !== y.unlocked ? (x.unlocked ? -1 : 1) : (y.at ?? 0) - (x.at ?? 0)))
@@ -350,7 +375,56 @@ export function HomeScreen() {
             <Ionicons name="log-out-outline" size={17} color={colors.red} />
             <Text style={st.sheetLogoutText}>Logout (Kembali ke Halaman Login)</Text>
           </Pressable>
+          {PRIVACY_URL ? (
+            <Pressable
+              onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}
+              style={st.sheetLinkBtn}
+              accessibilityRole="link"
+              accessibilityLabel="Buka kebijakan privasi"
+            >
+              <Text style={st.sheetLinkText}>Kebijakan Privasi</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => {
+              setNameOpen(false);
+              setDeleteErr('');
+              setDeletePw('');
+              setDeleteOpen(true);
+            }}
+            style={st.sheetLinkBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Hapus akun permanen"
+          >
+            <Text style={[st.sheetLinkText, { color: colors.red }]}>Hapus Akun</Text>
+          </Pressable>
         </View>
+      </Sheet>
+      <Sheet visible={deleteOpen} onClose={() => !deleting && setDeleteOpen(false)} title="Hapus akun permanen">
+        <Text style={st.sheetHint}>
+          Seluruh data akunmu (profil, jurnal trading, dan progres belajar) dihapus permanen dan tidak bisa dikembalikan.
+          Masukkan kata sandi untuk mengonfirmasi.
+        </Text>
+        <TextInput
+          value={deletePw}
+          onChangeText={setDeletePw}
+          placeholder="Kata sandi"
+          placeholderTextColor={colors.muted}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          selectionColor={colors.gold}
+          style={st.nameInput}
+          editable={!deleting}
+        />
+        {deleteErr ? <Text style={st.deleteErr}>{deleteErr}</Text> : null}
+        <GoldButton
+          title={deleting ? 'Menghapus...' : 'Hapus Akun Saya'}
+          icon="trash"
+          variant="danger"
+          onPress={handleDeleteAccount}
+          style={{ marginTop: 14, opacity: deleting || !deletePw ? 0.6 : 1 }}
+        />
       </Sheet>
       </ScrollView>
 
@@ -481,6 +555,9 @@ const st = StyleSheet.create({
     borderColor: 'rgba(255,87,87,0.2)',
   },
   sheetLogoutText: { color: colors.red, fontFamily: fonts.semi, fontSize: 13 },
+  sheetLinkBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 4 },
+  sheetLinkText: { color: colors.muted, fontFamily: fonts.semi, fontSize: 13 },
+  deleteErr: { color: colors.red, fontFamily: fonts.medium, fontSize: 12, marginTop: 10 },
   hello: { color: colors.textDim, fontFamily: fonts.medium, fontSize: 16 },
   helloBig: { color: colors.text, fontFamily: fonts.display, fontSize: 30, letterSpacing: -0.8, flexShrink: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },

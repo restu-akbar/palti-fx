@@ -21,6 +21,7 @@ import { NavProvider, Route, TabKey, useNav } from './src/nav';
 import { EduProvider } from './src/context/EduContext';
 import { AuthService } from './src/lib/authService';
 import { getSecureNickname } from './src/lib/nicknameStorage';
+import { NetworkService } from './src/lib/networkService';
 import { EduScreen, LessonScreen, ModuleScreen } from './src/screens/EduScreens';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { JournalScreen, TradeFormScreen } from './src/screens/JournalScreens';
@@ -276,6 +277,16 @@ function MainApp() {
       setAuthChecked(true);
     });
   }, [ready, isLoggedIn, updateSettings, syncFromCloud]);
+
+  // Saat koneksi kembali (offline -> online), kirim ulang penulisan yang tertunda lewat sinkron
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let wasOnline = NetworkService.isOnline();
+    return NetworkService.subscribe((online) => {
+      if (online && !wasOnline) syncFromCloud();
+      wasOnline = online;
+    });
+  }, [isLoggedIn, syncFromCloud]);
 
   // Listener bila sesi berakhir di luar app (misal token revoke)
   useEffect(() => {

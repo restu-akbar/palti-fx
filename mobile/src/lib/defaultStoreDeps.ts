@@ -7,6 +7,7 @@ import {
   loadAllUserData,
   saveLocalAchievementsForUser,
   saveLocalCompletedForUser,
+  saveLocalOutboxForUser,
   saveLocalSettingsForUser,
   saveLocalTradesForUser,
 } from './userCacheStorage';
@@ -22,6 +23,7 @@ export const defaultStoreDeps: StoreDeps = {
     saveCompleted: saveLocalCompletedForUser,
     saveAchievements: saveLocalAchievementsForUser,
     saveSettings: saveLocalSettingsForUser,
+    saveOutbox: saveLocalOutboxForUser,
   },
   async currentUserId() {
     try {

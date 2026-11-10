@@ -144,6 +144,25 @@ describe('AuthService.activate', () => {
     });
   });
 
+  it('tidak pernah mengirim role dari klien, termasuk untuk email admin', async () => {
+    await AuthService.activate('paltigt1@gmail.com', 'PFX1234', 'abc12345');
+    const arg = (supabase.auth.signUp as any).mock.calls.at(-1)[0];
+    expect(JSON.stringify(arg)).not.toMatch(/role|admin/i);
+  });
+
+  it('email admin tetap wajib kode undangan di aplikasi', async () => {
+    expect((await AuthService.activate('paltigt1@gmail.com', '', 'abc12345')).error).toMatch(/undangan/i);
+  });
+
+  it('500 generik saat signup (kode ditolak trigger) bukan pesan koneksi', async () => {
+    supabase.auth.signUp.mockResolvedValueOnce({
+      data: {},
+      error: { name: 'AuthRetryableFetchError', message: '{}', status: 500 },
+    } as never);
+    const r = await AuthService.activate('a@b.com', 'PFX1234', 'abc12345');
+    expect(r.error).toContain('Kode undangan');
+  });
+
   it('error pendaftaran dipetakan', async () => {
     supabase.auth.signUp.mockResolvedValue({ data: {}, error: { message: 'Database error saving new user' } } as never);
     const r = await AuthService.activate('a@b.com', 'PFX1234', 'abc12345');
@@ -323,5 +342,66 @@ describe('AuthService.restoreSession', () => {
   it('exception tak terduga → unknown', async () => {
     supabase.auth.getSession.mockRejectedValue(new Error('boom'));
     expect(await AuthService.restoreSession()).toEqual({ state: 'unknown' });
+  });
+});
+
+describe('AuthService.deleteAccount', () => {
+  beforeEach(() => {
+    for (const fn of [supabase.rpc, supabase.auth.getUser, supabase.auth.signInWithPassword, supabase.auth.signOut]) fn.mockClear();
+    supabase.auth.getUser.mockResolvedValue({ data: { user: null }, error: null });
+    supabase.auth.signOut.mockResolvedValue({ error: null });
+  });
+
+  const signedIn = () => supabase.auth.getUser.mockResolvedValue({ data: { user: user() }, error: null });
+
+  it('menolak kata sandi kosong tanpa menghubungi server', async () => {
+    const r = await AuthService.deleteAccount('');
+    expect(r.success).toBe(false);
+    expect(supabase.auth.getUser).not.toHaveBeenCalled();
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it('gagal bila tidak ada sesi', async () => {
+    const r = await AuthService.deleteAccount('abc12345');
+    expect(r.success).toBe(false);
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it('kata sandi salah: tidak memanggil RPC hapus', async () => {
+    signedIn();
+    supabase.auth.signInWithPassword.mockResolvedValue({ data: { user: null, session: null }, error: { code: 'invalid_credentials', message: 'Invalid login credentials' } });
+    const r = await AuthService.deleteAccount('salah');
+    expect(r).toEqual({ success: false, error: 'Kata sandi tidak cocok.' });
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it('berhasil: konfirmasi ulang, RPC dipanggil, sesi lokal dibersihkan', async () => {
+    signedIn();
+    supabase.auth.signInWithPassword.mockResolvedValue({ data: { user: user(), session: {} }, error: null });
+    supabase.onRpc('delete_my_account', () => ({ data: null }));
+    const r = await AuthService.deleteAccount('abc12345');
+    expect(r).toEqual({ success: true });
+    expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'dio@mail.com', password: 'abc12345' });
+    expect(supabase.rpc).toHaveBeenCalledWith('delete_my_account');
+    expect(supabase.auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('akun admin ditolak server dengan pesan jelas dan sesi tidak dihapus', async () => {
+    signedIn();
+    supabase.auth.signInWithPassword.mockResolvedValue({ data: { user: user(), session: {} }, error: null });
+    supabase.onRpc('delete_my_account', () => ({ error: { code: '42501', message: 'x' } }));
+    const r = await AuthService.deleteAccount('abc12345');
+    expect(r.success).toBe(false);
+    expect(r.error).toMatch(/admin/i);
+    expect(supabase.auth.signOut).not.toHaveBeenCalled();
+  });
+
+  it('gagal jaringan saat RPC: pesan umum, tidak logout', async () => {
+    signedIn();
+    supabase.auth.signInWithPassword.mockResolvedValue({ data: { user: user(), session: {} }, error: null });
+    supabase.onRpc('delete_my_account', () => ({ error: { message: 'Failed to fetch' } }));
+    const r = await AuthService.deleteAccount('abc12345');
+    expect(r.success).toBe(false);
+    expect(supabase.auth.signOut).not.toHaveBeenCalled();
   });
 });

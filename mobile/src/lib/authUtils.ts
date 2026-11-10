@@ -58,7 +58,12 @@ export function mapAuthError(err: AuthErrorLike | null | undefined): string {
   const msg = (err?.message ?? '').toLowerCase();
   const status = err?.status;
 
-  if (msg.includes('error sending') || msg.includes('recovery email') || msg.includes('smtp') || status === 500) {
+  // Trigger database menolak kode undangan → Supabase membalas 500 "Database error saving new user".
+  // Harus dicek sebelum fallback status 500, kalau tidak pengguna melihat pesan SMTP yang menyesatkan.
+  if (msg.includes('database error saving new user') || msg.includes('kode undangan')) {
+    return 'Kode undangan tidak valid. Minta kode terbaru ke admin PALTI FX.';
+  }
+  if (msg.includes('error sending') || msg.includes('recovery email') || msg.includes('confirmation email') || msg.includes('smtp')) {
     return 'Gagal mengirim email dari server (SMTP). Jika memakai Resend Sandbox, email tujuan harus sama dengan akun Resend Anda (atau verifikasi domain di Resend).';
   }
   if (err?.name === 'AuthRetryableFetchError' || msg.includes('network request failed') || msg.includes('failed to fetch')) {
@@ -88,8 +93,8 @@ export function mapAuthError(err: AuthErrorLike | null | undefined): string {
   if (code === 'otp_expired' || msg.includes('expired') || msg.includes('invalid') && msg.includes('token')) {
     return 'Kode salah atau sudah kedaluwarsa.';
   }
-  if (msg.includes('database error saving new user')) {
-    return 'Kode undangan tidak valid, sudah dipakai, atau kedaluwarsa.';
+  if (status === 500 || code === 'unexpected_failure') {
+    return 'Server sedang bermasalah. Coba lagi beberapa saat atau hubungi admin PALTI FX.';
   }
   return 'Terjadi kendala. Silakan coba lagi.';
 }

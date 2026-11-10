@@ -10,7 +10,7 @@ const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!url || !anonKey) {
   throw new Error(
-    'EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY belum diset. Salin frontend/.env.example ke frontend/.env lalu restart dengan `npx expo start -c`.'
+    'EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY belum diset. Salin mobile/.env.example ke mobile/.env lalu restart dengan `npx expo start -c`.'
   );
 }
 

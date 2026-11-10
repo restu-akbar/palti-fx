@@ -15,7 +15,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
     total_modules: 0,
     total_lessons: 0,
     active_invites: 0,
-    used_invites: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -309,7 +308,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
                 letterSpacing: '-0.02em',
                 lineHeight: 1,
               }}>
-                {loading ? '—' : stats.active_invites}
+                {loading ? '—' : stats.active_invites > 0 ? 'Aktif' : 'Belum ada'}
               </span>
               <span style={{
                 fontSize: '0.75rem',
@@ -319,30 +318,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
                 letterSpacing: '0.06em',
                 marginLeft: '0.6rem',
               }}>
-                Kode Siap Pakai
-              </span>
-            </div>
-
-            <div>
-              <span style={{
-                fontSize: '2.5rem',
-                fontWeight: 600,
-                fontFamily: 'var(--font-display)',
-                color: 'var(--text-secondary)',
-                letterSpacing: '-0.02em',
-                lineHeight: 1,
-              }}>
-                {loading ? '—' : stats.used_invites}
-              </span>
-              <span style={{
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                color: 'var(--text-dim)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                marginLeft: '0.6rem',
-              }}>
-                Telah Teraktivasi
+                Kode Undangan
               </span>
             </div>
           </div>
@@ -355,7 +331,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
             maxWidth: '640px',
             marginLeft: 'auto',
           }}>
-            Pintu gerbang akses privat komunitas PALTI FX. Terbitkan kode unik secara acak 1-klik (contoh: PFX-VIP-XXXXX) atau buat kode kustom untuk batch tertentu. Pantau masa berlaku dan identitas member yang mengaktivasinya secara transparan.
+            Pintu gerbang akses privat komunitas PALTI FX. Satu kode undangan untuk semua calon member; ganti kapan saja dan kode lama langsung tidak berlaku.
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

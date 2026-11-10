@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FakeSupabase } from '../test/fakeSupabase';
 
 vi.mock('./supabase', async () => {
@@ -16,6 +16,7 @@ import {
   extractContentUrls,
   MediaUploadService,
   SupabaseMediaStorage,
+  R2MediaStorage,
   createMediaStorage,
   detectImageType,
   validateImageFile,
@@ -80,8 +81,9 @@ describe('createMediaStorage', () => {
     expect(createMediaStorage('image', { VITE_STORAGE_DRIVER: ' Supabase ' })).toBeInstanceOf(SupabaseMediaStorage);
   });
 
-  it('driver r2 belum dikonfigurasi dan driver asing ditolak', () => {
-    expect(() => createMediaStorage('image', { VITE_STORAGE_DRIVER: 'r2' })).toThrow(/R2/);
+  it('driver r2 butuh VITE_R2_PUBLIC_BASE_URL dan driver asing ditolak', () => {
+    expect(() => createMediaStorage('image', { VITE_STORAGE_DRIVER: 'r2' })).toThrow(/VITE_R2_PUBLIC_BASE_URL/);
+    expect(createMediaStorage('video', { VITE_STORAGE_DRIVER: 'r2', VITE_R2_PUBLIC_BASE_URL: 'https://media.test' })).toBeInstanceOf(R2MediaStorage);
     expect(() => createMediaStorage('image', { VITE_STORAGE_DRIVER: 's4' })).toThrow(/tidak dikenal/);
   });
 });
@@ -280,5 +282,85 @@ describe('MediaCleanup.removeUnreferenced', () => {
     const d = drivers();
     expect(await MediaCleanup.removeUnreferenced(['https://youtu.be/dQw4w9WgXcQ'], d)).toBe(0);
     expect(supabase.queries).toHaveLength(0);
+  });
+});
+
+describe('R2MediaStorage', () => {
+  const BASE = 'https://media.test';
+  const R2_IMG = `${BASE}/images/lessons/2026/11/a.webp`;
+  const r2 = (kind: 'image' | 'video' = 'image') => new R2MediaStorage(kind, `${BASE}/`, kind === 'image' ? 'lesson-images' : 'lesson-videos');
+  const withSession = () =>
+    supabase.auth.getSession.mockResolvedValueOnce({ data: { session: { access_token: 'jwt-1' } }, error: null });
+  const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+
+  // Antrean mockResolvedValueOnce dari test lain bisa tersisa; mulai tiap test tanpa sesi.
+  beforeEach(() => {
+    supabase.auth.getSession.mockReset();
+    supabase.auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('minta URL bertanda tangan lalu PUT ke R2 dan mengembalikan URL publik dari server', async () => {
+    withSession();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reply({ uploadUrl: 'https://r2.test/put?sig=1', headers: { 'Content-Type': 'image/png' }, publicUrl: R2_IMG }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { url } = await r2().upload('ignored.png', PNG, 'image/png');
+
+    expect(url).toBe(R2_IMG);
+    const [api, apiInit] = fetchMock.mock.calls[0];
+    expect(api).toBe('/api/upload-url');
+    expect(apiInit.headers.Authorization).toBe('Bearer jwt-1');
+    expect(JSON.parse(apiInit.body)).toEqual({ kind: 'image', contentType: 'image/png', size: PNG.size });
+    expect(fetchMock.mock.calls[1]).toEqual(['https://r2.test/put?sig=1', { method: 'PUT', headers: { 'Content-Type': 'image/png' }, body: PNG }]);
+  });
+
+  it('gagal bila tidak ada sesi, server menolak, atau PUT gagal', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(r2().upload('p', PNG, 'image/png')).rejects.toMatchObject({ message: expect.stringMatching(/Sesi login/) });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    withSession();
+    fetchMock.mockResolvedValueOnce(reply({ error: 'Hanya admin' }, 403));
+    await expect(r2().upload('p', PNG, 'image/png')).rejects.toMatchObject({ message: 'Hanya admin' });
+
+    withSession();
+    fetchMock
+      .mockResolvedValueOnce(reply({ uploadUrl: 'https://r2.test/put', headers: {}, publicUrl: R2_IMG }))
+      .mockResolvedValueOnce(new Response(null, { status: 403 }));
+    await expect(r2().upload('p', PNG, 'image/png')).rejects.toMatchObject({ message: expect.stringMatching(/R2 \(403\)/) });
+  });
+
+  it('remove hanya mengirim key R2 dan melewati path Supabase lama', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(reply({ deleted: 1 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await r2().remove([]);
+    await r2().remove(['lessons/2026/10/legacy.webp']);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    withSession();
+    await r2().remove(['images/lessons/2026/11/a.webp', 'lessons/2026/10/legacy.webp']);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe('DELETE');
+    expect(JSON.parse(init.body)).toEqual({ keys: ['images/lessons/2026/11/a.webp'] });
+
+    withSession();
+    fetchMock.mockResolvedValueOnce(reply({ error: 'x' }, 502));
+    await expect(r2().remove(['images/a.png'])).rejects.toMatchObject({ message: 'x' });
+  });
+
+  it('pathFromUrl mengenali URL R2 dan URL Supabase selama transisi', () => {
+    const s = r2();
+    expect(s.pathFromUrl(R2_IMG)).toBe('images/lessons/2026/11/a.webp');
+    expect(s.pathFromUrl(`${R2_IMG}?t=1`)).toBe('images/lessons/2026/11/a.webp');
+    expect(s.pathFromUrl(IMG)).toBe('lessons/2026/10/a.webp');
+    expect(s.pathFromUrl(`${BASE}/videos/lessons/2026/11/b.mp4`)).toBeNull();
+    expect(s.pathFromUrl(VID)).toBeNull();
+    expect(s.pathFromUrl('https://youtu.be/dQw4w9WgXcQ')).toBeNull();
   });
 });

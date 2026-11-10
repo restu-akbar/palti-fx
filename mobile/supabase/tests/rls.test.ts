@@ -123,24 +123,24 @@ describe('RLS profiles', () => {
     }));
 });
 
-describe('RLS invitations & app_config', () => {
+describe('RLS invitations', () => {
   it('admin mengelola undangan penuh (baca, tambah, ubah, hapus)', () =>
     db.tx(async (s) => {
       const w = await world(s);
-      const ins = await s.run(w.admin, `insert into public.invitations (code_hash, code_hint) values ('h1', 'Budi') returning id`);
+      expect((await s.run(w.admin, `delete from public.invitations`)).rowCount).toBe(1);
+      const ins = await s.run(w.admin, `insert into public.invitations (code_hash) values ('h1') returning id`);
       const id = ins.rows[0].id;
       expect((await s.rows(w.admin, `select 1 from public.invitations where id = $1`, [id])).length).toBe(1);
-      expect((await s.run(w.admin, `update public.invitations set is_used = true where id = $1`, [id])).rowCount).toBe(1);
+      expect((await s.run(w.admin, `update public.invitations set code_hash = 'h1b' where id = $1`, [id])).rowCount).toBe(1);
       expect((await s.run(w.admin, `delete from public.invitations where id = $1`, [id])).rowCount).toBe(1);
     }));
 
   it('member tidak melihat, menambah, mengubah, atau menghapus undangan', () =>
     db.tx(async (s) => {
       const w = await world(s);
-      await s.sql(`insert into public.invitations (code_hash, code_hint) values ('h1', 'x')`);
       expect((await s.rows(w.alice, `select 1 from public.invitations`)).length).toBe(0);
       await expect(s.run(w.alice, `insert into public.invitations (code_hash) values ('h2')`)).rejects.toMatchObject({ code: PERMISSION_DENIED });
-      expect((await s.run(w.alice, `update public.invitations set is_used = true`)).rowCount).toBe(0);
+      expect((await s.run(w.alice, `update public.invitations set code_hash = 'x'`)).rowCount).toBe(0);
       expect((await s.run(w.alice, `delete from public.invitations`)).rowCount).toBe(0);
     }));
 
@@ -152,16 +152,9 @@ describe('RLS invitations & app_config', () => {
 
   it('hash kode undangan unik', () =>
     db.tx(async (s) => {
+      await s.sql(`delete from public.invitations`);
       await s.sql(`insert into public.invitations (code_hash) values ('dup')`);
       await expect(s.sql(`insert into public.invitations (code_hash) values ('dup')`)).rejects.toMatchObject({ code: '23505' });
-    }));
-
-  it('app_config tertutup untuk anon dan authenticated', () =>
-    db.tx(async (s) => {
-      const w = await world(s);
-      await expect(s.run('anon', `select * from public.app_config`)).rejects.toMatchObject({ code: PERMISSION_DENIED });
-      await expect(s.run(w.admin, `select * from public.app_config`)).rejects.toMatchObject({ code: PERMISSION_DENIED });
-      await expect(s.run(w.alice, `update public.app_config set bool_value = true`)).rejects.toMatchObject({ code: PERMISSION_DENIED });
     }));
 });
 
@@ -312,11 +305,8 @@ describe('RPC & hak eksekusi fungsi', () => {
   it('get_admin_dashboard_stats: admin berhasil, member ditolak, anon tidak punya hak', () =>
     db.tx(async (s) => {
       const w = await world(s);
-      await s.sql(`insert into public.invitations (code_hash) values ('a'), ('b')`);
-      await s.sql(`update public.invitations set is_used = true where code_hash = 'b'`);
-
       const [r] = await s.rows<{ stats: Record<string, number> }>(w.admin, `select public.get_admin_dashboard_stats() as stats`);
-      expect(r.stats).toMatchObject({ total_users: 3, active_users: 3, used_invites: 4, active_invites: 2 });
+      expect(r.stats).toMatchObject({ total_users: 3, active_users: 3, active_invites: 1 });
 
       await expect(s.run(w.alice, `select public.get_admin_dashboard_stats()`)).rejects.toMatchObject({ code: PERMISSION_DENIED });
       await expect(s.run('anon', `select public.get_admin_dashboard_stats()`)).rejects.toMatchObject({ code: PERMISSION_DENIED });

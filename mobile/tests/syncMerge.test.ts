@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { it } from 'vitest';
-import { mergeCompleted, mergeTrades, mergeUnlocked } from '../src/core/domain/syncMerge';
+import { mergeCompleted, mergeTrades } from '../src/core/domain/syncMerge';
 import { computeStats, upsertTrade, Trade } from '../src/core/domain/trade';
 
 it('syncMerge dan domain trade', () => {
@@ -12,13 +12,6 @@ it('syncMerge dan domain trade', () => {
     const r = mergeCompleted({ a: true }, { a: true, b: true, c: false });
     assert.deepEqual(r.merged, { a: true, b: true, c: false });
     assert.deepEqual(r.toUpload, ['b']);
-  }
-
-  {
-    const r = mergeUnlocked({ x: 1 }, { x: 9, y: 2 });
-    assert.deepEqual(r.merged, { x: 9, y: 2 });
-    assert.deepEqual(r.toUpload, [['y', 2]]);
-    assert.deepEqual(mergeUnlocked({ x: 1 }, undefined).merged, { x: 1 });
   }
 
   {

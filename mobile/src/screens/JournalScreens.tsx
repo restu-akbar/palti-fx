@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EquityChart } from '../components/EquityChart';
 import { StreakCard } from '../components/Streak';
@@ -40,12 +40,17 @@ const inPeriod = (t: Trade, p: Period) => {
   return d >= weekAgo;
 };
 
+/** Jumlah riwayat trade yang dirender per tahap; sisanya dimuat bertahap agar layar tetap ringan. */
+const HISTORY_PAGE = 30;
+
 export function JournalScreen() {
   const nav = useNav();
   const { trades, deleteTrade } = useStore();
   const [period, setPeriod] = useState<Period>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const list = useMemo(() => trades.filter((t) => inPeriod(t, period)), [trades, period]);
+  const [shown, setShown] = useState(HISTORY_PAGE);
+  useEffect(() => setShown(HISTORY_PAGE), [period]);
   const s = useMemo(() => computeStats(list), [list]);
   const selected = trades.find((t) => t.id === selectedId) ?? null;
   const streak = useMemo(() => computeStreak(trades), [trades]);
@@ -115,11 +120,24 @@ export function JournalScreen() {
             <Ionicons name="lock-closed" size={12} color={colors.muted} />
             <Text style={st.lockHintText}>Catatan terkunci. Ketuk untuk melihat detail.</Text>
           </View>
-          {list.map((t, i) => (
+          {list.slice(0, shown).map((t, i) => (
             <FadeIn key={t.id} delay={200 + Math.min(i, 10) * 50} from="right">
               <TradeRow t={t} onPress={() => setSelectedId(t.id)} />
             </FadeIn>
           ))}
+          {list.length > shown ? (
+            <Pressable
+              onPress={() => {
+                tap('light');
+                setShown((n) => n + HISTORY_PAGE);
+              }}
+              style={st.moreBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Tampilkan lebih banyak riwayat"
+            >
+              <Text style={st.moreText}>Tampilkan lebih banyak ({list.length - shown} lagi)</Text>
+            </Pressable>
+          ) : null}
         </>
       )}
 
@@ -521,6 +539,8 @@ const st = StyleSheet.create({
   fabTitle: { color: colors.ink, fontFamily: fonts.display, fontSize: 18, letterSpacing: -0.3 },
   fabSub: { color: 'rgba(22,17,10,0.65)', fontFamily: fonts.semi, fontSize: 12, marginTop: 1 },
   lockHint: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4, marginBottom: 10 },
+  moreBtn: { alignItems: 'center', paddingVertical: 14, marginTop: 6 },
+  moreText: { color: colors.gold, fontFamily: fonts.semi, fontSize: 13 },
   lockHintText: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12 },
   detailHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
   detailPl: { fontFamily: fonts.display, fontSize: 32, letterSpacing: -0.8, marginTop: 2 },

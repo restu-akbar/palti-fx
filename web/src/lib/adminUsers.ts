@@ -86,10 +86,7 @@ export class AdminUsersService {
         }
       });
 
-      const [{ count: activeInvites }, { count: usedInvites }] = await Promise.all([
-        supabase.from('invitations').select('*', { count: 'exact', head: true }).eq('is_used', false),
-        supabase.from('invitations').select('*', { count: 'exact', head: true }).eq('is_used', true),
-      ]);
+      const { count: activeInvites } = await supabase.from('invitations').select('*', { count: 'exact', head: true });
 
       return {
         total_users: totalUsers || 0,
@@ -100,7 +97,6 @@ export class AdminUsersService {
         total_lessons: totalLessons,
         total_videos: totalVideos,
         active_invites: activeInvites || 0,
-        used_invites: usedInvites || 0,
       };
     } catch (err) {
       console.warn('[AdminUsersService.getDashboardStats] fallback:', err);
@@ -113,7 +109,6 @@ export class AdminUsersService {
         total_lessons: 0,
         total_videos: 0,
         active_invites: 0,
-        used_invites: 0,
       };
     }
   }

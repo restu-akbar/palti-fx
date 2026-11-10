@@ -58,8 +58,9 @@ export async function openTestDb(): Promise<TestDb> {
     },
     async member(email, opts = {}) {
       const code = `T${randomBytes(5).toString('hex').toUpperCase()}`;
+      await this.sql(`delete from public.invitations`);
       await this.sql(
-        `insert into public.invitations (code_hash, code_hint) values (encode(sha256(convert_to($1, 'UTF8')), 'hex'), 'test')`,
+        `insert into public.invitations (code_hash) values (encode(sha256(convert_to($1, 'UTF8')), 'hex'))`,
         [code]
       );
       const meta = JSON.stringify({ invitation_code: code, ...(opts.name ? { full_name: opts.name } : {}) });

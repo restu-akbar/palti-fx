@@ -107,9 +107,8 @@ export class AuthService {
   ): Promise<{ success: boolean; signedIn?: boolean; identifier?: string; name?: string; role?: 'member' | 'admin'; error?: string }> {
     const mail = normalizeIdentifier(email);
     const code = normalizeInviteCode(invitationCode);
-    const isAdminEmail = mail === 'dioraput@gmail.com';
     if (!isEmail(mail)) return { success: false, error: 'Format email tidak valid.' };
-    if (!isAdminEmail && code.length < 4) return { success: false, error: 'Kode undangan tidak valid.' };
+    if (code.length < 4) return { success: false, error: 'Kode undangan tidak valid.' };
     const pwErr = validatePassword(password);
     if (pwErr) return { success: false, error: pwErr };
 
@@ -118,13 +117,18 @@ export class AuthService {
         email: mail,
         password,
         options: {
-          data: {
-            ...(code ? { invitation_code: code } : {}),
-            ...(isAdminEmail ? { role: 'admin' } : {}),
-          },
+          data: { invitation_code: code },
         },
       });
-      if (error) return { success: false, error: mapAuthError(error) };
+      if (error) {
+        // Trigger yang menolak kode undangan kadang membuat GoTrue membalas 500 generik
+        // ("unexpected_failure"); auth-js lalu melemparnya sebagai AuthRetryableFetchError
+        // yang mirip error jaringan. Status 500 di signup hampir selalu berarti kode ditolak.
+        if (error.status === 500) {
+          return { success: false, error: 'Kode undangan tidak valid. Minta kode terbaru ke admin PALTI FX.' };
+        }
+        return { success: false, error: mapAuthError(error) };
+      }
 
       // Email sudah terdaftar & konfirmasi aktif → identities kosong (tanpa error)
       if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
@@ -160,7 +164,6 @@ export class AuthService {
       }
       const { error } = await supabase.auth.resetPasswordForEmail(email);
       if (error) {
-        console.error('[authService.requestPasswordReset] Supabase error:', error);
         if (error.status === 429 || error.code === 'over_email_send_rate_limit') {
           return { success: false, rateLimited: true, error: mapAuthError(error) };
         }
@@ -168,7 +171,6 @@ export class AuthService {
       }
       return { success: true };
     } catch (err: any) {
-      console.error('[authService.requestPasswordReset] Caught exception:', err);
       return { success: false, error: mapAuthError(err) };
     }
   }
@@ -210,6 +212,38 @@ export class AuthService {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) return { success: false, error: mapAuthError(error) };
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: mapAuthError(err) };
+    }
+  }
+
+  /**
+   * Hapus akun permanen (syarat Apple/Play). Konfirmasi ulang dengan kata sandi,
+   * lalu RPC delete_my_account menghapus akun beserta seluruh data di cloud.
+   */
+  static async deleteAccount(password: string): Promise<{ success: boolean; error?: string }> {
+    if (!password) return { success: false, error: 'Masukkan kata sandi untuk konfirmasi.' };
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const email = u?.user?.email;
+      if (!email) return { success: false, error: 'Sesi tidak ditemukan. Silakan masuk kembali.' };
+
+      const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+      if (authErr) {
+        const net = authErr.name === 'AuthRetryableFetchError' || /network|fetch/i.test(authErr.message);
+        return { success: false, error: net ? mapAuthError(authErr) : 'Kata sandi tidak cocok.' };
+      }
+
+      const { error } = await supabase.rpc('delete_my_account');
+      if (error) {
+        if (error.code === '42501') {
+          return { success: false, error: 'Akun admin tidak dapat dihapus dari aplikasi.' };
+        }
+        return { success: false, error: 'Akun belum dapat dihapus. Periksa koneksi dan coba lagi.' };
+      }
+
       await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
       return { success: true };
     } catch (err: any) {

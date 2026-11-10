@@ -32,7 +32,7 @@ export class AdminAuthService {
       let resolvedProfile = profile as Profile | null;
 
       if (!resolvedProfile && currentUser.email) {
-        const isOfficialAdmin = currentUser.email.toLowerCase() === 'dioraput@gmail.com';
+        const isOfficialAdmin = currentUser.email.toLowerCase() === 'paltigt1@gmail.com';
         const { error: rpcErr } = await supabase.rpc('get_admin_dashboard_stats');
         if (!rpcErr || isOfficialAdmin) {
           resolvedProfile = {
@@ -126,7 +126,7 @@ export class AdminAuthService {
       if (!resolvedProfile) {
         // Fallback jika terjadi infinite recursion RLS pada tabel profiles di Supabase:
         // Cek via fungsi security definer get_admin_dashboard_stats atau email admin resmi
-        const isOfficialAdmin = cleanEmail === 'dioraput@gmail.com';
+        const isOfficialAdmin = cleanEmail === 'paltigt1@gmail.com';
         const { error: rpcErr } = await supabase.rpc('get_admin_dashboard_stats');
 
         if (!rpcErr || isOfficialAdmin) {

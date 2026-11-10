@@ -7,13 +7,13 @@
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.109.0",
-    "expo": "~57.0.24",
+    "expo": "~57.0.32",
     "expo-blur": "~57.0.3",
     "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-linear-gradient": "~57.0.2",
     "expo-secure-store": "~57.0.4",
-    "expo-splash-screen": "~57.0.9",
+    "expo-splash-screen": "~57.0.11",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
     "react": "19.2.3",
@@ -48,8 +48,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:db": "vitest run --config vitest.db.config.ts",
-    "build:release": "node scripts/build-release.js",
-    "build:apk": "node scripts/build-release.js"
+    "build:web": "expo export -p web"
   },
   "private": true
 }
