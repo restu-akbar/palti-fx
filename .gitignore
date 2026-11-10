@@ -74,3 +74,8 @@ User-Story_PALTI-FX*
 User-Story_PALTI-FX_v2.docx
 
 coverage/
+
+# Artefak build lokal (APK/AAB disimpan di EAS, bukan git)
+mobile/releases/
+*.apk
+*.aab
