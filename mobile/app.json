@@ -82,6 +82,12 @@
         }
       ]
     ],
-    "scheme": "paltifx"
+    "scheme": "paltifx",
+    "extra": {
+      "eas": {
+        "projectId": "ffd37406-9bbf-4b6d-a30f-f6eb9b4c7194"
+      }
+    },
+    "owner": "restu34s-team"
   }
 }
