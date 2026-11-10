@@ -15,7 +15,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ currentA
     total_modules: 0,
     total_lessons: 0,
     active_invites: 0,
-    used_invites: 0,
   });
   const [loading, setLoading] = useState(true);
 

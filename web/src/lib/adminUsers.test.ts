@@ -77,7 +77,7 @@ describe('AdminUsersService.getDashboardStats', () => {
         { id: 'l3', youtube_urls: null },
       ],
     }));
-    supabase.onTable('invitations', (q) => ({ count: q.filters.some((f) => f.value === false) ? 4 : 6 }));
+    supabase.onTable('invitations', () => ({ count: 1 }));
 
     expect(await AdminUsersService.getDashboardStats()).toEqual({
       total_users: 10,
@@ -87,8 +87,7 @@ describe('AdminUsersService.getDashboardStats', () => {
       total_chapters: 3,
       total_lessons: 3,
       total_videos: 3,
-      active_invites: 4,
-      used_invites: 6,
+      active_invites: 1,
     });
   });
 

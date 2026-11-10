@@ -57,40 +57,19 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-declare
-  v_is_admin boolean;
-  v_total_users int;
-  v_active_users int;
-  v_total_modules int;
-  v_total_lessons int;
-  v_active_invites int;
-  v_used_invites int;
 begin
-  select exists (
-    select 1 from public.profiles
-    where id = auth.uid() and role = 'admin'
-  ) into v_is_admin;
-
-  if not coalesce(v_is_admin, false) then
+  if not public.is_admin() then
     raise exception 'Hanya administrator yang dapat melihat statistik dashboard' using errcode = '42501';
   end if;
 
-  select count(*) into v_total_users from public.profiles;
-  select count(*) into v_active_users from public.profiles where status = 'active';
-  select count(*) into v_total_modules from public.edu_modules;
-  select count(*) into v_total_lessons from public.edu_lessons;
-  select count(*) into v_active_invites from public.invitations where is_used = false;
-  select count(*) into v_used_invites from public.invitations where is_used = true;
-
   return json_build_object(
-    'total_users', v_total_users,
-    'active_users', v_active_users,
-    'total_modules', v_total_modules,
-    'total_lessons', v_total_lessons,
-    'active_invites', v_active_invites,
-    'used_invites', v_used_invites
+    'total_users',   (select count(*) from public.profiles),
+    'active_users',  (select count(*) from public.profiles where status = 'active'),
+    'total_modules', (select count(*) from public.edu_modules),
+    'total_lessons', (select count(*) from public.edu_lessons),
+    'active_invites', (select count(*) from public.invitations)
   );
-end;
+end
 $$;
 
 revoke all on function public.get_admin_dashboard_stats() from public, anon;

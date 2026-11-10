@@ -13,7 +13,7 @@ const hashOf = (code: string) => `encode(sha256(convert_to('${code}', 'UTF8')), 
 // Satu kode global: menyetel kode selalu menimpa kode sebelumnya
 const addInvite = async (s: { sql: (t: string) => Promise<unknown> }, code: string) => {
   await s.sql(`delete from public.invitations`);
-  await s.sql(`insert into public.invitations (code_hash, code_hint) values (${hashOf(code)}, 'label')`);
+  await s.sql(`insert into public.invitations (code_hash) values (${hashOf(code)})`);
 };
 
 describe('normalize_invite_code', () => {
@@ -39,9 +39,7 @@ describe('trigger handle_new_user: pendaftaran member', () => {
       expect(p).toMatchObject({ email: 'budi@mail.com', full_name: 'Budi S', role: 'member', status: 'active' });
       expect(p.member_id).toMatch(/^PFX-[0-9A-F]{8}$/);
 
-      const [inv] = await s.rows<{ is_used: boolean; used_at: string | null }>('service', `select is_used, used_at from public.invitations where code_hint = 'label'`);
-      expect(inv.is_used).toBe(false);
-      expect(inv.used_at).toBeNull();
+      expect((await s.rows('service', `select 1 from public.invitations`)).length).toBe(1);
     }));
 
   it('email otomatis terkonfirmasi', () =>
@@ -67,7 +65,6 @@ describe('trigger handle_new_user: pendaftaran member', () => {
 
       expect((await s.rows('service', `select 1 from auth.users`)).length).toBe(0);
       expect((await s.rows('service', `select 1 from public.profiles`)).length).toBe(0);
-      expect((await s.rows<{ is_used: boolean }>('service', `select is_used from public.invitations where code_hint = 'label'`))[0].is_used).toBe(false);
     }));
 
   it('kode yang sama bisa dipakai banyak pendaftar', () =>
@@ -88,7 +85,7 @@ describe('trigger handle_new_user: pendaftaran member', () => {
       await s.sql(`insert into auth.users (email, raw_user_meta_data) values ('b@x.com', '{"invitation_code":"BARU5678"}')`);
     }));
 
-  it('tanpa kode ditolak selama pendaftaran manual dimatikan', () =>
+  it('tanpa kode selalu ditolak', () =>
     db.tx(async (s) => {
       await expect(s.sql(`insert into auth.users (email) values ('x@x.com')`)).rejects.toMatchObject({
         code: 'P0001',
@@ -96,20 +93,6 @@ describe('trigger handle_new_user: pendaftaran member', () => {
       });
     }));
 
-  it('saklar allow_manual_signup mengizinkan pendaftaran tanpa kode', () =>
-    db.tx(async (s) => {
-      await s.sql(`update public.app_config set bool_value = true where key = 'allow_manual_signup'`);
-      await s.sql(`insert into auth.users (email) values ('x@x.com')`);
-      expect((await s.rows<{ role: string }>('service', `select role from public.profiles`))[0].role).toBe('member');
-    }));
-
-  it('role dalam undangan tidak menaikkan hak: pendaftar undangan selalu member', () =>
-    db.tx(async (s) => {
-      await s.sql(`delete from public.invitations`);
-      await s.sql(`insert into public.invitations (code_hash, role) values (${hashOf('ADMIN123')}, 'admin')`);
-      await s.sql(`insert into auth.users (email, raw_user_meta_data) values ('a@x.com', '{"invitation_code":"ADMIN123"}')`);
-      expect((await s.rows<{ role: string }>('service', `select role from public.profiles`))[0].role).toBe('member');
-    }));
 });
 
 describe('RPC set_invite_code', () => {

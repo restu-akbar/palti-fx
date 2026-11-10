@@ -15,10 +15,6 @@ export interface Profile {
 export interface Invitation {
   id: string;
   code_hash: string;
-  code_hint?: string | null;
-  role: UserRole;
-  is_used: boolean;
-  used_at: string | null;
   created_at: string;
 }
 
@@ -55,5 +51,4 @@ export interface DashboardStats {
   total_lessons: number;
   total_videos?: number;
   active_invites: number;
-  used_invites: number;
 }

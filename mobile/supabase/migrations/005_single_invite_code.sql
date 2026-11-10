@@ -10,15 +10,22 @@
 -- =====================================================================
 
 -- 1. Sisakan hanya kode terbaru yang masih aktif, lalu kunci tabel jadi satu baris
-delete from public.invitations
- where id is distinct from (
-   select id from public.invitations
-    where is_used = false
-    order by created_at desc
-    limit 1
- );
-
-update public.invitations set is_used = false, used_at = null;
+do $$
+begin
+  -- Kolom is_used dibuang di migrasi 006; langkah ini hanya relevan untuk skema lama.
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'invitations' and column_name = 'is_used') then
+    delete from public.invitations
+     where id is distinct from (
+       select id from public.invitations where is_used = false order by created_at desc limit 1
+     );
+    update public.invitations set is_used = false, used_at = null;
+  else
+    delete from public.invitations
+     where id is distinct from (select id from public.invitations order by created_at desc limit 1);
+  end if;
+end
+$$;
 
 create unique index if not exists invitations_singleton on public.invitations ((true));
 
@@ -41,8 +48,8 @@ begin
   end if;
 
   delete from public.invitations where true;
-  insert into public.invitations (code_hash, code_hint, role, is_used, created_at)
-  values (encode(sha256(convert_to(v_code, 'UTF8')), 'hex'), null, 'member', false, v_at);
+  insert into public.invitations (code_hash, created_at)
+  values (encode(sha256(convert_to(v_code, 'UTF8')), 'hex'), v_at);
 
   return v_at;
 end
